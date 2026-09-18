@@ -1,0 +1,17 @@
+[tool.ruff]
+line-length = 95
+# Код должен собираться и на 3.11: в контейнере 3.12, локально бывает 3.11.
+target-version = "py311"
+exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["B008"]  # Depends(...) в значениях по умолчанию - идиома FastAPI
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "scripts", "tests"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]

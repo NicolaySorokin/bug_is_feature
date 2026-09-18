@@ -1,0 +1,72 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: edu_crm_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-edu_crm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-edu_crm}
+      POSTGRES_DB: ${POSTGRES_DB:-edu_crm}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-edu_crm} -d ${POSTGRES_DB:-edu_crm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    container_name: edu_crm_api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-dev}
+      AUTH_BACKEND: ${AUTH_BACKEND:-dev}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-edu_crm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-edu_crm}
+      POSTGRES_DB: ${POSTGRES_DB:-edu_crm}
+      KEYCLOAK_BASE_URL: ${KEYCLOAK_BASE_URL:-http://keycloak:8080}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-edu-crm}
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-edu-crm-api}
+    ports:
+      - "8000:8000"
+    volumes:
+      # Каркас работает в режиме разработки: код монтируется, сервер перезагружается.
+      - ./backend:/app
+      - api_storage:/app/storage
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    healthcheck:
+      # Healthy означает, что миграции прошли и API отвечает: на это опирается `make up`.
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://localhost:8000/api/v1/health")
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  # Включается отдельно: docker compose --profile keycloak up -d
+  # После этого достаточно выставить AUTH_BACKEND=keycloak.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: edu_crm_keycloak
+    profiles: ["keycloak"]
+    command: start-dev --http-port=8080
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
+  api_storage:
