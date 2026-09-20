@@ -1,6 +1,7 @@
 """Все модели импортируются здесь, чтобы Alembic видел полную метадату."""
 
 from app.db.base import Base
+from app.models.audit import AuditLog
 from app.models.catalog import ItDirection, ItProduct, ItProgram, ProgramProduct, Vendor
 from app.models.content import Attachment, Comment
 from app.models.contract import (
@@ -10,6 +11,8 @@ from app.models.contract import (
     ContractProgram,
     License,
 )
+from app.models.importing import ImportRowError, ImportRun
+from app.models.integration import ExternalLink, IntegrationRun, IntegrationSource
 from app.models.university import University, UniversityContact
 from app.models.user import User
 from app.models.workflow import (
@@ -23,12 +26,18 @@ from app.models.workflow import (
 
 __all__ = [
     "Attachment",
+    "AuditLog",
     "Base",
     "Comment",
     "Contract",
     "ContractContact",
     "ContractProduct",
     "ContractProgram",
+    "ExternalLink",
+    "ImportRowError",
+    "ImportRun",
+    "IntegrationRun",
+    "IntegrationSource",
     "ItDirection",
     "ItProduct",
     "ItProgram",

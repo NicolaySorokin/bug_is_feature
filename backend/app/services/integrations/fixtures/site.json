@@ -1,0 +1,62 @@
+{
+  "_comment": "Тестовый ответ сайта на CMS Laravel. Форма полей - предположение до получения контракта от организаторов.",
+  "universities": [
+    {
+      "id": "site-1",
+      "name": "Московский технический университет связи и информатики",
+      "short_name": "МТУСИ",
+      "city": "Москва",
+      "website": "https://mtuci.ru",
+      "contacts": [
+        {
+          "full_name": "Иванова Мария Сергеевна",
+          "position": "Проректор по учебной работе",
+          "email": "ivanova@example.edu",
+          "phone": "+7 495 000-00-01"
+        }
+      ]
+    },
+    {
+      "id": "site-2",
+      "name": "Казанский национальный исследовательский технический университет",
+      "short_name": "КНИТУ-КАИ",
+      "city": "Казань",
+      "website": "https://kai.ru",
+      "contacts": [
+        {
+          "full_name": "Гафуров Ильдар Рашидович",
+          "position": "Заведующий кафедрой информатики",
+          "email": "gafurov@example.edu"
+        }
+      ]
+    },
+    {
+      "id": "site-3",
+      "name": "Новосибирский государственный технический университет",
+      "short_name": "НГТУ",
+      "city": "Новосибирск",
+      "website": "https://nstu.ru",
+      "contacts": [
+        {
+          "full_name": "Ковалёва Анна Петровна",
+          "position": "Начальник учебного управления",
+          "email": "kovaleva@example.edu"
+        }
+      ]
+    }
+  ],
+  "requests": [
+    {
+      "id": "req-2026-001",
+      "university_id": "site-2",
+      "program_ids": ["lms-103", "lms-101"],
+      "comment": "Заявка с сайта: интересует DevOps и Python для двух потоков"
+    },
+    {
+      "id": "req-2026-002",
+      "university_id": "site-3",
+      "program_ids": ["lms-105"],
+      "comment": "Заявка с сайта: программа по информационной безопасности"
+    }
+  ]
+}

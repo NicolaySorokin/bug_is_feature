@@ -142,6 +142,11 @@ async def start_instance(
     user: User,
 ) -> WorkflowInstance:
     """Создаёт экземпляр процесса по договору и ставит его на стартовый этап."""
+    if not version.is_published:
+        # Черновик ещё правят: запускать по нему процессы нельзя, иначе
+        # правка шаблона изменит ход уже идущей работы.
+        raise WorkflowError("Версия шаблона не опубликована")
+
     existing = await session.execute(
         select(WorkflowInstance).where(
             WorkflowInstance.contract_id == contract_id,

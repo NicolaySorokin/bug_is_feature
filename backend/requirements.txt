@@ -8,3 +8,9 @@ pydantic-settings>=2.7,<3.0
 python-multipart>=0.0.20
 httpx>=0.28,<1.0
 PyJWT[crypto]>=2.10,<3.0
+# Импорт каталогов и выгрузка отчётов в XLSX
+openpyxl>=3.1,<4.0
+# Чтение файлов в старом формате Excel 97 (.xls): openpyxl их не открывает
+xlrd>=2.0,<3.0
+# Отчёты и диаграммы в PDF и PNG (renderPM входит в колесо reportlab)
+reportlab>=4.2,<5.0

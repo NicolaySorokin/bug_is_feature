@@ -1,0 +1,115 @@
+{
+  "realm": "edu-crm",
+  "displayName": "ИТ Школа Ростелекома — CRM",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "accessTokenLifespan": 1800,
+  "ssoSessionIdleTimeout": 3600,
+  "roles": {
+    "realm": [
+      {
+        "name": "manager",
+        "description": "Пользователь / КАМ: работа со своими вузами и договорами"
+      },
+      {
+        "name": "head",
+        "description": "Руководитель: сводка по команде, назначение ответственных"
+      },
+      {
+        "name": "admin",
+        "description": "Администратор: справочники, шаблоны процессов, импорт, настройки"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "edu-crm-api",
+      "name": "EDU CRM API",
+      "description": "Серверная часть. Токены проверяются по JWKS реалма, аудитория — этот клиент.",
+      "enabled": true,
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "secret": "edu-crm-api-secret"
+    },
+    {
+      "clientId": "edu-crm-web",
+      "name": "EDU CRM Web",
+      "description": "Клиентская часть: публичный клиент, Authorization Code + PKCE.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:5173/*",
+        "http://localhost:3000/*",
+        "https://edu-crm.nikitarodionov.ru/*"
+      ],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+      "protocolMappers": [
+        {
+          "name": "edu-crm-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "edu-crm-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "petrov",
+      "email": "petrov@example.com",
+      "firstName": "Пётр",
+      "lastName": "Петров",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "petrov", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "username": "ivanova",
+      "email": "ivanova@example.com",
+      "firstName": "Мария",
+      "lastName": "Иванова",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "ivanova", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "username": "orlova",
+      "email": "orlova@example.com",
+      "firstName": "Ольга",
+      "lastName": "Орлова",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "orlova", "temporary": false }],
+      "realmRoles": ["manager", "head"]
+    },
+    {
+      "username": "admin",
+      "email": "admin@example.com",
+      "firstName": "Администратор",
+      "lastName": "Платформы",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "admin", "temporary": false }],
+      "realmRoles": ["manager", "head", "admin"]
+    }
+  ]
+}

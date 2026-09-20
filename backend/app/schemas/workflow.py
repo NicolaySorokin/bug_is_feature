@@ -114,3 +114,69 @@ class BlockRequest(BaseModel):
 class StartRequest(BaseModel):
     template_id: uuid.UUID
     version_id: uuid.UUID | None = None
+
+
+# --- Редактирование шаблонов --------------------------------------------------
+# Этапы и переходы правятся только в черновике версии. Опубликованную версию
+# менять нельзя: по ней идут запущенные процессы (раздел 3.1 концепции).
+
+
+class StageWrite(BaseModel):
+    """Этап схемы. Опознаётся по коду - он же связывает этап с переходами."""
+
+    code: str = Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = None
+    sort_order: int | None = None
+    is_optional: bool = False
+    is_final: bool = False
+    sla_days: int | None = Field(default=None, ge=1)
+    layout_x: int | None = None
+    layout_y: int | None = None
+
+
+class TransitionWrite(BaseModel):
+    from_code: str = Field(min_length=1, max_length=64)
+    to_code: str = Field(min_length=1, max_length=64)
+    name: str | None = Field(default=None, max_length=255)
+    is_backward: bool = False
+    requires_comment: bool = False
+
+
+class GraphWrite(BaseModel):
+    """Схема целиком: так её сохраняет визуальный редактор."""
+
+    stages: list[StageWrite] = Field(min_length=1)
+    transitions: list[TransitionWrite] = Field(default_factory=list)
+
+
+class TemplateCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = None
+    # Можно сразу задать схему, иначе создаётся пустой черновик версии.
+    graph: GraphWrite | None = None
+
+
+class TemplateUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+    is_active: bool | None = None
+
+
+class VersionCreate(BaseModel):
+    """Новая версия шаблона. По умолчанию копирует последнюю существующую."""
+
+    from_version_id: uuid.UUID | None = None
+    copy_graph: bool = True
+
+
+class StageLayout(BaseModel):
+    stage_id: uuid.UUID
+    layout_x: int
+    layout_y: int
+
+
+class LayoutWrite(BaseModel):
+    """Координаты узлов. На бизнес-логику не влияют (раздел 3.2)."""
+
+    stages: list[StageLayout] = Field(min_length=1)

@@ -6,18 +6,48 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.openapi import COMMON_ERRORS
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.core.errors import register_error_handlers
 from app.core.security import build_auth_backend
 from app.db.session import engine
+from app.services import audit  # noqa: F401 - импорт включает запись журнала изменений
 
 DESCRIPTION = """
 API системы контроля взаимодействия ИТ Школы Ростелекома с вузами.
 
-В dev-режиме авторизация заменена заглушкой: пользователя можно задать
-заголовками `X-Dev-User` и `X-Dev-Roles` (роли через запятую:
-`manager`, `head`, `admin`).
+**Авторизация.** В dev-режиме она заменена заглушкой: пользователя можно
+задать заголовками `X-Dev-User` и `X-Dev-Roles` (роли через запятую:
+`manager`, `head`, `admin`). В боевом режиме - Bearer-токен Keycloak.
+
+**Права на данные.** Менеджер видит договоры, где он ответственный или
+закреплён за вузом. Руководитель и администратор видят все договоры.
+
+**Ошибки.** Любой отказ возвращает тело вида
+`{"code": "not_found", "message": "...", "details": null}`; `code`
+машиночитаем и не меняется вместе с текстом сообщения.
 """
+
+TAGS = [
+    {"name": "service", "description": "Проверка живости и служебные словари."},
+    {"name": "users", "description": "Текущий пользователь и сотрудники ИТ Школы."},
+    {"name": "universities", "description": "Вузы и их контактные лица."},
+    {"name": "catalog", "description": "Справочники направлений, программ и продуктов."},
+    {"name": "contracts", "description": "Реестр договоров и карточка договора."},
+    {"name": "workflow", "description": "Рабочий процесс: схема, история, переходы."},
+    {
+        "name": "workflow admin",
+        "description": "Шаблоны процессов: черновики версий, этапы, переходы, публикация.",
+    },
+    {"name": "comments & files", "description": "Комментарии и вложения по договору."},
+    {"name": "licenses", "description": "Лицензии на продукты в составе договора."},
+    {"name": "reports", "description": "Отчёты, выгрузки XLSX и PDF, диаграммы."},
+    {"name": "dashboard", "description": "Сводка на главной и проблемные процессы."},
+    {"name": "integrations", "description": "Обмен с LMS и сайтом ИТ Школы."},
+    {"name": "imports", "description": "Загрузка каталогов из XLS и XLSX."},
+    {"name": "audit", "description": "Журнал изменений предметных данных."},
+]
 
 
 @asynccontextmanager
@@ -33,12 +63,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title=settings.app_name,
     description=DESCRIPTION,
-    version="0.1.0",
+    version="1.0.0",
+    openapi_tags=TAGS,
     openapi_url=f"{settings.api_v1_prefix}/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+register_error_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,7 +81,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(api_router, prefix=settings.api_v1_prefix)
+# Описание отказов общее для всех методов: см. app/api/openapi.py.
+app.include_router(api_router, prefix=settings.api_v1_prefix, responses=COMMON_ERRORS)
 
 
 @app.get("/", include_in_schema=False)

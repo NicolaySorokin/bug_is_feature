@@ -1,0 +1,56 @@
+# Продуктивная среда: HTTPS, ничего лишнего наружу, ограничения ресурсов
+# и перезапуск при падении. Сертификаты выпускаются certbot на хосте
+# и подключаются каталогом.
+#
+# Обязательно задайте секреты в cicd/prod/.env (см. .env.example)
+# и запускайте с ним:  make up ENV=prod
+
+services:
+  db:
+    # Наружу и на хост порт не публикуется совсем: только сеть контейнеров.
+    mem_limit: 1g
+    restart: always
+
+  api:
+    environment:
+      ENVIRONMENT: prod
+      AUTH_BACKEND: keycloak
+      # Число рабочих процессов под нагрузку из нефункциональных требований
+      # (50 параллельных пользователей, 10 отчётов одновременно).
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+    expose:
+      - "8000"
+    mem_limit: 1g
+    restart: always
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000
+             --workers ${WEB_CONCURRENCY:-4} --proxy-headers
+             --forwarded-allow-ips '*'"
+
+  keycloak:
+    expose:
+      - "8080"
+    restart: always
+    environment:
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: edu_crm_nginx
+    restart: always
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./cicd/prod/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Сертификаты Let's Encrypt с хоста: certbot certonly --webroot
+      - ${CERTS_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot
+
+volumes:
+  certbot_webroot:

@@ -1,0 +1,27 @@
+# Среда разработки: код монтируется в контейнер, сервер перезапускается
+# при изменении файлов, порты API, PostgreSQL и Keycloak открыты наружу.
+#
+# Относительные пути считаются от каталога первого compose-файла, то есть
+# от корня проекта, а не от этой папки.
+
+services:
+  db:
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+  api:
+    environment:
+      ENVIRONMENT: dev
+      AUTH_BACKEND: ${AUTH_BACKEND:-dev}
+      DB_ECHO: ${DB_ECHO:-false}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  keycloak:
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"

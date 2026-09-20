@@ -27,7 +27,12 @@ class Settings(BaseSettings):
     # dev      - заглушка, пользователь берётся из заголовков запроса;
     # keycloak - проверка Bearer-токена по JWKS реалма.
     auth_backend: Literal["dev", "keycloak"] = "dev"
+    # Адрес, по которому Keycloak виден браузеру: именно он попадает в токен
+    # полем iss, и по нему же проверяется издатель.
     keycloak_base_url: str = "http://localhost:8080"
+    # Адрес изнутри сети контейнеров - по нему API забирает ключи реалма.
+    # Пусто - берётся keycloak_base_url.
+    keycloak_internal_url: str = ""
     keycloak_realm: str = "edu-crm"
     keycloak_audience: str = "edu-crm-api"
     keycloak_jwks_ttl_seconds: int = 600
@@ -39,9 +44,29 @@ class Settings(BaseSettings):
     dev_user_email: str = "dev@example.com"
     dev_user_roles: str = "manager,head,admin"
 
+    # --- Интеграции ---
+    # Контракты LMS и сайта организаторы предоставляют в ходе работы. Пока
+    # базовый адрес пуст, адаптер отвечает тестовыми данными из fixtures,
+    # а при появлении реального API достаточно задать переменные окружения.
+    lms_base_url: str = ""
+    lms_token: str = ""
+    site_base_url: str = ""
+    site_token: str = ""
+    integration_timeout_seconds: float = 15.0
+
+    # --- Файлы ---
+    storage_dir: Path = Path("storage")
+    max_upload_mb: int = 25
+
+    # --- Контроль проблемных процессов (раздел 7 концепции) ---
+    # Сколько дней без движения по этапу считать задержкой, если у этапа
+    # не задан свой sla_days.
+    alert_default_sla_days: int = 14
+    # За сколько дней до конца срока договора или лицензии поднимать тревогу.
+    alert_expiring_days: int = 60
+
     # --- Прочее ---
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
-    storage_dir: Path = Path("storage")
 
     @property
     def database_url(self) -> str:
@@ -59,6 +84,10 @@ class Settings(BaseSettings):
         )
 
     @property
+    def max_upload_bytes(self) -> int:
+        return self.max_upload_mb * 1024 * 1024
+
+    @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
@@ -72,7 +101,14 @@ class Settings(BaseSettings):
 
     @property
     def keycloak_jwks_url(self) -> str:
-        return f"{self.keycloak_issuer}/protocol/openid-connect/certs"
+        """Ключи реалма берём по внутреннему адресу, издателя проверяем по внешнему.
+
+        В Docker это разные адреса: браузер ходит на localhost, а API -
+        на имя контейнера. Если их не разделить, токен не пройдёт проверку
+        издателя либо API не достучится до Keycloak.
+        """
+        base = (self.keycloak_internal_url or self.keycloak_base_url).rstrip("/")
+        return f"{base}/realms/{self.keycloak_realm}/protocol/openid-connect/certs"
 
 
 @lru_cache

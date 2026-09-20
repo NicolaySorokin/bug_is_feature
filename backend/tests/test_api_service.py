@@ -1,0 +1,38 @@
+"""Служебные методы и схема API."""
+
+from httpx import AsyncClient
+
+from tests.conftest import MANAGER
+
+
+async def test_health_reports_database(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+async def test_meta_gives_labels_and_error_codes(client: AsyncClient) -> None:
+    body = (await client.get("/api/v1/meta/enums", headers=MANAGER)).json()
+    assert body["labels"]["contract_status"]["active"] == "Действует"
+    assert "workflow_rule_violated" in body["error_codes"]
+    assert "xlsx" in body["uploads"]["allowed_extensions"]
+
+
+async def test_openapi_describes_errors_for_every_method(client: AsyncClient) -> None:
+    """Схема - контракт для клиентской части, поэтому проверяем её целиком."""
+    schema = (await client.get("/api/v1/openapi.json")).json()
+
+    assert len(schema["paths"]) > 40
+    assert {"reports", "workflow", "imports"} <= {tag["name"] for tag in schema["tags"]}
+
+    # Формат отказа описан у обычного метода, а не только в тексте README.
+    contract = schema["paths"]["/api/v1/contracts/{contract_id}"]["get"]["responses"]
+    assert {"401", "403", "404", "422"} <= set(contract)
+    example = contract["403"]["content"]["application/json"]["example"]
+    assert example["code"] == "forbidden"
+
+
+async def test_docs_page_is_available(client: AsyncClient) -> None:
+    response = await client.get("/docs")
+    assert response.status_code == 200
+    assert "swagger" in response.text.lower()

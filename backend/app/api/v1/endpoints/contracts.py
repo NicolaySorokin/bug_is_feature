@@ -2,11 +2,19 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import CurrentUserDep, PaginationDep, PrincipalDep, SessionDep, require_roles
+from app.api.deps import (
+    ContractDep,
+    CurrentUserDep,
+    PaginationDep,
+    PrincipalDep,
+    SessionDep,
+    require_roles,
+)
+from app.core.errors import ConflictError, ErrorCode, ForbiddenError, NotFoundError
 from app.enums import ContractStatus, Role
 from app.models.contract import Contract, ContractProduct, ContractProgram
 from app.models.workflow import WorkflowInstance
@@ -17,10 +25,13 @@ from app.schemas.contract import (
     ContractListItem,
     ContractProductCreate,
     ContractProductRead,
+    ContractProductUpdate,
     ContractProgramCreate,
     ContractProgramRead,
+    ContractProgramUpdate,
     ContractUpdate,
 )
+from app.services import access
 from app.services import workflow as workflow_service
 
 router = APIRouter(prefix="/contracts", tags=["contracts"])
@@ -34,13 +45,14 @@ def _detail_options() -> list:
     ]
 
 
-async def _get_contract(session: SessionDep, contract_id: uuid.UUID) -> Contract:
+async def _load_detail(session: SessionDep, contract_id: uuid.UUID) -> Contract:
+    """Карточка договора со всем составом. Права проверяются отдельно."""
     statement = (
         select(Contract).where(Contract.id == contract_id).options(*_detail_options())
     )
     contract = (await session.execute(statement)).scalar_one_or_none()
     if contract is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Договор не найден")
+        raise NotFoundError("Договор не найден")
     return contract
 
 
@@ -90,11 +102,20 @@ def _apply_filters(
     return statement
 
 
-@router.get("", response_model=Page[ContractListItem], summary="Реестр договоров")
+@router.get(
+    "",
+    response_model=Page[ContractListItem],
+    summary="Реестр договоров",
+    description=(
+        "Менеджер видит договоры, где он ответственный или закреплён за вузом; "
+        "руководитель и администратор - все."
+    ),
+)
 async def list_contracts(
     session: SessionDep,
     pagination: PaginationDep,
-    _: CurrentUserDep,
+    user: CurrentUserDep,
+    principal: PrincipalDep,
     university_id: uuid.UUID | None = None,
     manager_id: uuid.UUID | None = None,
     contract_status: ContractStatus | None = Query(default=None, alias="status"),
@@ -112,14 +133,16 @@ async def list_contracts(
         "stage_id": stage_id,
         "search": search,
     }
-    total = (
-        await session.scalar(
-            _apply_filters(select(func.count()).select_from(Contract), **filters)
+    def scoped(statement: Select) -> Select:
+        return access.apply_contract_scope(
+            _apply_filters(statement, **filters), principal, user
         )
-        or 0
+
+    total = (
+        await session.scalar(scoped(select(func.count()).select_from(Contract))) or 0
     )
     result = await session.execute(
-        _apply_filters(select(Contract), **filters)
+        scoped(select(Contract))
         .options(selectinload(Contract.university))
         .order_by(Contract.created_at.desc())
         .limit(pagination.limit)
@@ -165,30 +188,32 @@ async def create_contract(
             )
             await workflow_service.start_instance(session, contract.id, version, user)
         except workflow_service.WorkflowError as exc:
-            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+            raise ConflictError(str(exc), code=ErrorCode.WORKFLOW_RULE_VIOLATED) from exc
 
-    return ContractDetail.model_validate(await _get_contract(session, contract.id))
+    return ContractDetail.model_validate(await _load_detail(session, contract.id))
 
 
 @router.get("/{contract_id}", response_model=ContractDetail, summary="Карточка договора")
-async def read_contract(
-    contract_id: uuid.UUID, session: SessionDep, _: CurrentUserDep
-) -> ContractDetail:
-    return ContractDetail.model_validate(await _get_contract(session, contract_id))
+async def read_contract(contract: ContractDep, session: SessionDep) -> ContractDetail:
+    return ContractDetail.model_validate(await _load_detail(session, contract.id))
 
 
 @router.patch("/{contract_id}", response_model=ContractDetail, summary="Изменить договор")
 async def update_contract(
-    contract_id: uuid.UUID,
+    contract: ContractDep,
     payload: ContractUpdate,
     session: SessionDep,
-    _: CurrentUserDep,
+    principal: PrincipalDep,
 ) -> ContractDetail:
-    contract = await _get_contract(session, contract_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    # Менять ответственного за вуз может только руководитель (раздел 8 ТЗ).
+    if "manager_id" in data and not principal.has_role(Role.HEAD, Role.ADMIN):
+        raise ForbiddenError("Менять ответственного может только руководитель")
+
+    for field, value in data.items():
         setattr(contract, field, value)
     await session.flush()
-    return ContractDetail.model_validate(contract)
+    return ContractDetail.model_validate(await _load_detail(session, contract.id))
 
 
 @router.delete(
@@ -197,8 +222,7 @@ async def update_contract(
     dependencies=[Depends(require_roles(Role.ADMIN))],
     summary="Удалить договор",
 )
-async def delete_contract(contract_id: uuid.UUID, session: SessionDep) -> None:
-    contract = await _get_contract(session, contract_id)
+async def delete_contract(contract: ContractDep, session: SessionDep) -> None:
     await session.delete(contract)
 
 
@@ -209,13 +233,11 @@ async def delete_contract(contract_id: uuid.UUID, session: SessionDep) -> None:
     summary="Добавить программу в договор",
 )
 async def add_program(
-    contract_id: uuid.UUID,
+    contract: ContractDep,
     payload: ContractProgramCreate,
     session: SessionDep,
-    _: CurrentUserDep,
 ) -> ContractProgramRead:
-    await _get_contract(session, contract_id)
-    link = ContractProgram(contract_id=contract_id, **payload.model_dump())
+    link = ContractProgram(contract_id=contract.id, **payload.model_dump())
     session.add(link)
     await session.flush()
     await session.refresh(link, ["program"])
@@ -229,14 +251,52 @@ async def add_program(
     summary="Добавить ИТ-продукт в договор",
 )
 async def add_product(
-    contract_id: uuid.UUID,
+    contract: ContractDep,
     payload: ContractProductCreate,
     session: SessionDep,
-    _: CurrentUserDep,
 ) -> ContractProductRead:
-    await _get_contract(session, contract_id)
-    link = ContractProduct(contract_id=contract_id, **payload.model_dump())
+    link = ContractProduct(contract_id=contract.id, **payload.model_dump())
     session.add(link)
+    await session.flush()
+    await session.refresh(link, ["product"])
+    return ContractProductRead.model_validate(link)
+
+
+@router.patch(
+    "/{contract_id}/programs/{link_id}",
+    response_model=ContractProgramRead,
+    summary="Изменить статус внедрения программы",
+)
+async def update_program(
+    contract: ContractDep,
+    link_id: uuid.UUID,
+    payload: ContractProgramUpdate,
+    session: SessionDep,
+) -> ContractProgramRead:
+    link = await session.get(ContractProgram, link_id)
+    if link is None or link.contract_id != contract.id:
+        raise NotFoundError("Программа не найдена в составе договора")
+    link.implementation_status = payload.implementation_status
+    await session.flush()
+    await session.refresh(link, ["program"])
+    return ContractProgramRead.model_validate(link)
+
+
+@router.patch(
+    "/{contract_id}/products/{link_id}",
+    response_model=ContractProductRead,
+    summary="Изменить статус передачи продукта",
+)
+async def update_product(
+    contract: ContractDep,
+    link_id: uuid.UUID,
+    payload: ContractProductUpdate,
+    session: SessionDep,
+) -> ContractProductRead:
+    link = await session.get(ContractProduct, link_id)
+    if link is None or link.contract_id != contract.id:
+        raise NotFoundError("Продукт не найден в составе договора")
+    link.transfer_status = payload.transfer_status
     await session.flush()
     await session.refresh(link, ["product"])
     return ContractProductRead.model_validate(link)

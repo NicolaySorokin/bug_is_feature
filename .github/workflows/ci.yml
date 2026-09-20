@@ -1,5 +1,7 @@
 name: CI
 
+# Результат виден галочкой у коммита и блоком Checks в pull request.
+# Название задания (backend / docker) - это и есть имя проверки в списке.
 on:
   push:
     branches: [main]
@@ -7,6 +9,7 @@ on:
 
 jobs:
   backend:
+    name: Тесты и стиль
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -40,6 +43,10 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
 
+      # Шрифт с кириллицей для отчётов PDF - тот же, что в образе.
+      - name: Шрифты
+        run: sudo apt-get install --no-install-recommends -y fonts-dejavu-core
+
       - name: Установка зависимостей
         run: pip install -r requirements-dev.txt
 
@@ -47,7 +54,52 @@ jobs:
         run: ruff check .
 
       - name: Тесты
-        run: pytest -q
+        run: pytest -q --junitxml=junit.xml
+
+      # Итог прогона видно прямо на странице проверки, без скачивания логов.
+      - name: Итог тестов
+        if: always()
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          report = Path("junit.xml")
+          if not report.is_file():
+              print("## Тесты не запускались")
+              raise SystemExit
+
+          suite = ET.parse(report).getroot().find("testsuite")
+          total = int(suite.get("tests", 0))
+          failed = int(suite.get("failures", 0)) + int(suite.get("errors", 0))
+          skipped = int(suite.get("skipped", 0))
+          mark = "✅" if failed == 0 else "❌"
+
+          print(f"## {mark} Тесты: {total - failed - skipped} из {total}")
+          print()
+          print("| Показатель | Значение |")
+          print("| --- | --- |")
+          print(f"| Всего | {total} |")
+          print(f"| Упало | {failed} |")
+          print(f"| Пропущено | {skipped} |")
+          print(f"| Время | {float(suite.get('time', 0)):.1f} с |")
+
+          for case in suite.iter("testcase"):
+              for problem in list(case.findall("failure")) + list(case.findall("error")):
+                  print()
+                  print(f"### {case.get('classname')}::{case.get('name')}")
+                  print("```")
+                  print((problem.get("message") or "").strip()[:800])
+                  print("```")
+          PY
+
+      - name: Отчёт тестов файлом
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit
+          path: backend/junit.xml
+          if-no-files-found: ignore
 
       - name: Миграции
         run: alembic upgrade head
@@ -55,10 +107,34 @@ jobs:
       - name: Модели и миграции не разошлись
         run: alembic check
 
+      # Демоданные нужны для демонстрации, поэтому ломаться они не должны.
+      - name: Демонстрационные данные
+        run: python -m scripts.seed
+
+      # Схема в docs/openapi.json - контракт для клиентской части.
+      # Если API изменился, а файл не обновили, фронтенд узнал бы об этом
+      # слишком поздно.
+      - name: Схема API не отстала от кода
+        run: |
+          python -m scripts.openapi > /tmp/openapi.json
+          if ! diff -q /tmp/openapi.json ../docs/openapi.json > /dev/null; then
+            echo "::error::docs/openapi.json устарел - выполните make openapi и закоммитьте результат"
+            diff -u ../docs/openapi.json /tmp/openapi.json | head -40
+            exit 1
+          fi
+
   docker:
+    name: Сборка образа
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Сборка образа backend
         run: docker build -t edu-crm-api:ci ./backend
+
+      - name: Проверка конфигураций сред
+        run: |
+          for env in dev preprod prod; do
+            docker compose -f docker-compose.yml -f "cicd/$env/docker-compose.yml" config --quiet
+            echo "$env: конфигурация корректна"
+          done

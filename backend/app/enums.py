@@ -67,3 +67,53 @@ class WorkflowEventType(StrEnum):
     UNBLOCKED = "unblocked"
     COMPLETED = "completed"
     COMMENTED = "commented"
+
+
+class IntegrationRunStatus(StrEnum):
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
+class ImportRunStatus(StrEnum):
+    """Состояния загрузки из раздела 6.2: от файла до итогов импорта."""
+
+    UPLOADED = "uploaded"  # файл принят, показан предпросмотр
+    VALIDATED = "validated"  # проверка прошла, можно импортировать
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ImportType(StrEnum):
+    """Что именно загружаем. Набор колонок у каждого типа свой."""
+
+    CATALOG = "catalog"  # сводная таблица из требования 1 ТЗ
+    UNIVERSITIES = "universities"
+    PROGRAMS = "programs"
+    PRODUCTS = "products"
+
+
+class AuditAction(StrEnum):
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
+
+
+class AlertKind(StrEnum):
+    """Причины, по которым договор попадает в проблемные (раздел 7)."""
+
+    STAGE_STALE = "stage_stale"
+    PROCESS_BLOCKED = "process_blocked"
+    PROCESS_NOT_STARTED = "process_not_started"
+    CONTRACT_EXPIRING = "contract_expiring"
+    LICENSE_EXPIRING = "license_expiring"
+    NO_MANAGER = "no_manager"
+    NO_DOCUMENTS = "no_documents"
+    IMPLEMENTATION_NOT_STARTED = "implementation_not_started"
+    INTEGRATION_FAILED = "integration_failed"
+
+
+class AlertSeverity(StrEnum):
+    INFO = "info"
+    WARNING = "warning"
+    CRITICAL = "critical"

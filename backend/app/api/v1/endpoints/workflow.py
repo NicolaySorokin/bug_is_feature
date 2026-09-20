@@ -2,14 +2,23 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import CurrentUserDep, PrincipalDep, SessionDep, require_roles
+from app.api.deps import (
+    ContractDep,
+    CurrentUserDep,
+    PrincipalDep,
+    SessionDep,
+    require_roles,
+)
+from app.core.errors import ConflictError, ErrorCode, NotFoundError
+from app.core.security import Principal
 from app.enums import Role
 from app.models.contract import Contract
+from app.models.user import User
 from app.models.workflow import WorkflowInstance, WorkflowTemplate, WorkflowVersion
 from app.schemas.workflow import (
     BlockRequest,
@@ -24,14 +33,16 @@ from app.schemas.workflow import (
     VersionGraph,
     VersionRead,
 )
+from app.services import access
 from app.services import workflow as workflow_service
 
 router = APIRouter(prefix="/workflow", tags=["workflow"])
 contract_router = APIRouter(prefix="/contracts", tags=["workflow"])
 
 
-def _conflict(exc: workflow_service.WorkflowError) -> HTTPException:
-    return HTTPException(status.HTTP_409_CONFLICT, str(exc))
+def _conflict(exc: workflow_service.WorkflowError) -> ConflictError:
+    """Нарушение правил процесса клиент отличает по коду workflow_rule_violated."""
+    return ConflictError(str(exc), code=ErrorCode.WORKFLOW_RULE_VIOLATED)
 
 
 async def _build_view(session: AsyncSession, instance: WorkflowInstance) -> InstanceView:
@@ -60,10 +71,25 @@ async def _build_view(session: AsyncSession, instance: WorkflowInstance) -> Inst
     )
 
 
-async def _get_instance(session: AsyncSession, instance_id: uuid.UUID) -> WorkflowInstance:
+async def _get_instance(
+    session: AsyncSession,
+    instance_id: uuid.UUID,
+    principal: Principal,
+    user: User,
+) -> WorkflowInstance:
+    """Экземпляр процесса вместе с проверкой прав на его договор."""
     instance = await workflow_service.get_instance(session, instance_id)
     if instance is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Процесс не найден")
+        raise NotFoundError("Процесс не найден")
+
+    contract = (
+        await session.execute(
+            select(Contract)
+            .where(Contract.id == instance.contract_id)
+            .options(selectinload(Contract.university))
+        )
+    ).scalar_one()
+    access.ensure_contract_access(contract, principal, user)
     return instance
 
 
@@ -110,7 +136,7 @@ async def read_version(
     )
     version = (await session.execute(statement)).scalar_one_or_none()
     if version is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Версия шаблона не найдена")
+        raise NotFoundError("Версия шаблона не найдена")
     return VersionGraph.model_validate(version)
 
 
@@ -123,11 +149,11 @@ async def read_version(
     summary="Процесс по договору",
 )
 async def read_contract_workflow(
-    contract_id: uuid.UUID, session: SessionDep, _: CurrentUserDep
+    contract: ContractDep, session: SessionDep
 ) -> InstanceView:
-    instance = await workflow_service.get_contract_instance(session, contract_id)
+    instance = await workflow_service.get_contract_instance(session, contract.id)
     if instance is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "По договору нет запущенного процесса")
+        raise NotFoundError("По договору нет запущенного процесса")
     return await _build_view(session, instance)
 
 
@@ -138,22 +164,18 @@ async def read_contract_workflow(
     summary="Запустить процесс по договору",
 )
 async def start_contract_workflow(
-    contract_id: uuid.UUID,
+    contract: ContractDep,
     payload: StartRequest,
     session: SessionDep,
     user: CurrentUserDep,
 ) -> InstanceView:
-    contract = await session.get(Contract, contract_id)
-    if contract is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Договор не найден")
-
     try:
         version = (
             await workflow_service.load_version(session, payload.version_id)
             if payload.version_id
             else await workflow_service.latest_published_version(session, payload.template_id)
         )
-        instance = await workflow_service.start_instance(session, contract_id, version, user)
+        instance = await workflow_service.start_instance(session, contract.id, version, user)
     except workflow_service.WorkflowError as exc:
         raise _conflict(exc) from exc
 
@@ -176,7 +198,7 @@ async def transition(
     user: CurrentUserDep,
     principal: PrincipalDep,
 ) -> InstanceView:
-    instance = await _get_instance(session, instance_id)
+    instance = await _get_instance(session, instance_id, principal, user)
     try:
         version = await workflow_service.load_version(session, instance.workflow_version_id)
         await workflow_service.move(
@@ -207,7 +229,7 @@ async def skip_stage(
     user: CurrentUserDep,
     principal: PrincipalDep,
 ) -> InstanceView:
-    instance = await _get_instance(session, instance_id)
+    instance = await _get_instance(session, instance_id, principal, user)
     try:
         version = await workflow_service.load_version(session, instance.workflow_version_id)
         await workflow_service.move(
@@ -237,8 +259,9 @@ async def block(
     payload: BlockRequest,
     session: SessionDep,
     user: CurrentUserDep,
+    principal: PrincipalDep,
 ) -> InstanceView:
-    instance = await _get_instance(session, instance_id)
+    instance = await _get_instance(session, instance_id, principal, user)
     try:
         await workflow_service.set_blocked(session, instance, user, payload.reason, True)
     except workflow_service.WorkflowError as exc:
@@ -259,8 +282,9 @@ async def unblock(
     payload: BlockRequest,
     session: SessionDep,
     user: CurrentUserDep,
+    principal: PrincipalDep,
 ) -> InstanceView:
-    instance = await _get_instance(session, instance_id)
+    instance = await _get_instance(session, instance_id, principal, user)
     try:
         await workflow_service.set_blocked(session, instance, user, payload.reason, False)
     except workflow_service.WorkflowError as exc:

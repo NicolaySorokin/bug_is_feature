@@ -10,6 +10,7 @@ from sqlalchemy import BigInteger, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, CreatedAtMixin, UUIDPrimaryKeyMixin
+from app.models.contract import Contract
 from app.models.user import User
 
 
@@ -27,6 +28,7 @@ class Comment(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     )
     text: Mapped[str] = mapped_column(Text)
 
+    contract: Mapped[Contract] = relationship()
     author: Mapped[User | None] = relationship()
 
 
@@ -47,4 +49,5 @@ class Attachment(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
+    contract: Mapped[Contract] = relationship()
     uploader: Mapped[User | None] = relationship()

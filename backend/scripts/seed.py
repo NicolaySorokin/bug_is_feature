@@ -3,10 +3,19 @@
 Запуск:  python -m scripts.seed
 Повторный запуск ничего не портит: если шаблон процесса уже есть,
 скрипт просто завершается.
+
+Данные подобраны так, чтобы сразу было что показать: договоры на разных
+этапах, разные ответственные, истекающие сроки, заблокированный процесс
+и завершённая работа. На такой выборке видно и отчёты, и диаграммы,
+и контроль проблемных процессов.
+
+Идентификаторы пользователей совпадают с тем, что подставляет dev-заглушка
+авторизации: войдя с заголовком ``X-Dev-User: petrov``, вы попадёте на
+договоры Петрова, а не на чужие.
 """
 
 import asyncio
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,23 +23,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.security import Principal
 from app.db.session import SessionFactory, engine
-from app.enums import ContractStatus, ImplementationStatus, Role
+from app.enums import ContractStatus, ImplementationStatus, LicenseStatus, Role
 from app.models.catalog import ItDirection, ItProduct, ItProgram, Vendor
-from app.models.contract import Contract, ContractProduct, ContractProgram
+from app.models.content import Comment
+from app.models.contract import Contract, ContractProduct, ContractProgram, License
 from app.models.university import University, UniversityContact
 from app.models.user import User
 from app.models.workflow import (
+    WorkflowInstance,
     WorkflowStage,
     WorkflowTemplate,
     WorkflowTransition,
     WorkflowVersion,
 )
 from app.services import workflow as workflow_service
+from app.services.integrations import sync
 
 TEMPLATE_NAME = "Стандартный процесс по договору"
+TODAY = date.today()
 
 # Контакт -> Встреча -> Документы -> Согласование -> Подписание
 #                                         `-> Доработка -> Согласование
+# code, название, порядок, необязательный, финальный, срок в днях
 STAGES = [
     ("contact", "Контакт", 10, False, False, 7),
     ("meeting", "Встреча", 20, False, False, 14),
@@ -50,6 +64,205 @@ TRANSITIONS = [
     ("approval", "revision", "Отправить на доработку", True, True),
     ("revision", "approval", "Вернуть на согласование", False, False),
 ]
+
+# username, ФИО, роль в системе
+MANAGERS = [
+    ("petrov", "Петров Пётр Алексеевич", Role.MANAGER),
+    ("ivanova", "Иванова Мария Сергеевна", Role.MANAGER),
+    ("orlova", "Орлова Ольга Дмитриевна", Role.HEAD),
+]
+
+DIRECTIONS = [
+    ("Разработка", "Программирование и инженерия"),
+    ("QA", "Тестирование программного обеспечения"),
+    ("DevOps", "Сборка, развёртывание и эксплуатация"),
+    ("Аналитика данных", "Работа с данными и отчётностью"),
+    ("Информационная безопасность", "Защита информационных систем"),
+]
+
+# программа -> направление
+PROGRAMS = [
+    ("Python-разработчик", "Разработка"),
+    ("Java-разработчик", "Разработка"),
+    ("Инженер по тестированию", "QA"),
+    ("Автоматизация тестирования", "QA"),
+    ("Инженер DevOps", "DevOps"),
+    ("Аналитик данных", "Аналитика данных"),
+    ("Инженер данных", "Аналитика данных"),
+    ("Специалист по защите информации", "Информационная безопасность"),
+]
+
+PRODUCTS = [
+    ("Платформа онлайн-обучения", "Ростелеком"),
+    ("Симулятор сетевой инфраструктуры", "Ростелеком"),
+    ("Песочница DevOps", "Ростелеком"),
+    ("Стенд киберполигона", "Ростелеком"),
+]
+
+# название, сокращение, город, индекс менеджера
+UNIVERSITIES = [
+    ("Московский технический университет связи и информатики", "МТУСИ", "Москва", 0),
+    (
+        "Санкт-Петербургский государственный университет телекоммуникаций",
+        "СПбГУТ",
+        "Санкт-Петербург",
+        0,
+    ),
+    (
+        "Казанский национальный исследовательский технический университет",
+        "КНИТУ-КАИ",
+        "Казань",
+        1,
+    ),
+    ("Новосибирский государственный технический университет", "НГТУ", "Новосибирск", 1),
+    ("Уральский федеральный университет", "УрФУ", "Екатеринбург", 2),
+    ("Южный федеральный университет", "ЮФУ", "Ростов-на-Дону", 2),
+]
+
+CONTACTS = [
+    (0, "Соколова Анна Викторовна", "Проректор по учебной работе", "sokolova@example.edu"),
+    (0, "Мельников Игорь Олегович", "Заведующий кафедрой", "melnikov@example.edu"),
+    (1, "Орехов Дмитрий Павлович", "Начальник учебного управления", "orehov@example.edu"),
+    (2, "Гафуров Ильдар Рашидович", "Заведующий кафедрой информатики", "gafurov@example.edu"),
+    (3, "Ковалёва Анна Петровна", "Начальник учебного управления", "kovaleva@example.edu"),
+    (4, "Зырянов Сергей Иванович", "Директор института", "zyryanov@example.edu"),
+]
+
+# Договоры: вуз, менеджер, номер, название, статус, срок действия (дней от сегодня),
+# программы, продукты, путь по процессу, дней на текущем этапе, блокировка
+CONTRACTS = [
+    {
+        "university": 0,
+        "manager": 0,
+        "number": "ДГ-2025-001",
+        "title": "Основной договор о сотрудничестве",
+        "status": ContractStatus.ACTIVE,
+        "signed_days_ago": 380,
+        "valid_days_left": 40,  # скоро закончится - попадёт в проблемные
+        "programs": [0, 2],
+        "products": [0],
+        "path": ["meeting", "documents", "approval", "signing"],
+        "days_on_stage": 3,
+        "license_days_left": 40,
+        "implementation": ImplementationStatus.IMPLEMENTED,
+    },
+    {
+        "university": 0,
+        "manager": 0,
+        "number": "ДГ-2026-014",
+        "title": "Расширение состава программ",
+        "status": ContractStatus.DRAFT,
+        "signed_days_ago": None,
+        "valid_days_left": None,
+        "programs": [5, 6],
+        "products": [],
+        "path": ["meeting"],
+        "days_on_stage": 21,  # этап давно не менялся
+        "license_days_left": None,
+        "implementation": ImplementationStatus.NOT_STARTED,
+    },
+    {
+        "university": 1,
+        "manager": 0,
+        "number": "ДГ-2025-047",
+        "title": "Подготовка инженеров по тестированию",
+        "status": ContractStatus.ACTIVE,
+        "signed_days_ago": 200,
+        "valid_days_left": 165,
+        "programs": [2, 3],
+        "products": [0, 1],
+        "path": ["meeting", "documents"],
+        "days_on_stage": 4,
+        "license_days_left": 165,
+        "implementation": ImplementationStatus.IN_PROGRESS,
+    },
+    {
+        "university": 2,
+        "manager": 1,
+        "number": "ДГ-2026-003",
+        "title": "DevOps и облачная инфраструктура",
+        "status": ContractStatus.ACTIVE,
+        "signed_days_ago": 120,
+        "valid_days_left": 245,
+        "programs": [4],
+        "products": [2],
+        "path": ["meeting", "documents", "approval"],
+        "days_on_stage": 19,  # согласование затянулось
+        "license_days_left": 245,
+        "implementation": ImplementationStatus.IN_PROGRESS,
+    },
+    {
+        "university": 3,
+        "manager": 1,
+        "number": "ДГ-2026-009",
+        "title": "Аналитика данных для инженерных специальностей",
+        "status": ContractStatus.ACTIVE,
+        "signed_days_ago": 90,
+        "valid_days_left": 275,
+        "programs": [5, 6],
+        "products": [0],
+        "path": ["meeting", "documents", "approval", "revision"],
+        "days_on_stage": 6,
+        "license_days_left": 275,
+        "implementation": ImplementationStatus.IN_PROGRESS,
+        "blocked": "Вуз просит изменить состав программ, ждём решения",
+    },
+    {
+        "university": 4,
+        "manager": 2,
+        "number": "ДГ-2026-021",
+        "title": "Киберполигон и защита информации",
+        "status": ContractStatus.ACTIVE,
+        "signed_days_ago": 45,
+        "valid_days_left": 320,
+        "programs": [7],
+        "products": [3],
+        "path": ["meeting", "documents"],
+        "days_on_stage": 2,
+        "license_days_left": -5,  # лицензия уже просрочена
+        "implementation": ImplementationStatus.NOT_STARTED,
+    },
+    {
+        "university": 5,
+        "manager": 2,
+        "number": "ДГ-2026-033",
+        "title": "Разработка на Java для магистратуры",
+        "status": ContractStatus.DRAFT,
+        "signed_days_ago": None,
+        "valid_days_left": None,
+        "programs": [1],
+        "products": [],
+        "path": [],
+        "days_on_stage": 9,
+        "license_days_left": None,
+        "implementation": ImplementationStatus.NOT_STARTED,
+    },
+    {
+        "university": 5,
+        "manager": None,  # ответственный не назначен - тоже повод для сигнала
+        "number": "ДГ-2026-040",
+        "title": "Пилот по инженерии данных",
+        "status": ContractStatus.DRAFT,
+        "signed_days_ago": None,
+        "valid_days_left": None,
+        "programs": [6],
+        "products": [],
+        "path": [],
+        "days_on_stage": 1,
+        "license_days_left": None,
+        "implementation": ImplementationStatus.NOT_STARTED,
+    },
+]
+
+COMMENTS = [
+    (0, "Документы подписаны, лицензия передана в вуз."),
+    (2, "Вуз попросил добавить второй поток по автоматизации тестирования."),
+    (3, "Согласование затянулось: ждём правки от юристов вуза."),
+]
+
+
+def _days(value: int | None) -> date | None:
+    return None if value is None else TODAY + timedelta(days=value)
 
 
 async def seed_workflow(session: AsyncSession) -> WorkflowVersion:
@@ -102,134 +315,211 @@ async def seed_workflow(session: AsyncSession) -> WorkflowVersion:
     return version
 
 
-async def seed_catalog(session: AsyncSession) -> dict[str, list]:
-    direction = ItDirection(name="Разработка", description="Программирование и инженерия")
-    analytics = ItDirection(name="Аналитика данных")
-    session.add_all([direction, analytics])
+async def seed_users(session: AsyncSession) -> tuple[User, list[User]]:
+    """Пользователь по умолчанию и менеджеры по вузам."""
+    default = User(
+        keycloak_id=settings.dev_user_subject,
+        username=settings.dev_user_username,
+        full_name=settings.dev_user_full_name,
+        email=settings.dev_user_email,
+    )
+    session.add(default)
+
+    managers: list[User] = []
+    for username, full_name, _role in MANAGERS:
+        # Такой же идентификатор подставляет dev-заглушка для X-Dev-User.
+        user = User(
+            keycloak_id=f"dev:{username}",
+            username=username,
+            full_name=full_name,
+            email=f"{username}@example.com",
+        )
+        session.add(user)
+        managers.append(user)
     await session.flush()
+    return default, managers
 
-    programs = [
-        ItProgram(direction_id=direction.id, name="Python-разработчик"),
-        ItProgram(direction_id=direction.id, name="Инженер по тестированию"),
-        ItProgram(direction_id=analytics.id, name="Аналитик данных"),
-        ItProgram(direction_id=analytics.id, name="Инженер данных"),
-    ]
-    session.add_all(programs)
 
-    vendor = Vendor(name="Ростелеком")
+async def seed_catalog(session: AsyncSession) -> tuple[list[ItProgram], list[ItProduct]]:
+    directions: dict[str, ItDirection] = {}
+    for name, description in DIRECTIONS:
+        direction = ItDirection(name=name, description=description)
+        session.add(direction)
+        directions[name] = direction
+
+    vendor = Vendor(name="Ростелеком", description="Вендор ИТ-продуктов ИТ Школы")
     session.add(vendor)
     await session.flush()
 
-    products = [
-        ItProduct(vendor_id=vendor.id, name="Платформа онлайн-обучения"),
-        ItProduct(vendor_id=vendor.id, name="Симулятор сетевой инфраструктуры"),
-    ]
-    session.add_all(products)
+    programs = []
+    for name, direction_name in PROGRAMS:
+        program = ItProgram(name=name, direction_id=directions[direction_name].id)
+        session.add(program)
+        programs.append(program)
+
+    products = []
+    for name, _vendor_name in PRODUCTS:
+        product = ItProduct(name=name, vendor_id=vendor.id)
+        session.add(product)
+        products.append(product)
+    await session.flush()
+    return programs, products
+
+
+async def seed_universities(
+    session: AsyncSession, managers: list[User]
+) -> list[University]:
+    universities = []
+    for name, short_name, city, manager_index in UNIVERSITIES:
+        university = University(
+            name=name,
+            short_name=short_name,
+            city=city,
+            manager_id=managers[manager_index].id,
+        )
+        session.add(university)
+        universities.append(university)
     await session.flush()
 
-    return {"programs": programs, "products": products}
+    for university_index, full_name, position, email in CONTACTS:
+        session.add(
+            UniversityContact(
+                university_id=universities[university_index].id,
+                full_name=full_name,
+                position=position,
+                email=email,
+            )
+        )
+    await session.flush()
+    return universities
+
+
+def _principal(user: User) -> Principal:
+    """Все права: сценарий демоданных проходит и обязательные этапы."""
+    return Principal(
+        subject=user.keycloak_id,
+        username=user.username,
+        full_name=user.full_name,
+        roles=frozenset({Role.MANAGER, Role.HEAD, Role.ADMIN}),
+    )
+
+
+async def _walk_process(
+    session: AsyncSession,
+    contract: Contract,
+    version: WorkflowVersion,
+    actor: User,
+    spec: dict,
+) -> WorkflowInstance:
+    """Проводит процесс по заданному пути, чтобы в истории были переходы."""
+    instance = await workflow_service.start_instance(session, contract.id, version, actor)
+    stage_by_code = {stage.code: stage for stage in version.stages}
+    principal = _principal(actor)
+
+    for code in spec["path"]:
+        await workflow_service.move(
+            session,
+            instance,
+            version,
+            stage_by_code[code].id,
+            actor,
+            principal,
+            comment=f"Переход на этап «{stage_by_code[code].name}»",
+        )
+
+    if spec.get("blocked"):
+        await workflow_service.set_blocked(session, instance, actor, spec["blocked"], True)
+
+    # Время на этапе задаём задним числом: без этого все процессы выглядят
+    # свежими и контроль просроченных этапов нечего показывать.
+    instance.current_stage_started_at = datetime.now(UTC) - timedelta(
+        days=spec["days_on_stage"]
+    )
+    await session.flush()
+    return instance
 
 
 async def seed_contracts(
     session: AsyncSession,
-    catalog: dict[str, list],
-    manager: User,
+    universities: list[University],
+    programs: list[ItProgram],
+    products: list[ItProduct],
+    managers: list[User],
+    default_user: User,
     version: WorkflowVersion,
-) -> None:
-    university = University(
-        name="Московский технический университет связи и информатики",
-        short_name="МТУСИ",
-        city="Москва",
-        manager_id=manager.id,
-    )
-    second = University(
-        name="Санкт-Петербургский государственный университет телекоммуникаций",
-        short_name="СПбГУТ",
-        city="Санкт-Петербург",
-        manager_id=manager.id,
-    )
-    session.add_all([university, second])
-    await session.flush()
+) -> list[Contract]:
+    created: list[Contract] = []
 
-    session.add(
-        UniversityContact(
-            university_id=university.id,
-            full_name="Иванова Мария Сергеевна",
-            position="Проректор по учебной работе",
-            email="ivanova@example.edu",
+    for spec in CONTRACTS:
+        manager = managers[spec["manager"]] if spec["manager"] is not None else None
+        contract = Contract(
+            university_id=universities[spec["university"]].id,
+            manager_id=manager.id if manager else None,
+            number=spec["number"],
+            title=spec["title"],
+            status=spec["status"],
+            signed_at=(
+                _days(-spec["signed_days_ago"]) if spec["signed_days_ago"] else None
+            ),
+            valid_from=(
+                _days(-spec["signed_days_ago"]) if spec["signed_days_ago"] else None
+            ),
+            valid_to=_days(spec["valid_days_left"]),
         )
-    )
+        session.add(contract)
+        await session.flush()
 
-    # Пример из раздела 1: у одного вуза два договора с разным составом программ.
-    first_contract = Contract(
-        university_id=university.id,
-        manager_id=manager.id,
-        number="ДГ-2025-001",
-        title="Основной договор о сотрудничестве",
-        signed_at=date(2025, 9, 1),
-        valid_from=date(2025, 9, 1),
-        valid_to=date(2026, 8, 31),
-        status=ContractStatus.ACTIVE,
-    )
-    second_contract = Contract(
-        university_id=university.id,
-        manager_id=manager.id,
-        number="ДГ-2026-014",
-        title="Расширение состава программ",
-        signed_at=date(2026, 2, 10),
-        valid_from=date(2026, 2, 10),
-        valid_to=date(2027, 2, 9),
-        status=ContractStatus.DRAFT,
-    )
-    session.add_all([first_contract, second_contract])
-    await session.flush()
+        for program_index in spec["programs"]:
+            session.add(
+                ContractProgram(
+                    contract_id=contract.id,
+                    program_id=programs[program_index].id,
+                    implementation_status=spec["implementation"],
+                )
+            )
+        for product_index in spec["products"]:
+            link = ContractProduct(
+                contract_id=contract.id,
+                product_id=products[product_index].id,
+                transfer_status=spec["implementation"],
+            )
+            session.add(link)
+            await session.flush()
 
-    programs = catalog["programs"]
-    products = catalog["products"]
-    for program in programs[:2]:
+            if spec["license_days_left"] is not None:
+                valid_to = _days(spec["license_days_left"])
+                session.add(
+                    License(
+                        contract_product_id=link.id,
+                        number=f"ЛИЦ-{spec['number']}",
+                        seats=100,
+                        signed_at=_days(-spec["signed_days_ago"]),
+                        valid_from=_days(-spec["signed_days_ago"]),
+                        valid_to=valid_to,
+                        status=(
+                            LicenseStatus.EXPIRED
+                            if valid_to and valid_to < TODAY
+                            else LicenseStatus.ACTIVE
+                        ),
+                    )
+                )
+        await session.flush()
+
+        if spec["path"] or spec.get("blocked"):
+            await _walk_process(session, contract, version, manager or default_user, spec)
+
+        created.append(contract)
+
+    for contract_index, text in COMMENTS:
         session.add(
-            ContractProgram(
-                contract_id=first_contract.id,
-                program_id=program.id,
-                implementation_status=ImplementationStatus.IN_PROGRESS,
+            Comment(
+                contract_id=created[contract_index].id,
+                author_id=(created[contract_index].manager_id or default_user.id),
+                text=text,
             )
         )
-    for program in programs[2:]:
-        session.add(ContractProgram(contract_id=second_contract.id, program_id=program.id))
-    session.add(
-        ContractProduct(contract_id=first_contract.id, product_id=products[0].id)
-    )
     await session.flush()
-
-    # По первому договору запускаем процесс и делаем пару шагов вперёд.
-    instance = await workflow_service.start_instance(
-        session, first_contract.id, version, manager
-    )
-    stage_by_code = {stage.code: stage for stage in version.stages}
-    principal = Principal(
-        subject=manager.keycloak_id,
-        username=manager.username,
-        full_name=manager.full_name,
-        roles=frozenset({Role.MANAGER, Role.HEAD, Role.ADMIN}),
-    )
-    await workflow_service.move(
-        session,
-        instance,
-        version,
-        stage_by_code["meeting"].id,
-        manager,
-        principal,
-        comment="Договорились о встрече на площадке вуза",
-    )
-    await workflow_service.move(
-        session,
-        instance,
-        version,
-        stage_by_code["documents"].id,
-        manager,
-        principal,
-        comment="Встреча прошла, собираем пакет документов",
-    )
+    return created
 
 
 async def main() -> None:
@@ -241,24 +531,21 @@ async def main() -> None:
             print("Демоданные уже загружены, ничего не меняю.")
             return
 
-        manager = await session.scalar(
-            select(User).where(User.keycloak_id == settings.dev_user_subject)
-        )
-        if manager is None:
-            manager = User(
-                keycloak_id=settings.dev_user_subject,
-                username=settings.dev_user_username,
-                full_name=settings.dev_user_full_name,
-                email=settings.dev_user_email,
-            )
-            session.add(manager)
-            await session.flush()
-
         version = await seed_workflow(session)
-        catalog = await seed_catalog(session)
-        await seed_contracts(session, catalog, manager, version)
+        default_user, managers = await seed_users(session)
+        programs, products = await seed_catalog(session)
+        universities = await seed_universities(session, managers)
+        contracts = await seed_contracts(
+            session, universities, programs, products, managers, default_user, version
+        )
+        # Источники обмена заводим сразу: раздел «Интеграции» не должен быть пустым.
+        await sync.ensure_sources(session)
+
         await session.commit()
-        print("Демоданные загружены.")
+        print(
+            f"Демоданные загружены: вузов {len(universities)}, "
+            f"договоров {len(contracts)}, программ {len(programs)}."
+        )
 
     await engine.dispose()
 

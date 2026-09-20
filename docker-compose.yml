@@ -1,13 +1,23 @@
+# Базовый состав стенда, общий для всех сред. Ничего, специфичного для
+# разработки, здесь нет: код не монтируется, порты наружу не публикуются.
+# Отличия среды лежат в cicd/<среда>/docker-compose.yml и подключаются
+# вторым файлом - это делает Makefile, см. переменную ENV.
+#
+#   make up             # то же, что ENV=dev
+#   make up ENV=prod
+#
+# Напрямую, без make:
+#   docker compose -f docker-compose.yml -f cicd/dev/docker-compose.yml up -d
+
 services:
   db:
     image: postgres:16-alpine
     container_name: edu_crm_db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-edu_crm}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-edu_crm}
       POSTGRES_DB: ${POSTGRES_DB:-edu_crm}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -19,6 +29,7 @@ services:
   api:
     build: ./backend
     container_name: edu_crm_api
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
@@ -30,18 +41,24 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-edu_crm}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-edu_crm}
       POSTGRES_DB: ${POSTGRES_DB:-edu_crm}
-      KEYCLOAK_BASE_URL: ${KEYCLOAK_BASE_URL:-http://keycloak:8080}
+      # Внешний адрес Keycloak попадает в токен и проверяется как издатель,
+      # внутренний нужен API, чтобы забрать ключи реалма по сети контейнеров.
+      KEYCLOAK_BASE_URL: ${KEYCLOAK_BASE_URL:-http://localhost:8080}
+      KEYCLOAK_INTERNAL_URL: ${KEYCLOAK_INTERNAL_URL:-http://keycloak:8080}
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-edu-crm}
       KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-edu-crm-api}
-    ports:
-      - "8000:8000"
+      # Контрактов LMS и сайта пока нет: по умолчанию адаптеры отдают
+      # тестовые ответы из backend/app/services/integrations/fixtures.
+      LMS_BASE_URL: ${LMS_BASE_URL:-}
+      LMS_TOKEN: ${LMS_TOKEN:-}
+      SITE_BASE_URL: ${SITE_BASE_URL:-}
+      SITE_TOKEN: ${SITE_TOKEN:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
     volumes:
-      # Каркас работает в режиме разработки: код монтируется, сервер перезагружается.
-      - ./backend:/app
       - api_storage:/app/storage
     command: >
       sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
     healthcheck:
       # Healthy означает, что миграции прошли и API отвечает: на это опирается `make up`.
       test:
@@ -54,18 +71,20 @@ services:
       retries: 20
       start_period: 5s
 
-  # Включается отдельно: docker compose --profile keycloak up -d
-  # После этого достаточно выставить AUTH_BACKEND=keycloak.
+  # Включается отдельно: make keycloak (в средах preprod и prod - всегда).
+  # Реалм, клиенты, роли и тестовые пользователи приезжают из realm-export.json.
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     container_name: edu_crm_keycloak
+    restart: unless-stopped
     profiles: ["keycloak"]
-    command: start-dev --http-port=8080
+    command: start-dev --http-port=8080 --import-realm
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
-    ports:
-      - "8080:8080"
+      KC_HOSTNAME: ${KEYCLOAK_BASE_URL:-http://localhost:8080}
+    volumes:
+      - ./deploy/keycloak:/opt/keycloak/data/import:ro
 
 volumes:
   pgdata:

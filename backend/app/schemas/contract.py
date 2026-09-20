@@ -23,9 +23,17 @@ class ContractProgramRead(ORMModel):
     program: ItProgramRead | None = None
 
 
+class ContractProgramUpdate(BaseModel):
+    implementation_status: ImplementationStatus
+
+
 class ContractProductCreate(BaseModel):
     product_id: uuid.UUID
     transfer_status: ImplementationStatus = ImplementationStatus.NOT_STARTED
+
+
+class ContractProductUpdate(BaseModel):
+    transfer_status: ImplementationStatus
 
 
 class ContractProductRead(ORMModel):

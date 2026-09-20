@@ -4,24 +4,64 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+env/
+.tox/
+.nox/
+
+# Кэши инструментов
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
 
-# Env
-.env
-.env.local
+# Отчёты тестов и покрытия
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+junit.xml
+test-results/
 
-# Data
+# Переменные окружения и секреты: в репозиторий едут только примеры
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.crt
+secrets/
+
+# Локальные изменения запуска, не касающиеся других
+docker-compose.override.yml
+compose.override.yml
+
+# Данные стенда
 backend/storage/
 *.sqlite3
+*.dump
+*.sql.gz
+
+# Временные файлы и выгрузки, сделанные руками
+*.log
+tmp/
+scratch/
 
 # Node (появится вместе с фронтендом)
 node_modules/
 dist/
+.vite/
+coverage/
 
 # IDE / OS
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# Следы неудачного слияния
+*.orig
+*.rej

@@ -29,6 +29,10 @@ class Principal:
     full_name: str
     email: str | None = None
     roles: frozenset[str] = field(default_factory=frozenset)
+    # Keycloak - источник истины по профилю, и имя с почтой оттуда затирают
+    # локальные значения. Dev-заглушка настоящего имени не знает, поэтому
+    # ранее сохранённый профиль она не трогает.
+    profile_is_authoritative: bool = True
 
     def has_role(self, *roles: str) -> bool:
         return bool(self.roles.intersection(roles))
@@ -99,6 +103,7 @@ class DevAuthBackend:
                 else f"{username}@example.com"
             ),
             roles=frozenset(roles),
+            profile_is_authoritative=False,
         )
 
 
