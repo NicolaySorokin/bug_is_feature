@@ -1,5 +1,5 @@
 import { mockContracts, mockDashboard, mockProducts, mockPrograms, mockReport, mockUniversities, mockUsers, mockWorkflow } from "./mock";
-import type { Attachment, CommentItem, Contract, Dashboard, DataSource, Direction, IntegrationRun, IntegrationSource, Loaded, Page, Product, Program, Report, User, WorkflowView } from "./types";
+import type { Alert, Attachment, CommentItem, Contract, Dashboard, DataSource, Direction, IntegrationRun, IntegrationSource, Loaded, Page, Product, Program, Report, User, WorkflowView } from "./types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1").replace(/\/$/, "");
 const USE_DEMO_FALLBACK = import.meta.env.VITE_USE_DEMO_FALLBACK !== "false";
@@ -74,6 +74,10 @@ export function loadMe(): Promise<Loaded<User>> {
 
 export function loadDashboard(): Promise<Loaded<Dashboard>> {
   return load("/dashboard", { ...mockDashboard, role: (demoIdentity.roles[0] || "manager") as Dashboard["role"] });
+}
+
+export function loadAlerts(): Promise<Loaded<Alert[]>> {
+  return load("/dashboard/alerts?limit=20", mockDashboard.alerts);
 }
 
 export function loadContracts(params: { search?: string; status?: string; manager_id?: string; limit?: number; offset?: number } = {}): Promise<Loaded<Page<Contract>>> {

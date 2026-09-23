@@ -65,6 +65,14 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .source-demo { color: #8b620f; background: #fff5dd; }
 .source-mark { display: grid; width: 17px; height: 17px; place-items: center; border-radius: 50%; background: rgba(255,255,255,.7); }
 .source-error { margin-left: 7px; color: #ac8d4c; font-weight: 500; }
+.source-error { padding: 0; border: 0; background: transparent; text-decoration: underline; cursor: pointer; }
+.notification-wrap { position: relative; }
+.notification-menu { position: absolute; z-index: 30; top: calc(100% + 9px); right: 0; display: flex; width: min(330px, calc(100vw - 28px)); flex-direction: column; gap: 6px; padding: 12px; border: 1px solid #e5e1eb; border-radius: 9px; background: #fff; box-shadow: 0 12px 30px rgba(43,25,65,.16); }
+.notification-menu > strong { padding: 2px 5px 6px; color: #4f4d58; font-size: 13px; }
+.notification-menu > button { display: flex; flex-direction: column; gap: 3px; padding: 8px; color: #5a5864; border: 0; border-radius: 6px; background: #faf8fd; text-align: left; }
+.notification-menu > button:hover { background: #f0eafa; }
+.notification-menu > button span { color: #6b52a5; font-size: 12px; font-weight: 700; }
+.notification-menu > button small, .notification-menu > p { margin: 0; color: #85838e; font-size: 11px; line-height: 1.35; }
 .section-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 27px; }
 .eyebrow { display: block; margin-bottom: 7px; color: var(--pink); font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .section-header h1 { margin: 0; color: #27272d; font-size: 29px; font-weight: 800; letter-spacing: -.8px; }
