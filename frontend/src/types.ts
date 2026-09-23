@@ -129,6 +129,7 @@ export interface Contract {
   university_id: string;
   university?: University | null;
   manager_id?: string | null;
+  manager?: User | null;
   number: string;
   title?: string | null;
   signed_at?: string | null;
@@ -167,6 +168,7 @@ export interface WorkflowEvent {
   from_stage_id?: string | null;
   to_stage_id?: string | null;
   user_id?: string | null;
+  user?: User | null;
   event_type: string;
   comment?: string | null;
   created_at: string;

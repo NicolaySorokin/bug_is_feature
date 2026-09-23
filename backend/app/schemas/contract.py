@@ -9,6 +9,7 @@ from app.enums import ContractStatus, ImplementationStatus
 from app.schemas.catalog import ItProductRead, ItProgramRead
 from app.schemas.common import ORMModel
 from app.schemas.university import UniversityRead
+from app.schemas.user import UserRead
 
 
 class ContractProgramCreate(BaseModel):
@@ -74,6 +75,7 @@ class ContractRead(ORMModel):
     id: uuid.UUID
     university_id: uuid.UUID
     manager_id: uuid.UUID | None
+    manager: UserRead | None = None
     number: str
     title: str | None
     signed_at: date | None

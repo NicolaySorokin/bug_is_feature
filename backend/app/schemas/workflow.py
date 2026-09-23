@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.enums import StageState, WorkflowEventType, WorkflowInstanceStatus
 from app.schemas.common import ORMModel
+from app.schemas.user import UserRead
 
 
 class StageRead(ORMModel):
@@ -64,6 +65,7 @@ class EventRead(ORMModel):
     from_stage_id: uuid.UUID | None
     to_stage_id: uuid.UUID | None
     user_id: uuid.UUID | None
+    user: UserRead | None = None
     event_type: WorkflowEventType
     comment: str | None
     created_at: datetime

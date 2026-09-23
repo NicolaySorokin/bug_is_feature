@@ -19,7 +19,7 @@ from app.core.security import Principal
 from app.enums import Role
 from app.models.contract import Contract
 from app.models.user import User
-from app.models.workflow import WorkflowInstance, WorkflowTemplate, WorkflowVersion
+from app.models.workflow import WorkflowEvent, WorkflowInstance, WorkflowTemplate, WorkflowVersion
 from app.schemas.workflow import (
     BlockRequest,
     EventRead,
@@ -48,7 +48,13 @@ def _conflict(exc: workflow_service.WorkflowError) -> ConflictError:
 async def _build_view(session: AsyncSession, instance: WorkflowInstance) -> InstanceView:
     """Собирает полное представление процесса: схема, состояния, история."""
     version = await workflow_service.load_version(session, instance.workflow_version_id)
-    events = sorted(instance.events, key=lambda event: event.created_at)
+    event_result = await session.execute(
+        select(WorkflowEvent)
+        .where(WorkflowEvent.workflow_instance_id == instance.id)
+        .options(selectinload(WorkflowEvent.user))
+        .order_by(WorkflowEvent.created_at)
+    )
+    events = list(event_result.scalars())
     states = workflow_service.compute_stage_states(version, instance, events)
     transitions = workflow_service.available_transitions(version, instance.current_stage_id)
 

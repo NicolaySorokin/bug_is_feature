@@ -80,10 +80,10 @@ export function loadAlerts(): Promise<Loaded<Alert[]>> {
   return load("/dashboard/alerts?limit=20", mockDashboard.alerts);
 }
 
-export function loadContracts(params: { search?: string; status?: string; manager_id?: string; limit?: number; offset?: number } = {}): Promise<Loaded<Page<Contract>>> {
+export function loadContracts(params: { search?: string; status?: string; university_id?: string; manager_id?: string; limit?: number; offset?: number } = {}): Promise<Loaded<Page<Contract>>> {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => value !== undefined && value !== "" && query.set(key, String(value)));
-  const fallback = mockContracts.filter((item) => (!params.search || item.number.toLowerCase().includes(params.search.toLowerCase()) || item.title?.toLowerCase().includes(params.search.toLowerCase())) && (!params.status || item.status === params.status));
+  const fallback = mockContracts.filter((item) => (!params.search || `${item.number} ${item.title || ""} ${item.university?.name || ""} ${item.university?.short_name || ""}`.toLowerCase().includes(params.search.toLowerCase())) && (!params.status || item.status === params.status) && (!params.university_id || item.university_id === params.university_id) && (!params.manager_id || item.manager_id === params.manager_id));
   return load(`/contracts${query.size ? `?${query.toString()}` : ""}`, { items: fallback, total: fallback.length, limit: params.limit || 50, offset: params.offset || 0 });
 }
 
@@ -103,6 +103,10 @@ export function loadUniversities(): Promise<Loaded<Page<unknown>>> {
   return load("/universities?limit=100", { items: mockUniversities, total: mockUniversities.length, limit: 100, offset: 0 });
 }
 
+export function loadUsers(): Promise<Loaded<Page<User>>> {
+  return load("/users?limit=100", { items: mockUsers, total: mockUsers.length, limit: 100, offset: 0 });
+}
+
 export function loadDirections(): Promise<Loaded<Direction[]>> {
   const directions = Array.from(new Map(mockPrograms.map((program) => [program.direction?.id, program.direction])).values()).filter(Boolean) as Direction[];
   return load("/catalog/directions", directions);
@@ -116,12 +120,14 @@ export function loadProducts(): Promise<Loaded<Product[]>> {
   return load("/catalog/products", mockProducts);
 }
 
-export function loadComments(contractId: string): Promise<Loaded<CommentItem[]>> {
-  return load(`/contracts/${contractId}/comments`, [], { method: "GET" });
+export function loadComments(contractId: string, workflowEventId?: string): Promise<Loaded<CommentItem[]>> {
+  const query = workflowEventId ? `?workflow_event_id=${encodeURIComponent(workflowEventId)}` : "";
+  return load(`/contracts/${contractId}/comments${query}`, [], { method: "GET" });
 }
 
-export function loadAttachments(contractId: string): Promise<Loaded<Attachment[]>> {
-  return load(`/contracts/${contractId}/attachments`, [], { method: "GET" });
+export function loadAttachments(contractId: string, workflowEventId?: string): Promise<Loaded<Attachment[]>> {
+  const query = workflowEventId ? `?workflow_event_id=${encodeURIComponent(workflowEventId)}` : "";
+  return load(`/contracts/${contractId}/attachments${query}`, [], { method: "GET" });
 }
 
 export async function createComment(contractId: string, text: string, workflowEventId?: string): Promise<CommentItem> {
