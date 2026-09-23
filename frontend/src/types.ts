@@ -58,11 +58,63 @@ export interface University {
   contacts?: { id: string; full_name: string; position?: string | null; email?: string | null; phone?: string | null }[];
 }
 
+export interface CommentItem {
+  id: string;
+  contract_id: string;
+  workflow_event_id?: string | null;
+  author_id?: string | null;
+  text: string;
+  created_at: string;
+  author?: User | null;
+}
+
+export interface Attachment {
+  id: string;
+  contract_id: string;
+  workflow_event_id?: string | null;
+  uploaded_by?: string | null;
+  original_name: string;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  created_at: string;
+  uploader?: User | null;
+  download_url?: string;
+}
+
+export interface IntegrationSource {
+  id: string;
+  code: string;
+  name: string;
+  base_url?: string | null;
+  is_enabled: boolean;
+  uses_fixture: boolean;
+}
+
+export interface IntegrationRun {
+  id: string;
+  source_id: string;
+  source_code: string;
+  triggered_by?: string | null;
+  status: "running" | "success" | "failed";
+  started_at?: string | null;
+  finished_at?: string | null;
+  records_received: number;
+  records_created: number;
+  records_updated: number;
+  records_failed: number;
+  error_message?: string | null;
+}
+
 export interface Program {
   id: string;
   name: string;
   direction_id?: string | null;
   direction?: { id: string; name: string } | null;
+}
+
+export interface Direction {
+  id: string;
+  name: string;
 }
 
 export interface Product {
@@ -161,6 +213,9 @@ export interface Report {
     days_on_stage?: number | null;
     manager: string;
     valid_to?: string | null;
+    implementation_status?: string | null;
+    signed_at?: string | null;
+    comment?: string | null;
   }[];
   charts: { key: string; title: string; measure: string; items: { label: string; value: number }[] }[];
 }

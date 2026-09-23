@@ -1,5 +1,5 @@
-import { mockContracts, mockDashboard, mockReport, mockUniversities, mockUsers, mockWorkflow } from "./mock";
-import type { Contract, Dashboard, DataSource, Loaded, Page, Report, User, WorkflowView } from "./types";
+import { mockContracts, mockDashboard, mockProducts, mockPrograms, mockReport, mockUniversities, mockUsers, mockWorkflow } from "./mock";
+import type { Attachment, CommentItem, Contract, Dashboard, DataSource, Direction, IntegrationRun, IntegrationSource, Loaded, Page, Product, Program, Report, User, WorkflowView } from "./types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1").replace(/\/$/, "");
 const USE_DEMO_FALLBACK = import.meta.env.VITE_USE_DEMO_FALLBACK !== "false";
@@ -54,7 +54,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   if (response.status === 204) return undefined as T;
   const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/octet-stream") || contentType.includes("application/pdf") || contentType.includes("spreadsheet")) return response.blob() as Promise<T>;
+  if (contentType.includes("application/octet-stream") || contentType.includes("application/pdf") || contentType.includes("spreadsheet") || contentType.startsWith("image/")) return response.blob() as Promise<T>;
   return response.json() as Promise<T>;
 }
 
@@ -99,12 +99,60 @@ export function loadUniversities(): Promise<Loaded<Page<unknown>>> {
   return load("/universities?limit=100", { items: mockUniversities, total: mockUniversities.length, limit: 100, offset: 0 });
 }
 
+export function loadDirections(): Promise<Loaded<Direction[]>> {
+  const directions = Array.from(new Map(mockPrograms.map((program) => [program.direction?.id, program.direction])).values()).filter(Boolean) as Direction[];
+  return load("/catalog/directions", directions);
+}
+
+export function loadPrograms(): Promise<Loaded<Program[]>> {
+  return load("/catalog/programs", mockPrograms);
+}
+
+export function loadProducts(): Promise<Loaded<Product[]>> {
+  return load("/catalog/products", mockProducts);
+}
+
+export function loadComments(contractId: string): Promise<Loaded<CommentItem[]>> {
+  return load(`/contracts/${contractId}/comments`, [], { method: "GET" });
+}
+
+export function loadAttachments(contractId: string): Promise<Loaded<Attachment[]>> {
+  return load(`/contracts/${contractId}/attachments`, [], { method: "GET" });
+}
+
+export async function createComment(contractId: string, text: string, workflowEventId?: string): Promise<CommentItem> {
+  return request<CommentItem>(`/contracts/${contractId}/comments`, { method: "POST", body: JSON.stringify({ text, workflow_event_id: workflowEventId || null }) });
+}
+
+export async function uploadAttachment(contractId: string, file: File, workflowEventId?: string): Promise<Attachment> {
+  const form = new FormData();
+  form.append("file", file);
+  if (workflowEventId) form.append("workflow_event_id", workflowEventId);
+  return request<Attachment>(`/contracts/${contractId}/attachments`, { method: "POST", body: form });
+}
+
+export async function createContract(payload: Record<string, unknown>): Promise<Contract> {
+  return request<Contract>("/contracts", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function addContractProgram(contractId: string, programId: string): Promise<unknown> {
+  return request(`/contracts/${contractId}/programs`, { method: "POST", body: JSON.stringify({ program_id: programId }) });
+}
+
+export async function addContractProduct(contractId: string, productId: string): Promise<unknown> {
+  return request(`/contracts/${contractId}/products`, { method: "POST", body: JSON.stringify({ product_id: productId }) });
+}
+
 export async function transitionWorkflow(instanceId: string, toStageId: string, comment?: string): Promise<WorkflowView> {
   return request<WorkflowView>(`/workflow/instances/${instanceId}/transition`, { method: "POST", body: JSON.stringify({ to_stage_id: toStageId, comment }) });
 }
 
 export async function blockWorkflow(instanceId: string, reason: string): Promise<WorkflowView> {
   return request<WorkflowView>(`/workflow/instances/${instanceId}/block`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+export async function skipWorkflow(instanceId: string, toStageId: string, reason: string): Promise<WorkflowView> {
+  return request<WorkflowView>(`/workflow/instances/${instanceId}/skip`, { method: "POST", body: JSON.stringify({ to_stage_id: toStageId, reason }) });
 }
 
 export async function unblockWorkflow(instanceId: string, reason: string): Promise<WorkflowView> {
@@ -117,6 +165,42 @@ export async function updateContract(id: string, payload: Record<string, unknown
 
 export async function exportReport(body: Record<string, unknown>, format: "xlsx" | "pdf"): Promise<Blob> {
   return request<Blob>(`/reports/export?format=${format}`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export async function exportChart(body: Record<string, unknown>, key: string, format: "png" | "pdf"): Promise<Blob> {
+  return request<Blob>(`/reports/chart?key=${encodeURIComponent(key)}&format=${format}`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function loadIntegrationSources(): Promise<Loaded<IntegrationSource[]>> {
+  return load("/integrations/sources", [], { method: "GET" });
+}
+
+export function loadIntegrationRuns(): Promise<Loaded<IntegrationRun[]>> {
+  return load("/integrations/runs?limit=20", [], { method: "GET" });
+}
+
+export async function runIntegration(code?: string): Promise<IntegrationRun[] | IntegrationRun> {
+  return request(code ? `/integrations/sources/${code}/sync` : "/integrations/sync", { method: "POST" });
+}
+
+export async function toggleIntegration(code: string, isEnabled: boolean): Promise<IntegrationSource> {
+  return request<IntegrationSource>(`/integrations/sources/${code}`, { method: "PATCH", body: JSON.stringify({ is_enabled: isEnabled }) });
+}
+
+export async function saveWorkflowLayout(versionId: string, stages: { stage_id: string; layout_x: number; layout_y: number }[]): Promise<unknown> {
+  return request(`/workflow/versions/${versionId}/layout`, { method: "PUT", body: JSON.stringify({ stages }) });
+}
+
+export async function createWorkflowTemplate(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>("/workflow/templates", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function saveWorkflowGraph(versionId: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>(`/workflow/versions/${versionId}/graph`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function publishWorkflowVersion(versionId: string): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>(`/workflow/versions/${versionId}/publish`, { method: "POST" });
 }
 
 export function apiBaseUrl(): string { return API_BASE_URL; }
