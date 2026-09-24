@@ -3,7 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import (
@@ -17,6 +17,7 @@ from app.api.deps import (
 from app.core.errors import ConflictError, ErrorCode, ForbiddenError, NotFoundError
 from app.enums import ContractStatus, Role
 from app.models.contract import Contract, ContractProduct, ContractProgram
+from app.models.university import University
 from app.models.workflow import WorkflowInstance
 from app.schemas.common import Page
 from app.schemas.contract import (
@@ -40,6 +41,7 @@ router = APIRouter(prefix="/contracts", tags=["contracts"])
 def _detail_options() -> list:
     return [
         selectinload(Contract.university),
+        selectinload(Contract.manager),
         selectinload(Contract.programs).selectinload(ContractProgram.program),
         selectinload(Contract.products).selectinload(ContractProduct.product),
     ]
@@ -74,7 +76,15 @@ def _apply_filters(
     if contract_status is not None:
         statement = statement.where(Contract.status == contract_status)
     if search:
-        statement = statement.where(Contract.number.ilike(f"%{search}%"))
+        search_value = f"%{search}%"
+        statement = statement.where(
+            or_(
+                Contract.number.ilike(search_value),
+                Contract.title.ilike(search_value),
+                Contract.university.has(University.name.ilike(search_value)),
+                Contract.university.has(University.short_name.ilike(search_value)),
+            )
+        )
     if program_id is not None:
         statement = statement.where(
             Contract.id.in_(
@@ -143,7 +153,7 @@ async def list_contracts(
     )
     result = await session.execute(
         scoped(select(Contract))
-        .options(selectinload(Contract.university))
+        .options(selectinload(Contract.university), selectinload(Contract.manager))
         .order_by(Contract.created_at.desc())
         .limit(pagination.limit)
         .offset(pagination.offset)

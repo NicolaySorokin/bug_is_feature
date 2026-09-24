@@ -301,7 +301,7 @@ async def get_instance(
     statement = (
         select(WorkflowInstance)
         .where(WorkflowInstance.id == instance_id)
-        .options(selectinload(WorkflowInstance.events))
+        .options(selectinload(WorkflowInstance.events).selectinload(WorkflowEvent.user))
     )
     return (await session.execute(statement)).scalar_one_or_none()
 
@@ -318,6 +318,6 @@ async def get_contract_instance(
         .where(WorkflowInstance.contract_id == contract_id)
         .order_by(WorkflowInstance.started_at.desc().nullslast())
         .limit(1)
-        .options(selectinload(WorkflowInstance.events))
+        .options(selectinload(WorkflowInstance.events).selectinload(WorkflowEvent.user))
     )
     return (await session.execute(statement)).scalar_one_or_none()
