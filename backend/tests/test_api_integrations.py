@@ -1,8 +1,18 @@
 """Обмен с LMS и сайтом на тестовых ответах адаптеров."""
 
+from pathlib import Path
+
+import pytest
 from httpx import AsyncClient
 
+from app.services.integrations import base
 from tests.conftest import ADMIN, HEAD, MANAGER
+
+
+@pytest.fixture(autouse=True)
+def stable_fixtures(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Свои ответы LMS и сайта: демонстрационные растут вместе с демоданными."""
+    monkeypatch.setattr(base, "FIXTURES", Path(__file__).parent / "fixtures" / "integrations")
 
 
 async def test_sources_are_registered_with_fixtures(client: AsyncClient) -> None:
@@ -33,9 +43,7 @@ async def test_sync_fills_catalogs_and_starts_workflow(
     assert numbers == {"ЗАЯВКА-req-2026-001", "ЗАЯВКА-req-2026-002"}
 
     contract_id = contracts["items"][0]["id"]
-    workflow = await client.get(
-        f"/api/v1/contracts/{contract_id}/workflow", headers=ADMIN
-    )
+    workflow = await client.get(f"/api/v1/contracts/{contract_id}/workflow", headers=ADMIN)
     assert workflow.status_code == 200
     assert workflow.json()["status"] == "in_progress"
 
