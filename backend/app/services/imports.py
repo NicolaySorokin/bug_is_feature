@@ -7,29 +7,40 @@
 
 Сопоставление колонок не зашито: система предлагает его по заголовкам
 файла, а пользователь может поправить. Набор полей сводного каталога взят
-из требования 1 ТЗ.
+из требования 1 ТЗ, каталог вендоров и анкета обучающегося LMS - из файлов,
+переданных кейсодержателем.
+
+Каждая строка загружается в своей точке сохранения (SAVEPOINT) и только
+после проверки всех её значений: строка с ошибкой не оставляет после себя
+наполовину заведённых вуза или договора, а остальные строки загружаются.
 """
 
 from __future__ import annotations
 
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError, ErrorCode
 from app.enums import ImplementationStatus, ImportType
-from app.models.catalog import ItDirection, ItProduct, ItProgram, Vendor
-from app.models.contract import Contract, ContractProduct, License
+from app.models.catalog import ItDirection, ItProduct, ItProgram, Vendor, VendorContact
+from app.models.contract import Contract, ContractContact, ContractProduct, License
+from app.models.learning import Learner
 from app.models.university import University, UniversityContact
 from app.models.user import User
+from app.services.integrations.base import normalize_email, normalize_phone
 
 MAX_PREVIEW_ROWS = 20
 MAX_ROWS = 5000
+# Роль, с которой контакт из каталога назначается ответственным по договору.
+CONTRACT_CONTACT_ROLE = "Ответственный от вуза"
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,12 +101,28 @@ UNIVERSITY_SPEC = ImportSpec(
     ),
 )
 
+CONTACT_SPEC = ImportSpec(
+    import_type=ImportType.CONTACTS,
+    title="Ответственные от вузов",
+    description=(
+        "Контактные лица вузов: кто ведёт сотрудничество со стороны вуза. "
+        "Вуз должен уже быть в справочнике."
+    ),
+    fields=(
+        FieldSpec("university_name", "Название ВУЗа", ("Вуз", "ВУЗ"), required=True),
+        FieldSpec("full_name", "ФИО", ("Ответственный", "Контактное лицо"), required=True),
+        FieldSpec("position", "Должность", ()),
+        FieldSpec("phone", "Телефон", ("Номер телефона",)),
+        FieldSpec("email", "Почта", ("Email", "Электронная почта")),
+    ),
+)
+
 PROGRAM_SPEC = ImportSpec(
     import_type=ImportType.PROGRAMS,
     title="ИТ-программы",
     description="Справочник программ обучения с ИТ-направлениями.",
     fields=(
-        FieldSpec("name", "Название программы", ("Программа",), required=True),
+        FieldSpec("name", "Название программы", ("Программа", "Курс"), required=True),
         FieldSpec("direction", "ИТ-направление", ("Направление",)),
         FieldSpec("description", "Описание", ()),
     ),
@@ -107,22 +134,71 @@ PRODUCT_SPEC = ImportSpec(
     description="Справочник ИТ-продуктов с вендорами.",
     fields=(
         FieldSpec("name", "Название продукта", ("ПО", "Продукт"), required=True),
-        FieldSpec("vendor", "Вендор", ("Производитель",)),
+        FieldSpec("vendor", "Вендор", ("Производитель", "Компания")),
         FieldSpec("description", "Описание", ()),
+    ),
+)
+
+# Формат каталога «Вендоры», переданного кейсодержателем.
+VENDOR_SPEC = ImportSpec(
+    import_type=ImportType.VENDORS,
+    title="Вендоры",
+    description=(
+        "Компании-вендоры, их ИТ-продукты и ответственные со стороны вендора. "
+        "В колонке «Продукт» можно перечислить несколько продуктов через запятую."
+    ),
+    fields=(
+        FieldSpec("company", "Компания", ("Вендор", "Производитель"), required=True),
+        FieldSpec("products", "Продукт", ("Продукты", "ПО", "ИТ-продукт")),
+        FieldSpec("full_name", "ФИО", ("Контактное лицо", "Ответственный")),
+        FieldSpec("phone", "Телефон", ("Номер телефона",)),
+        FieldSpec("email", "Почта", ("Email", "Электронная почта")),
+        FieldSpec("contact_channel", "Способ связи", ("Канал связи",)),
+    ),
+)
+
+# Анкета обучающегося LMS (формат кейсодержателя). Из тридцати колонок
+# анкеты берутся только эти: паспорт, СНИЛС, адрес и диплом не нужны для
+# статистики и в систему не загружаются - принцип минимизации 152-ФЗ.
+LEARNER_SPEC = ImportSpec(
+    import_type=ImportType.LEARNERS,
+    title="Обучающиеся (анкеты LMS)",
+    description=(
+        "Анкеты слушателей из LMS. Загружаются только ФИО, телефон, почта, пол, "
+        "образование и регион - паспортные данные, СНИЛС, адрес и сведения "
+        "о дипломе не сохраняются (минимизация персональных данных, 152-ФЗ)."
+    ),
+    fields=(
+        FieldSpec("last_name", "Фамилия", (), required=True),
+        FieldSpec("first_name", "Имя", (), required=True),
+        FieldSpec("middle_name", "Отчество (при наличии)", ("Отчество",)),
+        FieldSpec("phone", "Номер телефона", ("Телефон",)),
+        FieldSpec("email", "Email", ("Почта", "Электронная почта")),
+        FieldSpec("gender", "Пол", ()),
+        FieldSpec("education", "Образование", ("Уровень образования",)),
+        FieldSpec("region", "Регион регистрации", ("Регион",)),
     ),
 )
 
 SPECS: dict[ImportType, ImportSpec] = {
     spec.import_type: spec
-    for spec in (CATALOG_SPEC, UNIVERSITY_SPEC, PROGRAM_SPEC, PRODUCT_SPEC)
+    for spec in (
+        CATALOG_SPEC,
+        UNIVERSITY_SPEC,
+        CONTACT_SPEC,
+        PROGRAM_SPEC,
+        PRODUCT_SPEC,
+        VENDOR_SPEC,
+        LEARNER_SPEC,
+    )
 }
 
 TRANSFER_STATUSES: dict[str, ImplementationStatus] = {
-    "не начато": ImplementationStatus.NOT_STARTED,
-    "не начат": ImplementationStatus.NOT_STARTED,
+    "неначато": ImplementationStatus.NOT_STARTED,
+    "неначат": ImplementationStatus.NOT_STARTED,
     "нет": ImplementationStatus.NOT_STARTED,
-    "в работе": ImplementationStatus.IN_PROGRESS,
-    "в процессе": ImplementationStatus.IN_PROGRESS,
+    "вработе": ImplementationStatus.IN_PROGRESS,
+    "впроцессе": ImplementationStatus.IN_PROGRESS,
     "передаётся": ImplementationStatus.IN_PROGRESS,
     "передается": ImplementationStatus.IN_PROGRESS,
     "внедрено": ImplementationStatus.IMPLEMENTED,
@@ -145,6 +221,13 @@ class RowError:
 class SheetData:
     headers: list[str]
     rows: list[list[Any]]
+    # Номер строки листа Excel для каждой строки данных: ошибки называют
+    # ту строку, которую человек увидит в файле.
+    row_numbers: list[int] = field(default_factory=list)
+
+    def numbered(self) -> list[tuple[int, list[Any]]]:
+        numbers = self.row_numbers or list(range(2, len(self.rows) + 2))
+        return list(zip(numbers, self.rows, strict=False))
 
 
 @dataclass(slots=True)
@@ -159,8 +242,12 @@ class ImportOutcome:
 
 
 def _normalize(text: str) -> str:
-    """Заголовок без регистра, лишних пробелов и знаков препинания."""
-    return re.sub(r"[\s_.,:;()]+", " ", str(text)).strip().lower()
+    """Заголовок без регистра, пробелов и знаков препинания.
+
+    «Отчество (при наличии)» и испорченное при выгрузке «Отчествопри наличии)»
+    дают одно и то же, как и «Номер договора.» с «номер договора».
+    """
+    return re.sub(r"[^0-9a-zа-яё]+", "", str(text).lower())
 
 
 def read_sheet(path: Path) -> SheetData:
@@ -222,13 +309,18 @@ def _split(rows: list[list[Any]]) -> SheetData:
         raise AppError("Файл пустой", code=ErrorCode.IMPORT_FAILED)
 
     headers = [_text(cell) for cell in rows[start]]
-    body = [row for row in rows[start + 1 :] if any(_text(cell) for cell in row)]
+    body: list[list[Any]] = []
+    numbers: list[int] = []
+    for index in range(start + 1, len(rows)):
+        if any(_text(cell) for cell in rows[index]):
+            body.append(rows[index])
+            numbers.append(index + 1)
     if len(body) > MAX_ROWS:
         raise AppError(
             f"В файле больше {MAX_ROWS} строк, разделите его на части",
             code=ErrorCode.IMPORT_FAILED,
         )
-    return SheetData(headers=headers, rows=body)
+    return SheetData(headers=headers, rows=body, row_numbers=numbers)
 
 
 # --- Сопоставление колонок ----------------------------------------------------
@@ -236,7 +328,10 @@ def _split(rows: list[list[Any]]) -> SheetData:
 
 def suggest_mapping(spec: ImportSpec, headers: list[str]) -> dict[str, str | None]:
     """Предлагает сопоставление «поле системы -> заголовок файла»."""
-    normalized = {_normalize(header): header for header in headers if header}
+    normalized: dict[str, str] = {}
+    for header in headers:
+        if header:
+            normalized.setdefault(_normalize(header), header)
     mapping: dict[str, str | None] = {}
     for item in spec.fields:
         match = None
@@ -268,7 +363,10 @@ def check_mapping(
 
 def _row_reader(mapping: dict[str, str | None], headers: list[str]):
     """Возвращает функцию «строка, поле -> значение»."""
-    index_by_header = {header: index for index, header in enumerate(headers) if header}
+    index_by_header: dict[str, int] = {}
+    for index, header in enumerate(headers):
+        if header:
+            index_by_header.setdefault(header, index)
     index_by_key = {
         key: index_by_header[column]
         for key, column in mapping.items()
@@ -297,6 +395,10 @@ def _text(value: Any) -> str:
 
 def cell_text(value: Any) -> str:
     """Значение ячейки строкой: нужно предпросмотру при загрузке файла."""
+    if isinstance(value, datetime):
+        return value.strftime("%d.%m.%Y")
+    if isinstance(value, date):
+        return value.strftime("%d.%m.%Y")
     return _text(value)
 
 
@@ -353,10 +455,71 @@ def parse_transfer_status(value: Any) -> ImplementationStatus | None:
     return status
 
 
-# --- Импорт -------------------------------------------------------------------
+def parse_gender(value: Any) -> str | None:
+    text = _text(value).upper()[:1]
+    if not text:
+        return None
+    gender = {"М": "М", "M": "М", "Ж": "Ж", "F": "Ж", "W": "Ж"}.get(text)
+    if gender is None:
+        raise ValueError(f"пол указывается буквой М или Ж, а не «{_text(value)}»")
+    return gender
 
 
-async def _get_or_create_by_name(session: AsyncSession, model, name: str, **extra):
+def parse_email(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    email = normalize_email(value)
+    if email is None:
+        raise ValueError(f"не похоже на адрес почты: «{_text(value)}»")
+    return email
+
+
+def split_products(value: Any) -> list[str]:
+    """«RT.DataLake», «RT.Warehouse» -> два названия без кавычек-ёлочек."""
+    parts = re.split(r"[,;\n]+", _text(value))
+    names = [part.strip().strip("«»\"' ").strip() for part in parts]
+    return [name for name in names if name]
+
+
+# Проверка значения по ключу поля: бросает ValueError с понятным текстом.
+PARSERS: dict[str, Callable[[Any], object]] = {
+    "license_signed_at": parse_date,
+    "license_valid_to": lambda value: parse_license_valid_to(value, None),
+    "transfer_status": parse_transfer_status,
+    "gender": parse_gender,
+    "email": parse_email,
+}
+
+
+def row_errors(spec: ImportSpec, row: list[Any], value, number: int) -> list[RowError]:  # noqa: ANN001
+    errors: list[RowError] = []
+    for item in spec.fields:
+        raw = value(row, item.key)
+        if item.required and not _text(raw):
+            errors.append(RowError(number, item.title, "обязательное поле не заполнено"))
+            continue
+        parser = PARSERS.get(item.key)
+        if parser is None:
+            continue
+        try:
+            parser(raw)
+        except ValueError as exc:
+            errors.append(RowError(number, item.title, str(exc)))
+    if spec.import_type is ImportType.LEARNERS and not (
+        _text(value(row, "email")) or _text(value(row, "phone"))
+    ):
+        errors.append(
+            RowError(
+                number, None, "нужен телефон или почта: по ним анкета связывается с заявкой"
+            )
+        )
+    return errors
+
+
+# --- Поиск и заведение записей ----------------------------------------------------
+
+
+async def _get_or_create_by_name(session: AsyncSession, model, name: str, **extra):  # noqa: ANN001
     """Справочники сопоставляются по названию без учёта регистра."""
     found = await session.scalar(
         select(model).where(func.lower(model.name) == name.lower()).limit(1)
@@ -369,6 +532,21 @@ async def _get_or_create_by_name(session: AsyncSession, model, name: str, **extr
     return created, True
 
 
+async def _find_university(session: AsyncSession, name: str) -> University | None:
+    """Вуз по полному или краткому названию: в файлах пишут по-разному."""
+    value = name.lower()
+    return await session.scalar(
+        select(University)
+        .where(
+            or_(
+                func.lower(University.name) == value,
+                func.lower(University.short_name) == value,
+            )
+        )
+        .limit(1)
+    )
+
+
 async def _find_user(session: AsyncSession, full_name: str) -> User | None:
     if not full_name:
         return None
@@ -377,88 +555,92 @@ async def _find_user(session: AsyncSession, full_name: str) -> User | None:
     )
 
 
-async def _import_catalog(
-    session: AsyncSession, sheet: SheetData, mapping: dict[str, str | None]
-) -> ImportOutcome:
-    outcome = ImportOutcome()
-    value = _row_reader(mapping, sheet.headers)
+RowImporter = Callable[
+    [AsyncSession, list[Any], Callable[[list[Any], str], Any], int, list[RowError]],
+    Awaitable[bool],
+]
 
-    for offset, row in enumerate(sheet.rows, start=2):
-        try:
-            university_name = _text(value(row, "university_name"))
-            contract_number = _text(value(row, "contract_number"))
-            if not university_name or not contract_number:
-                raise ValueError("не заполнены название вуза или номер договора")
 
-            university, _ = await _get_or_create_by_name(session, University, university_name)
+async def _catalog_row(session, row, value, number, warnings) -> bool:  # noqa: ANN001
+    """Строка сводного каталога. Возвращает True, если заведён новый договор."""
+    university_name = _text(value(row, "university_name"))
+    contract_number = _text(value(row, "contract_number"))
 
-            manager_name = _text(value(row, "manager_name"))
-            manager = await _find_user(session, manager_name)
-            if manager_name and manager is None:
-                outcome.errors.append(
-                    RowError(
-                        offset,
-                        "ФИО Менеджера",
-                        f"Предупреждение: сотрудник «{manager_name}» не найден, "
-                        "договор загружен без ответственного",
-                    )
-                )
+    university = await _find_university(session, university_name)
+    if university is None:
+        university = University(name=university_name)
+        session.add(university)
+        await session.flush()
 
-            contract = await session.scalar(
-                select(Contract).where(
-                    Contract.university_id == university.id,
-                    Contract.number == contract_number,
-                )
+    manager_name = _text(value(row, "manager_name"))
+    manager = await _find_user(session, manager_name)
+    if manager_name and manager is None:
+        warnings.append(
+            RowError(
+                number,
+                "ФИО Менеджера",
+                f"Предупреждение: сотрудник «{manager_name}» не найден, "
+                "ответственный по договору не изменён",
             )
-            if contract is None:
-                contract = Contract(
-                    university_id=university.id,
-                    number=contract_number,
-                    manager_id=manager.id if manager else None,
-                    comment=_text(value(row, "comment")) or None,
-                )
-                session.add(contract)
-                await session.flush()
-                outcome.created += 1
-            else:
-                if manager is not None:
-                    contract.manager_id = manager.id
-                comment = _text(value(row, "comment"))
-                if comment:
-                    contract.comment = comment
-                outcome.updated += 1
+        )
 
-            await _import_contact(session, university, _text(value(row, "contact_name")))
-            await _import_product_and_license(session, contract, row, value)
+    contract = await session.scalar(
+        select(Contract).where(
+            Contract.university_id == university.id,
+            Contract.number == contract_number,
+        )
+    )
+    created = contract is None
+    comment = _text(value(row, "comment"))
+    if contract is None:
+        contract = Contract(
+            university_id=university.id,
+            number=contract_number,
+            manager_id=manager.id if manager else None,
+            comment=comment or None,
+        )
+        session.add(contract)
+        await session.flush()
+    else:
+        if manager is not None:
+            contract.manager_id = manager.id
+        if comment:
+            contract.comment = comment
 
-        except ValueError as exc:
-            outcome.failed += 1
-            outcome.errors.append(RowError(offset, None, str(exc)))
-
-    return outcome
+    await _import_contact(session, university, contract, _text(value(row, "contact_name")))
+    await _import_product_and_license(session, contract, row, value)
+    return created
 
 
 async def _import_contact(
-    session: AsyncSession, university: University, full_name: str
+    session: AsyncSession, university: University, contract: Contract, full_name: str
 ) -> None:
+    """Ответственный от вуза: контакт вуза, назначенный на договор (раздел 9.2)."""
     if not full_name:
         return
-    existing = await session.scalar(
+    contact = await session.scalar(
         select(UniversityContact).where(
             UniversityContact.university_id == university.id,
             func.lower(UniversityContact.full_name) == full_name.lower(),
         )
     )
-    if existing is None:
+    if contact is None:
+        contact = UniversityContact(university_id=university.id, full_name=full_name)
+        session.add(contact)
+        await session.flush()
+    link = await session.get(ContractContact, (contract.id, contact.id))
+    if link is None:
         session.add(
-            UniversityContact(university_id=university.id, full_name=full_name)
+            ContractContact(
+                contract_id=contract.id, contact_id=contact.id, role=CONTRACT_CONTACT_ROLE
+            )
         )
         await session.flush()
 
 
 async def _import_product_and_license(
     session: AsyncSession, contract: Contract, row: list[Any], value
-) -> None:
+) -> None:  # noqa: ANN001
     product_name = _text(value(row, "product"))
     if not product_name:
         return
@@ -498,9 +680,7 @@ async def _import_product_and_license(
     )
     if license_ is None:
         session.add(
-            License(
-                contract_product_id=link.id, signed_at=signed_at, valid_to=valid_to
-            )
+            License(contract_product_id=link.id, signed_at=signed_at, valid_to=valid_to)
         )
     else:
         license_.signed_at = signed_at or license_.signed_at
@@ -508,97 +688,157 @@ async def _import_product_and_license(
     await session.flush()
 
 
-async def _import_universities(
-    session: AsyncSession, sheet: SheetData, mapping: dict[str, str | None]
-) -> ImportOutcome:
-    outcome = ImportOutcome()
-    value = _row_reader(mapping, sheet.headers)
+async def _university_row(session, row, value, number, warnings) -> bool:  # noqa: ANN001
+    name = _text(value(row, "name"))
+    university = await _find_university(session, name)
+    created = university is None
+    if university is None:
+        university = University(name=name)
+        session.add(university)
+    university.short_name = _text(value(row, "short_name")) or university.short_name
+    university.city = _text(value(row, "city")) or university.city
+    university.website = _text(value(row, "website")) or university.website
 
-    for offset, row in enumerate(sheet.rows, start=2):
-        name = _text(value(row, "name"))
-        if not name:
-            outcome.failed += 1
-            outcome.errors.append(RowError(offset, "Название ВУЗа", "не заполнено"))
-            continue
-
-        university, created = await _get_or_create_by_name(session, University, name)
-        university.short_name = _text(value(row, "short_name")) or university.short_name
-        university.city = _text(value(row, "city")) or university.city
-        university.website = _text(value(row, "website")) or university.website
-
-        manager = await _find_user(session, _text(value(row, "manager_name")))
-        if manager is not None:
-            university.manager_id = manager.id
-
-        outcome.created += int(created)
-        outcome.updated += int(not created)
+    manager_name = _text(value(row, "manager_name"))
+    manager = await _find_user(session, manager_name)
+    if manager is not None:
+        university.manager_id = manager.id
+    elif manager_name:
+        warnings.append(
+            RowError(
+                number,
+                "ФИО Менеджера",
+                f"Предупреждение: сотрудник «{manager_name}» не найден, "
+                "ответственный за вуз не изменён",
+            )
+        )
     await session.flush()
-    return outcome
+    return created
 
 
-async def _import_programs(
-    session: AsyncSession, sheet: SheetData, mapping: dict[str, str | None]
-) -> ImportOutcome:
-    outcome = ImportOutcome()
-    value = _row_reader(mapping, sheet.headers)
-
-    for offset, row in enumerate(sheet.rows, start=2):
-        name = _text(value(row, "name"))
-        if not name:
-            outcome.failed += 1
-            outcome.errors.append(RowError(offset, "Название программы", "не заполнено"))
-            continue
-
-        direction = None
-        direction_name = _text(value(row, "direction"))
-        if direction_name:
-            direction, _ = await _get_or_create_by_name(session, ItDirection, direction_name)
-
-        program, created = await _get_or_create_by_name(session, ItProgram, name)
-        program.description = _text(value(row, "description")) or program.description
-        if direction is not None:
-            program.direction_id = direction.id
-
-        outcome.created += int(created)
-        outcome.updated += int(not created)
+async def _contact_row(session, row, value, number, warnings) -> bool:  # noqa: ANN001
+    university_name = _text(value(row, "university_name"))
+    university = await _find_university(session, university_name)
+    if university is None:
+        raise ValueError(f"вуза «{university_name}» нет в справочнике - загрузите его раньше")
+    full_name = _text(value(row, "full_name"))
+    contact = await session.scalar(
+        select(UniversityContact).where(
+            UniversityContact.university_id == university.id,
+            func.lower(UniversityContact.full_name) == full_name.lower(),
+        )
+    )
+    created = contact is None
+    if contact is None:
+        contact = UniversityContact(university_id=university.id, full_name=full_name)
+        session.add(contact)
+    contact.position = _text(value(row, "position")) or contact.position
+    contact.phone = _text(value(row, "phone")) or contact.phone
+    contact.email = parse_email(value(row, "email")) or contact.email
     await session.flush()
-    return outcome
+    return created
 
 
-async def _import_products(
-    session: AsyncSession, sheet: SheetData, mapping: dict[str, str | None]
-) -> ImportOutcome:
-    outcome = ImportOutcome()
-    value = _row_reader(mapping, sheet.headers)
+async def _program_row(session, row, value, number, warnings) -> bool:  # noqa: ANN001
+    direction = None
+    direction_name = _text(value(row, "direction"))
+    if direction_name:
+        direction, _ = await _get_or_create_by_name(session, ItDirection, direction_name)
 
-    for offset, row in enumerate(sheet.rows, start=2):
-        name = _text(value(row, "name"))
-        if not name:
-            outcome.failed += 1
-            outcome.errors.append(RowError(offset, "Название продукта", "не заполнено"))
-            continue
-
-        vendor = None
-        vendor_name = _text(value(row, "vendor"))
-        if vendor_name:
-            vendor, _ = await _get_or_create_by_name(session, Vendor, vendor_name)
-
-        product, created = await _get_or_create_by_name(session, ItProduct, name)
-        product.description = _text(value(row, "description")) or product.description
-        if vendor is not None:
-            product.vendor_id = vendor.id
-
-        outcome.created += int(created)
-        outcome.updated += int(not created)
+    program, created = await _get_or_create_by_name(
+        session, ItProgram, _text(value(row, "name"))
+    )
+    program.description = _text(value(row, "description")) or program.description
+    if direction is not None:
+        program.direction_id = direction.id
     await session.flush()
-    return outcome
+    return created
 
 
-IMPORTERS = {
-    ImportType.CATALOG: _import_catalog,
-    ImportType.UNIVERSITIES: _import_universities,
-    ImportType.PROGRAMS: _import_programs,
-    ImportType.PRODUCTS: _import_products,
+async def _product_row(session, row, value, number, warnings) -> bool:  # noqa: ANN001
+    vendor = None
+    vendor_name = _text(value(row, "vendor"))
+    if vendor_name:
+        vendor, _ = await _get_or_create_by_name(session, Vendor, vendor_name)
+
+    product, created = await _get_or_create_by_name(
+        session, ItProduct, _text(value(row, "name"))
+    )
+    product.description = _text(value(row, "description")) or product.description
+    if vendor is not None:
+        product.vendor_id = vendor.id
+    await session.flush()
+    return created
+
+
+async def _vendor_row(session, row, value, number, warnings) -> bool:  # noqa: ANN001
+    """Строка каталога «Вендоры»: компания, её продукты и ответственный."""
+    vendor, created = await _get_or_create_by_name(
+        session, Vendor, _text(value(row, "company"))
+    )
+
+    contact = None
+    full_name = _text(value(row, "full_name"))
+    if full_name:
+        contact = await session.scalar(
+            select(VendorContact).where(
+                VendorContact.vendor_id == vendor.id,
+                func.lower(VendorContact.full_name) == full_name.lower(),
+            )
+        )
+        if contact is None:
+            contact = VendorContact(vendor_id=vendor.id, full_name=full_name)
+            session.add(contact)
+        contact.phone = _text(value(row, "phone")) or contact.phone
+        contact.email = parse_email(value(row, "email")) or contact.email
+        contact.contact_channel = (
+            _text(value(row, "contact_channel")) or contact.contact_channel
+        )
+        await session.flush()
+
+    for name in split_products(value(row, "products")):
+        product, _ = await _get_or_create_by_name(
+            session, ItProduct, name, vendor_id=vendor.id
+        )
+        product.vendor_id = vendor.id
+        if contact is not None:
+            product.contact_id = contact.id
+    await session.flush()
+    return created
+
+
+async def _learner_row(session, row, value, number, warnings) -> bool:  # noqa: ANN001
+    email = parse_email(value(row, "email"))
+    phone = normalize_phone(value(row, "phone"))
+    learner = None
+    if email:
+        learner = await session.scalar(select(Learner).where(Learner.email == email))
+    if learner is None and phone:
+        learner = await session.scalar(select(Learner).where(Learner.phone == phone).limit(1))
+    created = learner is None
+    if learner is None:
+        learner = Learner()
+        session.add(learner)
+    learner.last_name = _text(value(row, "last_name"))
+    learner.first_name = _text(value(row, "first_name"))
+    learner.middle_name = _text(value(row, "middle_name")) or None
+    learner.email = email or learner.email
+    learner.phone = phone or learner.phone
+    learner.gender = parse_gender(value(row, "gender")) or learner.gender
+    learner.education = _text(value(row, "education")) or learner.education
+    learner.region = _text(value(row, "region")) or learner.region
+    await session.flush()
+    return created
+
+
+IMPORTERS: dict[ImportType, RowImporter] = {
+    ImportType.CATALOG: _catalog_row,
+    ImportType.UNIVERSITIES: _university_row,
+    ImportType.CONTACTS: _contact_row,
+    ImportType.PROGRAMS: _program_row,
+    ImportType.PRODUCTS: _product_row,
+    ImportType.VENDORS: _vendor_row,
+    ImportType.LEARNERS: _learner_row,
 }
 
 
@@ -609,22 +849,8 @@ def validate(
     check_mapping(spec, mapping, sheet.headers)
     value = _row_reader(mapping, sheet.headers)
     errors: list[RowError] = []
-
-    for offset, row in enumerate(sheet.rows, start=2):
-        for item in spec.fields:
-            raw = value(row, item.key)
-            if item.required and not _text(raw):
-                errors.append(RowError(offset, item.title, "обязательное поле не заполнено"))
-                continue
-            try:
-                if item.key in {"license_signed_at"}:
-                    parse_date(raw)
-                elif item.key == "license_valid_to":
-                    parse_license_valid_to(raw, None)
-                elif item.key == "transfer_status":
-                    parse_transfer_status(raw)
-            except ValueError as exc:
-                errors.append(RowError(offset, item.title, str(exc)))
+    for number, row in sheet.numbered():
+        errors.extend(row_errors(spec, row, value, number))
     return errors
 
 
@@ -634,13 +860,52 @@ async def run_import(
     sheet: SheetData,
     mapping: dict[str, str | None],
 ) -> ImportOutcome:
+    """Загружает строки. Строка с ошибкой отклоняется целиком, остальные идут дальше."""
     check_mapping(spec, mapping, sheet.headers)
-    return await IMPORTERS[spec.import_type](session, sheet, mapping)
+    value = _row_reader(mapping, sheet.headers)
+    importer = IMPORTERS[spec.import_type]
+    outcome = ImportOutcome()
+
+    for number, row in sheet.numbered():
+        problems = row_errors(spec, row, value, number)
+        if problems:
+            outcome.failed += 1
+            outcome.errors.extend(problems)
+            continue
+        warnings: list[RowError] = []
+        try:
+            async with session.begin_nested():
+                created = await importer(session, row, value, number, warnings)
+        except ValueError as exc:
+            outcome.failed += 1
+            outcome.errors.append(RowError(number, None, str(exc)))
+            continue
+        except IntegrityError as exc:
+            outcome.failed += 1
+            outcome.errors.append(
+                RowError(
+                    number, None, f"строка противоречит уже загруженным данным: {exc.orig}"
+                )
+            )
+            continue
+        outcome.errors.extend(warnings)
+        if created:
+            outcome.created += 1
+        else:
+            outcome.updated += 1
+    return outcome
 
 
 def build_template(spec: ImportSpec) -> bytes:
-    """Пустой файл-образец с нужными заголовками."""
+    """Пустой файл-образец с нужными заголовками.
+
+    Подсказки - примечаниями к заголовкам, а не строкой данных: строку
+    с подсказками при заполнении забывают удалить, и она загружается.
+    """
+    from io import BytesIO
+
     from openpyxl import Workbook
+    from openpyxl.comments import Comment as CellComment
     from openpyxl.styles import Font, PatternFill
 
     workbook = Workbook()
@@ -648,15 +913,21 @@ def build_template(spec: ImportSpec) -> bytes:
     sheet.title = spec.title[:31]
     for index, item in enumerate(spec.fields, start=1):
         cell = sheet.cell(row=1, column=index, value=item.title)
-        cell.font = Font(bold=True)
+        cell.font = Font(bold=True, color="B00020" if item.required else "0B0B0B")
         cell.fill = PatternFill("solid", fgColor="F0EFEC")
+        note = "Обязательное поле." if item.required else "Необязательное поле."
+        if item.aliases:
+            note += " Узнаётся и по заголовкам: " + ", ".join(item.aliases) + "."
+        cell.comment = CellComment(note, "EDU CRM")
         sheet.column_dimensions[cell.column_letter].width = max(len(item.title) + 4, 16)
-        if item.required:
-            sheet.cell(row=2, column=index, value="обязательное поле").font = Font(
-                italic=True, color="898781"
-            )
+    sheet.freeze_panes = "A2"
 
-    from io import BytesIO
+    info = workbook.create_sheet("Справка")
+    info["A1"] = spec.title
+    info["A1"].font = Font(bold=True, size=13)
+    info["A2"] = spec.description
+    info["A4"] = "Обязательные колонки выделены красным. Заполняйте данные со второй строки."
+    info.column_dimensions["A"].width = 110
 
     buffer = BytesIO()
     workbook.save(buffer)

@@ -19,7 +19,6 @@ from datetime import UTC, date, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.security import Principal
 from app.enums import (
     AlertKind,
@@ -27,6 +26,7 @@ from app.enums import (
     ContractStatus,
     ImplementationStatus,
     IntegrationRunStatus,
+    LicenseStatus,
     WorkflowInstanceStatus,
 )
 from app.models.content import Attachment
@@ -34,7 +34,15 @@ from app.models.contract import Contract, ContractProduct, License
 from app.models.integration import IntegrationRun, IntegrationSource
 from app.models.user import User
 from app.schemas.report import ReportFilters
-from app.services import reports
+from app.services import app_settings, cache, reports
+
+
+@dataclass(frozen=True, slots=True)
+class Norms:
+    """Нормы контроля: задаются администратором в системных настройках."""
+
+    default_sla_days: int
+    expiring_days: int
 
 
 @dataclass(slots=True)
@@ -69,7 +77,7 @@ def _base(contract: Contract) -> dict:
     }
 
 
-def _process_alerts(contract: Contract) -> list[Alert]:
+def _process_alerts(contract: Contract, norms: Norms) -> list[Alert]:
     instance = reports.active_instance(contract)
     if instance is None:
         if contract.status in {ContractStatus.DRAFT, ContractStatus.ACTIVE}:
@@ -99,7 +107,7 @@ def _process_alerts(contract: Contract) -> list[Alert]:
 
     days = _days_on_stage(instance)
     stage = instance.current_stage
-    limit = (stage.sla_days if stage and stage.sla_days else settings.alert_default_sla_days)
+    limit = stage.sla_days if stage and stage.sla_days else norms.default_sla_days
     if days is not None and days > limit:
         return [
             Alert(
@@ -126,7 +134,7 @@ def _days_on_stage(instance) -> int | None:  # noqa: ANN001 - модель SQLAl
     return (datetime.now(UTC) - instance.current_stage_started_at).days
 
 
-def _contract_alerts(contract: Contract, today: date) -> list[Alert]:
+def _contract_alerts(contract: Contract, today: date, norms: Norms) -> list[Alert]:
     found: list[Alert] = []
 
     if contract.manager_id is None:
@@ -141,7 +149,7 @@ def _contract_alerts(contract: Contract, today: date) -> list[Alert]:
 
     if contract.status == ContractStatus.ACTIVE and contract.valid_to is not None:
         left = (contract.valid_to - today).days
-        if left <= settings.alert_expiring_days:
+        if left <= norms.expiring_days:
             found.append(
                 Alert(
                     kind=AlertKind.CONTRACT_EXPIRING,
@@ -176,22 +184,34 @@ def _contract_alerts(contract: Contract, today: date) -> list[Alert]:
 
 
 async def _license_alerts(
-    session: AsyncSession, contracts: dict[uuid.UUID, Contract], today: date
+    session: AsyncSession, contracts: dict[uuid.UUID, Contract], today: date, norms: Norms
 ) -> list[Alert]:
-    if not contracts:
+    """Сроки лицензий - только по действующим договорам.
+
+    Лицензия закрытого или приостановленного договора, как и отозванная
+    лицензия, действия не требует: иначе давно закрытый договор вечно
+    висел бы критичной тревогой.
+    """
+    active = [
+        contract_id
+        for contract_id, contract in contracts.items()
+        if contract.status == ContractStatus.ACTIVE
+    ]
+    if not active:
         return []
     statement = (
         select(License, ContractProduct.contract_id)
         .join(ContractProduct, ContractProduct.id == License.contract_product_id)
         .where(
-            ContractProduct.contract_id.in_(contracts),
+            ContractProduct.contract_id.in_(active),
             License.valid_to.is_not(None),
+            License.status != LicenseStatus.REVOKED,
         )
     )
     found: list[Alert] = []
     for license_, contract_id in (await session.execute(statement)).all():
         left = (license_.valid_to - today).days
-        if left > settings.alert_expiring_days:
+        if left > norms.expiring_days:
             continue
         contract = contracts[contract_id]
         found.append(
@@ -281,6 +301,49 @@ SEVERITY_ORDER = {
 }
 
 
+async def load_norms(session: AsyncSession) -> Norms:
+    values = await app_settings.load(session)
+    return Norms(
+        default_sla_days=values["alert_default_sla_days"],
+        expiring_days=values["alert_expiring_days"],
+    )
+
+
+async def _collect_all(
+    session: AsyncSession, principal: Principal, user: User
+) -> list[Alert]:
+    today = date.today()
+    norms = await load_norms(session)
+    contracts = await reports.fetch_contracts(session, ReportFilters(), principal, user)
+    by_id = {contract.id: contract for contract in contracts}
+
+    found: list[Alert] = []
+    for contract in contracts:
+        found.extend(_process_alerts(contract, norms))
+        found.extend(_contract_alerts(contract, today, norms))
+    found.extend(await _license_alerts(session, by_id, today, norms))
+    found.extend(await _document_alerts(session, by_id))
+    found.extend(await _integration_alerts(session))
+
+    found.sort(
+        key=lambda alert: (
+            SEVERITY_ORDER[alert.severity],
+            -(alert.days if alert.days is not None else 0),
+        )
+    )
+    return found
+
+
+async def collect_all(
+    session: AsyncSession, principal: Principal, user: User
+) -> list[Alert]:
+    """Все поводы вмешаться по договорам, видимым пользователю, - через кэш."""
+    key = cache.make_key(
+        "alerts", str(user.id), sorted(principal.roles), user.data_scope, date.today()
+    )
+    return await cache.cached(session, key, lambda: _collect_all(session, principal, user))
+
+
 async def collect(
     session: AsyncSession,
     principal: Principal,
@@ -289,28 +352,10 @@ async def collect(
     kinds: set[AlertKind] | None = None,
     limit: int = 100,
 ) -> list[Alert]:
-    """Собирает все поводы вмешаться по договорам, видимым пользователю."""
-    today = date.today()
-    contracts = await reports.fetch_contracts(session, ReportFilters(), principal, user)
-    by_id = {contract.id: contract for contract in contracts}
-
-    found: list[Alert] = []
-    for contract in contracts:
-        found.extend(_process_alerts(contract))
-        found.extend(_contract_alerts(contract, today))
-    found.extend(await _license_alerts(session, by_id, today))
-    found.extend(await _document_alerts(session, by_id))
-    found.extend(await _integration_alerts(session))
-
+    """Поводы вмешаться с отбором по видам, самые важные - первыми."""
+    found = await collect_all(session, principal, user)
     if kinds:
         found = [alert for alert in found if alert.kind in kinds]
-
-    found.sort(
-        key=lambda alert: (
-            SEVERITY_ORDER[alert.severity],
-            -(alert.days if alert.days is not None else 0),
-        )
-    )
     return found[:limit]
 
 

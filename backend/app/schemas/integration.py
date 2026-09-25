@@ -36,6 +36,7 @@ class IntegrationRunRead(ORMModel):
     records_updated: int
     records_failed: int
     error_message: str | None
+    notes: str | None = None
 
     @classmethod
     def from_model(cls, run, code: str | None = None) -> "IntegrationRunRead":  # noqa: ANN001

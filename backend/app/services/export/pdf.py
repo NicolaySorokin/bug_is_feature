@@ -8,8 +8,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date, datetime
 from io import BytesIO
+from typing import TYPE_CHECKING
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
@@ -32,6 +34,9 @@ from app.schemas.report import COLUMN_TITLES, ChartData, ReportResponse
 from app.services.export import charts as chart_export
 from app.services.export.fonts import ensure_fonts
 from app.services.reports import format_period, row_value
+
+if TYPE_CHECKING:  # pragma: no cover - только для подсказок типов
+    from app.services.export.table import Table as ExportTable
 
 MAX_ROWS = 1000
 HEADER_FILL = colors.HexColor("#f0efec")
@@ -89,26 +94,7 @@ def _table(report: ReportResponse, styles: dict[str, ParagraphStyle], width: flo
         for row in report.rows[:MAX_ROWS]
     ]
 
-    table = Table(
-        [header, *body],
-        colWidths=[width / len(report.columns)] * len(report.columns),
-        repeatRows=1,
-    )
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), HEADER_FILL),
-                ("GRID", (0, 0), (-1, -1), 0.4, GRID),
-                ("LINEBELOW", (0, 0), (-1, 0), 0.6, BASELINE),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-            ]
-        )
-    )
-    return table
+    return _grid([header, *body], [width / len(report.columns)] * len(report.columns))
 
 
 def _chart_image(chart: ChartData, width: int) -> Image:
@@ -135,18 +121,16 @@ def _footer(canvas, document) -> None:  # noqa: ANN001 - подпись зада
     canvas.restoreState()
 
 
-def build(report: ReportResponse) -> bytes:
-    styles = _styles()
-    buffer = BytesIO()
-    pagesize = landscape(A4)
+def _document(buffer: BytesIO, title: str) -> BaseDocTemplate:
+    """Альбомный лист A4 с колонтитулом - общий для всех выгрузок PDF."""
     document = BaseDocTemplate(
         buffer,
-        pagesize=pagesize,
+        pagesize=landscape(A4),
         leftMargin=MARGIN,
         rightMargin=MARGIN,
         topMargin=MARGIN,
         bottomMargin=16 * mm,
-        title=report.title,
+        title=title,
         author="ИТ Школа Ростелекома",
     )
     frame = Frame(
@@ -157,6 +141,90 @@ def build(report: ReportResponse) -> bytes:
         id="main",
     )
     document.addPageTemplates([PageTemplate(id="report", frames=[frame], onPage=_footer)])
+    return document
+
+
+def _grid(data: list[list], widths: list[float]) -> Table:
+    table = Table(data, colWidths=widths, repeatRows=1)
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), HEADER_FILL),
+                ("GRID", (0, 0), (-1, -1), 0.4, GRID),
+                ("LINEBELOW", (0, 0), (-1, 0), 0.6, BASELINE),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    return table
+
+
+def _charts_story(
+    charts: list[ChartData], styles: dict[str, ParagraphStyle], width: int
+) -> list:
+    if not charts:
+        return []
+    story: list = [
+        PageBreak(),
+        Paragraph("Диаграммы", styles["title"]),
+        Paragraph("Диаграммы построены по той же выборке, что и таблица.", styles["meta"]),
+        Spacer(1, 8),
+    ]
+    for chart in charts:
+        story.append(_chart_image(chart, width))
+        story.append(Spacer(1, 14))
+    return story
+
+
+def build_table(
+    table_data: ExportTable, column_widths: Sequence[float] | None = None
+) -> bytes:
+    """Произвольная таблица с шапкой и диаграммами - например, статистика обучения."""
+    styles = _styles()
+    buffer = BytesIO()
+    document = _document(buffer, table_data.title)
+    story: list = [Paragraph(table_data.title, styles["title"]), Spacer(1, 4)]
+    story += [Paragraph(line, styles["meta"]) for line in table_data.meta]
+    story.append(Spacer(1, 10))
+
+    if table_data.rows:
+        count = len(table_data.headers)
+        if column_widths:
+            total = sum(column_widths)
+            widths = [document.width * part / total for part in column_widths]
+        else:
+            widths = [document.width / count] * count
+        header = [Paragraph(title, styles["header"]) for title in table_data.headers]
+        body = [
+            [Paragraph(_text(value), styles["cell"]) for value in row]
+            for row in table_data.rows[:MAX_ROWS]
+        ]
+        story.append(_grid([header, *body], widths))
+        if len(table_data.rows) > MAX_ROWS:
+            story.append(Spacer(1, 6))
+            story.append(
+                Paragraph(
+                    f"Показаны первые {MAX_ROWS} строк из {len(table_data.rows)}. "
+                    "Полный набор данных есть в выгрузке XLSX.",
+                    styles["note"],
+                )
+            )
+    else:
+        story.append(Paragraph("За выбранный период данных нет.", styles["note"]))
+
+    story += _charts_story(table_data.charts, styles, int(document.width))
+    document.build(story)
+    return buffer.getvalue()
+
+
+def build(report: ReportResponse) -> bytes:
+    styles = _styles()
+    buffer = BytesIO()
+    document = _document(buffer, report.title)
 
     story: list = [
         Paragraph(report.title, styles["title"]),
@@ -189,18 +257,6 @@ def build(report: ReportResponse) -> bytes:
     else:
         story.append(Paragraph("За выбранный период данных нет.", styles["note"]))
 
-    if report.charts:
-        story.append(PageBreak())
-        story.append(Paragraph("Диаграммы", styles["title"]))
-        story.append(
-            Paragraph(
-                "Диаграммы построены по той же выборке, что и таблица.", styles["meta"]
-            )
-        )
-        story.append(Spacer(1, 8))
-        for chart in report.charts:
-            story.append(_chart_image(chart, int(document.width)))
-            story.append(Spacer(1, 14))
-
+    story += _charts_story(report.charts, styles, int(document.width))
     document.build(story)
     return buffer.getvalue()

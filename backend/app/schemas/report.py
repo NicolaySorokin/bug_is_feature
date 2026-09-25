@@ -76,12 +76,17 @@ class ChartKey(StrEnum):
     BY_DIRECTION = "by_direction"
     BY_UNIVERSITY = "by_university"
     BY_MANAGER = "by_manager"
+    # Статистика обучения (заявки сайта и обучающиеся LMS).
+    APPLICATIONS_BY_PROGRAM = "applications_by_program"
+    APPLICATIONS_BY_DIRECTION = "applications_by_direction"
+    APPLICATIONS_BY_MONTH = "applications_by_month"
+    STREAMS_BY_PROGRAM = "streams_by_program"
+    LEARNERS_BY_EDUCATION = "learners_by_education"
 
 
 class ExportFormat(StrEnum):
     XLSX = "xlsx"
-    # xls - формат Excel 97. Отдаём то же содержимое, что и xlsx: современный
-    # Excel открывает его без вопросов, а BIFF-файлы никто уже не пишет.
+    # xls - двоичный формат Excel 97 (xlwt): ТЗ называет его отдельно.
     XLS = "xls"
     PDF = "pdf"
     JSON = "json"

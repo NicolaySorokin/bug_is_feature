@@ -63,6 +63,8 @@ class IntegrationRun(UUIDPrimaryKeyMixin, Base):
     records_updated: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     records_failed: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Пояснения к успешному запуску: что пропущено и какие поля не сохранены.
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     source: Mapped[IntegrationSource] = relationship(back_populates="runs")
     user: Mapped[User | None] = relationship()

@@ -13,23 +13,36 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import AppError, ErrorCode, NotFoundError
-from app.enums import ContractStatus, IntegrationRunStatus
+from app.enums import ContractStatus, IntegrationRunStatus, WorkflowInstanceStatus
 from app.models.catalog import ItDirection, ItProduct, ItProgram, Vendor
+from app.models.content import Comment
 from app.models.contract import Contract, ContractProgram
 from app.models.integration import ExternalLink, IntegrationRun, IntegrationSource
+from app.models.learning import Learner, LearningApplication
 from app.models.university import University, UniversityContact
 from app.models.user import User
-from app.models.workflow import WorkflowTemplate, WorkflowVersion
+from app.models.workflow import (
+    WorkflowEvent,
+    WorkflowInstance,
+    WorkflowTemplate,
+    WorkflowVersion,
+)
 from app.services import workflow as workflow_service
-from app.services.integrations.base import IntegrationPayload, SourceAdapter
+from app.services.integrations.base import (
+    ExternalApplication,
+    IntegrationPayload,
+    SourceAdapter,
+    date_from_number,
+)
 from app.services.integrations.lms import LmsAdapter
 from app.services.integrations.site import SiteAdapter
 
@@ -51,6 +64,7 @@ class SyncStats:
     created: int = 0
     updated: int = 0
     failed: int = 0
+    notes: list[str] = field(default_factory=list)
 
 
 def build_adapter(code: str) -> SourceAdapter:
@@ -367,6 +381,246 @@ async def _sync_requests(
     return stats
 
 
+# --- Заявки на обучение ---------------------------------------------------------
+
+
+async def _program_by_course(
+    session: AsyncSession, course: str, created: list[str]
+) -> ItProgram:
+    """Программа по названию курса; неизвестный курс заводится в справочник."""
+    program = await session.scalar(
+        select(ItProgram).where(func.lower(ItProgram.name) == course.lower()).limit(1)
+    )
+    if program is None:
+        program = ItProgram(
+            name=course,
+            description="Заведена автоматически по заявке с сайта: уточните направление",
+        )
+        session.add(program)
+        await session.flush()
+        created.append(course)
+    return program
+
+
+async def _university_by_name(session: AsyncSession, name: str) -> University | None:
+    value = name.lower()
+    return await session.scalar(
+        select(University)
+        .where(
+            or_(
+                func.lower(University.name) == value,
+                func.lower(University.short_name) == value,
+            )
+        )
+        .limit(1)
+    )
+
+
+async def _contract_for(
+    session: AsyncSession,
+    university: University,
+    program: ItProgram,
+    user: User,
+    version: WorkflowVersion | None,
+    opened: list[str],
+) -> Contract:
+    """Договор вуза, в процесс которого попадает заявка.
+
+    Сначала ищется действующий договор (или черновик) с этой программой -
+    заявка добавляется в его процесс. Нет такого - заводится черновик
+    договора с программой и по нему запускается процесс по основному шаблону.
+    """
+    contract = await session.scalar(
+        select(Contract)
+        .join(ContractProgram, ContractProgram.contract_id == Contract.id)
+        .where(
+            Contract.university_id == university.id,
+            ContractProgram.program_id == program.id,
+            Contract.status.in_([ContractStatus.ACTIVE, ContractStatus.DRAFT]),
+        )
+        .order_by(Contract.created_at.desc())
+        .limit(1)
+    )
+    if contract is not None:
+        return contract
+
+    contract = Contract(
+        university_id=university.id,
+        manager_id=university.manager_id or user.id,
+        number=f"ЗАЯВКИ-{(university.short_name or university.name)[:40]}-{program.name[:30]}",
+        title=f"Заявки на программу «{program.name}»",
+        status=ContractStatus.DRAFT,
+        comment="Заведён автоматически: с сайта пришли заявки на программу, договора ещё нет",
+    )
+    session.add(contract)
+    await session.flush()
+    session.add(ContractProgram(contract_id=contract.id, program_id=program.id))
+    await session.flush()
+    if version is not None:
+        await workflow_service.start_instance(session, contract.id, version, user)
+    opened.append(contract.number)
+    return contract
+
+
+async def _note_in_process(
+    session: AsyncSession,
+    contract_id: uuid.UUID,
+    applications: list[ExternalApplication],
+    user: User,
+) -> None:
+    """Сводка о новых заявках - комментарием к текущему шагу процесса договора."""
+    event_id = await session.scalar(
+        select(WorkflowEvent.id)
+        .join(WorkflowInstance, WorkflowInstance.id == WorkflowEvent.workflow_instance_id)
+        .where(
+            WorkflowInstance.contract_id == contract_id,
+            WorkflowInstance.status.in_(
+                [WorkflowInstanceStatus.IN_PROGRESS, WorkflowInstanceStatus.BLOCKED]
+            ),
+        )
+        .order_by(WorkflowEvent.created_at.desc())
+        .limit(1)
+    )
+    lines = [
+        f"• {item.external_id}: «{item.course_name}»"
+        + (f", поток {item.stream_number}" if item.stream_number else "")
+        for item in applications
+    ]
+    session.add(
+        Comment(
+            contract_id=contract_id,
+            workflow_event_id=event_id,
+            author_id=user.id,
+            text=f"С сайта поступили заявки на обучение ({len(applications)}):\n"
+            + "\n".join(lines),
+        )
+    )
+    await session.flush()
+
+
+async def _sync_applications(
+    session: AsyncSession,
+    source: IntegrationSource,
+    payload: IntegrationPayload,
+    user: User,
+) -> SyncStats:
+    """Заявки с сайта: в статистику спроса и, если известен вуз, - в процесс."""
+    stats = SyncStats()
+    if not payload.applications:
+        return stats
+
+    now = datetime.now(UTC)
+    programs_created: list[str] = []
+    contracts_opened: list[str] = []
+    new_by_contract: dict[uuid.UUID, list[ExternalApplication]] = defaultdict(list)
+    unknown_universities: set[str] = set()
+    version = None
+
+    for item in payload.applications:
+        stats.received += 1
+        program = await _program_by_course(session, item.course_name, programs_created)
+
+        application = await session.scalar(
+            select(LearningApplication).where(
+                LearningApplication.source_id == source.id,
+                LearningApplication.external_id == item.external_id,
+            )
+        )
+        is_new = application is None
+        if is_new:
+            application = LearningApplication(
+                source_id=source.id,
+                external_id=item.external_id,
+                submitted_at=item.submitted_at or date_from_number(item.external_id) or now,
+            )
+            session.add(application)
+            stats.created += 1
+        else:
+            stats.updated += 1
+
+        application.program_id = program.id
+        application.course_name = item.course_name
+        application.stream_number = item.stream_number
+        application.last_name = item.last_name
+        application.first_name = item.first_name
+        application.middle_name = item.middle_name
+        application.phone = item.phone
+        application.email = item.email
+
+        if item.university_name:
+            university = await _university_by_name(session, item.university_name)
+            if university is None:
+                unknown_universities.add(item.university_name)
+            elif application.contract_id is None:
+                if version is None:
+                    version = await _default_version(session)
+                contract = await _contract_for(
+                    session, university, program, user, version, contracts_opened
+                )
+                application.university_id = university.id
+                application.contract_id = contract.id
+                new_by_contract[contract.id].append(item)
+        await session.flush()
+
+    for contract_id, items in new_by_contract.items():
+        await _note_in_process(session, contract_id, items, user)
+
+    if programs_created:
+        stats.notes.append(
+            "Новые курсы заведены в справочник программ (уточните направление): "
+            + ", ".join(sorted(set(programs_created)))
+        )
+    if new_by_contract:
+        stats.notes.append(
+            f"Заявки добавлены в процессы по договорам: {len(new_by_contract)}"
+            + (
+                f", из них новых договоров: {len(contracts_opened)}"
+                if contracts_opened
+                else ""
+            )
+        )
+    if unknown_universities:
+        stats.notes.append(
+            "Вузы не найдены в справочнике, заявки учтены только в статистике: "
+            + ", ".join(sorted(unknown_universities))
+        )
+    return stats
+
+
+# --- Обучающиеся из LMS ------------------------------------------------------------
+
+
+async def _sync_learners(
+    session: AsyncSession, source: IntegrationSource, payload: IntegrationPayload
+) -> SyncStats:
+    stats = SyncStats()
+    for item in payload.learners:
+        stats.received += 1
+        learner = None
+        if item.email:
+            learner = await session.scalar(select(Learner).where(Learner.email == item.email))
+        if learner is None and item.phone:
+            learner = await session.scalar(
+                select(Learner).where(Learner.phone == item.phone).limit(1)
+            )
+        if learner is None:
+            learner = Learner(source_id=source.id)
+            session.add(learner)
+            stats.created += 1
+        else:
+            stats.updated += 1
+        learner.last_name = item.last_name
+        learner.first_name = item.first_name
+        learner.middle_name = item.middle_name
+        learner.email = item.email or learner.email
+        learner.phone = item.phone or learner.phone
+        learner.gender = item.gender or learner.gender
+        learner.education = item.education or learner.education
+        learner.region = item.region or learner.region
+        await session.flush()
+    return stats
+
+
 # --- Запуск -------------------------------------------------------------------
 
 
@@ -382,16 +636,42 @@ async def _apply(
         await _sync_products(session, source, payload),
         await _sync_universities(session, source, payload),
         await _sync_requests(session, source, payload, user),
+        await _sync_applications(session, source, payload, user),
+        await _sync_learners(session, source, payload),
     ):
         total.received += part.received
         total.created += part.created
         total.updated += part.updated
         total.failed += part.failed
+        total.notes.extend(part.notes)
+
+    if payload.skipped:
+        total.failed += payload.skipped
+        total.received += payload.skipped
+        total.notes.append(
+            f"Пропущено записей без обязательных полей или пустых: {payload.skipped}"
+        )
+    if payload.dropped_fields:
+        total.notes.append(
+            "Не сохранены лишние персональные данные (минимизация по 152-ФЗ): "
+            + ", ".join(sorted(payload.dropped_fields))
+        )
     return total
 
 
-async def run_sync(session: AsyncSession, code: str, user: User) -> IntegrationRun:
-    """Выполняет синхронизацию и записывает результат в журнал запусков."""
+async def run_sync(
+    session: AsyncSession,
+    code: str,
+    user: User,
+    raw: object | None = None,
+    filename: str | None = None,
+) -> IntegrationRun:
+    """Выполняет синхронизацию и записывает результат в журнал запусков.
+
+    ``raw`` - ответ источника, переданный файлом (например, выгрузка API,
+    полученная до того, как открыли сетевой доступ). Разбирается тем же
+    адаптером, что и ответ по сети, поэтому путь данных один.
+    """
     source = await get_source(session, code)
     if not source.is_enabled:
         raise AppError(
@@ -408,8 +688,12 @@ async def run_sync(session: AsyncSession, code: str, user: User) -> IntegrationR
     await session.flush()
 
     try:
-        payload = await build_adapter(code).fetch()
-        stats = await _apply(session, source, payload, user)
+        adapter = build_adapter(code)
+        payload = adapter.parse(raw) if raw is not None else await adapter.fetch()
+        # Точка сохранения: сбой разбора откатит только данные этого запуска,
+        # а сама запись о неудачном запуске останется в журнале.
+        async with session.begin_nested():
+            stats = await _apply(session, source, payload, user)
     except AppError as exc:
         # Сетевые сбои и неожиданный формат ответа - ожидаемый исход обмена,
         # поэтому не роняем запрос, а записываем неудачный запуск.
@@ -424,6 +708,8 @@ async def run_sync(session: AsyncSession, code: str, user: User) -> IntegrationR
     run.records_created = stats.created
     run.records_updated = stats.updated
     run.records_failed = stats.failed
+    notes = ([f"Данные загружены файлом «{filename}»"] if filename else []) + stats.notes
+    run.notes = "\n".join(notes) or None
     run.finished_at = datetime.now(UTC)
     await session.flush()
     return run

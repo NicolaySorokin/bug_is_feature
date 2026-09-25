@@ -3,7 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -100,7 +100,7 @@ async def _get_instance(
             .options(selectinload(Contract.university))
         )
     ).scalar_one()
-    access.ensure_contract_access(contract, principal, user)
+    await access.ensure_contract_access(session, contract, principal, user)
     return instance
 
 
@@ -121,12 +121,23 @@ async def list_templates(session: SessionDep, _: CurrentUserDep) -> list[Templat
 async def list_versions(
     template_id: uuid.UUID, session: SessionDep, _: CurrentUserDep
 ) -> list[VersionRead]:
+    used = (
+        select(WorkflowInstance.workflow_version_id, func.count().label("total"))
+        .group_by(WorkflowInstance.workflow_version_id)
+        .subquery()
+    )
     result = await session.execute(
-        select(WorkflowVersion)
+        select(WorkflowVersion, used.c.total)
+        .outerjoin(used, used.c.workflow_version_id == WorkflowVersion.id)
         .where(WorkflowVersion.template_id == template_id)
         .order_by(WorkflowVersion.version_number.desc())
     )
-    return [VersionRead.model_validate(row) for row in result.scalars()]
+    versions = []
+    for version, total in result.all():
+        item = VersionRead.model_validate(version)
+        item.instances_count = total or 0
+        versions.append(item)
+    return versions
 
 
 @router.get(

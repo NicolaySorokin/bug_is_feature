@@ -35,7 +35,7 @@ from app.schemas.report import (
     ReportRow,
     ReportTotals,
 )
-from app.services import access
+from app.services import access, cache
 from app.services.labels import (
     CONTRACT_STATUS_LABELS,
     IMPLEMENTATION_STATUS_LABELS,
@@ -229,7 +229,7 @@ def build_rows(contracts: list[Contract]) -> list[ReportRow]:
     return rows
 
 
-def _top(counter: Counter[str], limit: int = TOP_LIMIT) -> list[ChartItem]:
+def top_items(counter: Counter[str], limit: int = TOP_LIMIT) -> list[ChartItem]:
     """Крупнейшие позиции, остальные - одной строкой «Прочие».
 
     Сумма значений на диаграмме при этом совпадает с выборкой: ничего
@@ -277,25 +277,25 @@ def build_charts(contracts: list[Contract], rows: list[ReportRow]) -> list[Chart
             key=ChartKey.BY_STAGE,
             title="Договоры по этапам процесса",
             measure="договоров",
-            items=_top(by_stage),
+            items=top_items(by_stage),
         ),
         ChartData(
             key=ChartKey.BY_DIRECTION,
             title="Программы по ИТ-направлениям",
             measure="программ в договорах",
-            items=_top(by_direction),
+            items=top_items(by_direction),
         ),
         ChartData(
             key=ChartKey.BY_UNIVERSITY,
             title="Договоры по вузам",
             measure="договоров",
-            items=_top(by_university),
+            items=top_items(by_university),
         ),
         ChartData(
             key=ChartKey.BY_MANAGER,
             title="Нагрузка ответственных",
             measure="договоров",
-            items=_top(by_manager),
+            items=top_items(by_manager),
         ),
     ]
 
@@ -314,6 +314,26 @@ def build_totals(rows: list[ReportRow]) -> ReportTotals:
 
 
 async def build_report(
+    session: AsyncSession,
+    request: ReportRequest,
+    principal: Principal,
+    user: User,
+) -> ReportResponse:
+    """Выборка отчёта. Одинаковые запросы одного пользователя берутся из кэша:
+    предпросмотр, выгрузка и диаграмма по тем же фильтрам считаются один раз."""
+    key = cache.make_key(
+        "report",
+        str(user.id),
+        sorted(principal.roles),
+        user.data_scope,
+        request.model_dump(mode="json"),
+    )
+    return await cache.cached(
+        session, key, lambda: _build_report(session, request, principal, user)
+    )
+
+
+async def _build_report(
     session: AsyncSession,
     request: ReportRequest,
     principal: Principal,

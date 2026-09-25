@@ -15,6 +15,13 @@ class Role(StrEnum):
     ADMIN = "admin"  # Администратор
 
 
+class DataScope(StrEnum):
+    """Какие договоры видит пользователь. Задаёт администратор."""
+
+    DEFAULT = "default"  # по роли: менеджер - свои, руководитель и админ - все
+    ALL = "all"  # все договоры, даже если роль - менеджер
+
+
 class ContractStatus(StrEnum):
     DRAFT = "draft"
     ACTIVE = "active"
@@ -89,8 +96,11 @@ class ImportType(StrEnum):
 
     CATALOG = "catalog"  # сводная таблица из требования 1 ТЗ
     UNIVERSITIES = "universities"
+    CONTACTS = "contacts"  # ответственные от вузов
     PROGRAMS = "programs"
     PRODUCTS = "products"
+    VENDORS = "vendors"  # каталог «Вендоры»: компании, продукты, контакты
+    LEARNERS = "learners"  # анкеты обучающихся из LMS
 
 
 class AuditAction(StrEnum):

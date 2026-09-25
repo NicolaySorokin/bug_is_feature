@@ -254,6 +254,8 @@ class DemoLoader:
                 username=employee.username,
                 full_name=employee.full_name,
                 email=employee.email,
+                # Снимок ролей из реалма: карточки видны до первого входа.
+                roles=sorted(str(role) for role in employee.roles),
                 created_at=joined,
                 updated_at=joined,
             )

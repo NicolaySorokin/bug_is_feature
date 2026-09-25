@@ -13,7 +13,9 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -70,11 +72,49 @@ class ExternalRequest:
 
 
 @dataclass(slots=True)
+class ExternalApplication:
+    """Заявка на обучение в формате сайта ИТ Школы (передан кейсодержателем)."""
+
+    external_id: str
+    course_name: str
+    stream_number: int | None = None
+    last_name: str = ""
+    first_name: str = ""
+    middle_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    # Необязательные поля: если источник их передаст, заявка попадёт
+    # в процесс по договору вуза (существующий или новый).
+    university_name: str | None = None
+    submitted_at: datetime | None = None
+
+
+@dataclass(slots=True)
+class ExternalLearner:
+    """Обучающийся из LMS - уже без лишних персональных данных."""
+
+    last_name: str
+    first_name: str
+    middle_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    gender: str | None = None
+    education: str | None = None
+    region: str | None = None
+
+
+@dataclass(slots=True)
 class IntegrationPayload:
     universities: list[ExternalUniversity] = field(default_factory=list)
     programs: list[ExternalProgram] = field(default_factory=list)
     products: list[ExternalProduct] = field(default_factory=list)
     requests: list[ExternalRequest] = field(default_factory=list)
+    applications: list[ExternalApplication] = field(default_factory=list)
+    learners: list[ExternalLearner] = field(default_factory=list)
+    # Записи, которые не удалось разобрать (пустые, без обязательных полей).
+    skipped: int = 0
+    # Поля источника, которые намеренно не сохраняются (минимизация ПДн).
+    dropped_fields: set[str] = field(default_factory=set)
 
     @property
     def size(self) -> int:
@@ -83,6 +123,8 @@ class IntegrationPayload:
             + len(self.programs)
             + len(self.products)
             + len(self.requests)
+            + len(self.applications)
+            + len(self.learners)
         )
 
 
@@ -96,7 +138,7 @@ class SourceAdapter(Protocol):
     async def fetch(self) -> IntegrationPayload: ...
 
 
-def load_fixture(name: str) -> dict[str, Any]:
+def load_fixture(name: str) -> Any:
     path = FIXTURES / f"{name}.json"
     if not path.is_file():
         raise AppError(
@@ -106,7 +148,7 @@ def load_fixture(name: str) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-async def fetch_json(url: str, token: str) -> dict[str, Any]:
+async def fetch_json(url: str, token: str) -> Any:
     """Запрос к внешнему API. Ошибки сети превращаются в понятный код."""
     headers = {"Accept": "application/json"}
     if token:
@@ -133,3 +175,85 @@ def contacts_from(raw: list[dict[str, Any]] | None) -> list[ExternalContact]:
         for item in raw or []
         if item.get("full_name") or item.get("fio")
     ]
+
+
+# --- Нормализация значений ------------------------------------------------------
+
+
+def key(name: object) -> str:
+    """Имя поля без регистра, пробелов и знаков: «Отчество (при наличии)» и
+    испорченное при выгрузке «Отчествопри наличии)» дают одно и то же."""
+    return re.sub(r"[^0-9a-zа-яё]+", "", str(name).lower())
+
+
+def pick(item: dict[str, Any], *names: str) -> Any:
+    """Значение поля по любому из допустимых имён."""
+    wanted = {key(name) for name in names}
+    for field_name, value in item.items():
+        if key(field_name) in wanted and value not in (None, ""):
+            return value
+    return None
+
+
+def text(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    result = str(value).strip()
+    return result or None
+
+
+def normalize_phone(value: Any) -> str | None:
+    """Телефон цифрами в виде 7XXXXXXXXXX: «7 (999) 023-43-65» и 79990234365 совпадут."""
+    digits = re.sub(r"\D", "", text(value) or "")
+    if not digits:
+        return None
+    if len(digits) == 10:
+        digits = "7" + digits
+    elif len(digits) == 11 and digits.startswith("8"):
+        digits = "7" + digits[1:]
+    return digits[:20]
+
+
+def normalize_email(value: Any) -> str | None:
+    email = (text(value) or "").lower()
+    return email if "@" in email else None
+
+
+def parse_int(value: Any) -> int | None:
+    try:
+        return int(float(str(value).strip()))
+    except (TypeError, ValueError):
+        return None
+
+
+_ORDER_STAMP = re.compile(r"(\d{14})")
+
+
+def date_from_number(number: str) -> datetime | None:
+    """Номер заявки сайта содержит момент подачи: ORD-20260522061330-...
+
+    В тестовой выгрузке встречаются и испорченные номера (месяц 17,
+    секунда 69) - тогда даты нет, и берётся момент получения заявки.
+    """
+    match = _ORDER_STAMP.search(number or "")
+    if match is None:
+        return None
+    try:
+        return datetime.strptime(match.group(1), "%Y%m%d%H%M%S").replace(tzinfo=UTC)
+    except ValueError:
+        return None
+
+
+def parse_datetime(value: Any) -> datetime | None:
+    raw = text(value)
+    if raw is None:
+        return None
+    for pattern in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d", "%d.%m.%Y"):
+        try:
+            parsed = datetime.strptime(raw, pattern)
+        except ValueError:
+            continue
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return None

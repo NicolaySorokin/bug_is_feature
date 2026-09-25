@@ -6,6 +6,7 @@
 (``/chart``) - выборка при этом считается одинаково.
 """
 
+import anyio
 from fastapi import APIRouter, Query, Response
 
 from app.api.deps import CurrentUserDep, PrincipalDep, SessionDep
@@ -23,6 +24,7 @@ from app.schemas.report import (
 from app.services import reports
 from app.services.export import charts as chart_export
 from app.services.export import pdf as pdf_export
+from app.services.export import table as table_export
 from app.services.export import xlsx as xlsx_export
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -32,10 +34,7 @@ CONTENT_TYPES = {
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "xlsx",
     ),
-    ExportFormat.XLS: (
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "xlsx",
-    ),
+    ExportFormat.XLS: ("application/vnd.ms-excel", "xls"),
     ExportFormat.PDF: ("application/pdf", "pdf"),
     ExportFormat.JSON: ("application/json", "json"),
 }
@@ -71,13 +70,43 @@ async def preview(
     return await reports.build_report(session, payload, principal, user)
 
 
+def report_table(report: ReportResponse) -> table_export.Table:
+    """Отчёт как таблица для общих выгрузок (XLS)."""
+    return table_export.Table(
+        title=report.title,
+        meta=[
+            f"Период: {reports.format_period(report.filters)}",
+            f"Построен: {report.generated_at.strftime('%d.%m.%Y %H:%M')} · "
+            f"договоров: {report.totals.contracts} · строк: {report.totals.rows}",
+        ],
+        headers=[COLUMN_TITLES[column] for column in report.columns],
+        rows=[
+            [reports.row_value(row, column.value) for column in report.columns]
+            for row in report.rows
+        ],
+        charts=report.charts,
+    )
+
+
+def render_report(report: ReportResponse, export_format: ExportFormat) -> bytes:
+    """Файл отчёта. Вызывается в пуле потоков: сборка PDF и XLSX - работа
+    процессора, в цикле событий она задержала бы остальные запросы."""
+    if export_format is ExportFormat.PDF:
+        return pdf_export.build(report)
+    if export_format is ExportFormat.JSON:
+        return report.model_dump_json(indent=2).encode("utf-8")
+    if export_format is ExportFormat.XLS:
+        return table_export.to_xls(report_table(report))
+    return xlsx_export.build(report)
+
+
 @router.post(
     "/export",
     summary="Выгрузить отчёт файлом",
     description=(
-        "Форматы: xlsx, xls, pdf, json. Формат xls отдаётся содержимым xlsx - "
-        "Excel открывает его без вопросов, а двоичный формат Excel 97 давно "
-        "не используется."
+        "Форматы: xlsx, xls (Excel 97), pdf, json. Диаграммы строятся по той же "
+        "выборке, что и таблица: в XLSX - диаграммами Excel, в PDF - картинками, "
+        "в XLS - сводными листами."
     ),
     response_class=Response,
     responses={200: {"content": {"application/octet-stream": {}}}},
@@ -93,12 +122,9 @@ async def export(
     media_type, extension = CONTENT_TYPES[export_format]
 
     try:
-        if export_format is ExportFormat.PDF:
-            content = pdf_export.build(report)
-        elif export_format is ExportFormat.JSON:
-            content = report.model_dump_json(indent=2).encode("utf-8")
-        else:
-            content = xlsx_export.build(report)
+        content = await anyio.to_thread.run_sync(render_report, report, export_format)
+    except AppError:
+        raise
     except Exception as exc:  # noqa: BLE001 - наружу уходит понятный код ошибки
         raise AppError(
             f"Не удалось сформировать отчёт: {exc}", code=ErrorCode.REPORT_FAILED
@@ -136,9 +162,11 @@ async def chart(
 
     try:
         if image_format is ImageFormat.PNG:
-            content, media_type = chart_export.to_png(data), "image/png"
+            content = await anyio.to_thread.run_sync(chart_export.to_png, data)
+            media_type = "image/png"
         else:
-            content, media_type = chart_export.to_pdf(data), "application/pdf"
+            content = await anyio.to_thread.run_sync(chart_export.to_pdf, data)
+            media_type = "application/pdf"
     except Exception as exc:  # noqa: BLE001 - наружу уходит понятный код ошибки
         raise AppError(
             f"Не удалось построить диаграмму: {exc}", code=ErrorCode.REPORT_FAILED

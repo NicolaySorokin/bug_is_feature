@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import logging
 from enum import StrEnum
 from typing import Any
 
@@ -18,11 +19,15 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
+
+logger = logging.getLogger("app.errors")
 
 
 class ErrorCode(StrEnum):
     UNAUTHORIZED = "unauthorized"
     FORBIDDEN = "forbidden"
+    ACCOUNT_DISABLED = "account_disabled"
     NOT_FOUND = "not_found"
     VALIDATION_ERROR = "validation_error"
     CONFLICT = "conflict"
@@ -32,6 +37,7 @@ class ErrorCode(StrEnum):
     IMPORT_FAILED = "import_failed"
     INTEGRATION_FAILED = "integration_failed"
     REPORT_FAILED = "report_failed"
+    IDENTITY_PROVIDER_ERROR = "identity_provider_error"
     INTERNAL_ERROR = "internal_error"
 
 
@@ -119,6 +125,34 @@ def register_error_handlers(app: FastAPI) -> None:
             status_code=exc.status_code,
             content=error_payload(code, str(exc.detail)),
             headers=exc.headers,
+        )
+
+    @app.exception_handler(IntegrityError)
+    async def _integrity_error(_: Request, exc: IntegrityError) -> JSONResponse:
+        # Нарушение ограничений базы - дубль или ссылка на удалённую запись.
+        # Это ошибка запроса, а не сбой сервиса: отвечаем 409, а не 500.
+        logger.info("Нарушение ограничения базы: %s", exc.orig)
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content=error_payload(
+                ErrorCode.CONFLICT,
+                "Изменение противоречит данным: такая запись уже есть "
+                "или на неё ссылаются другие записи",
+            ),
+        )
+
+    @app.exception_handler(Exception)
+    async def _unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+        # Непредвиденный сбой: подробности - в журнал сервера, клиенту -
+        # общий код без внутренностей (стек и SQL наружу не уходят).
+        logger.exception("Необработанная ошибка: %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=error_payload(
+                ErrorCode.INTERNAL_ERROR,
+                "Внутренняя ошибка сервиса. Повторите действие или обратитесь "
+                "к администратору",
+            ),
         )
 
     @app.exception_handler(RequestValidationError)

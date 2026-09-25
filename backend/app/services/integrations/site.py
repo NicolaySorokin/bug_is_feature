@@ -1,9 +1,18 @@
 """Адаптер сайта ИТ Школы (CMS Laravel).
 
-С сайта приходят вузы-партнёры с контактными лицами и заявки на обучение.
-Заявка - повод завести договор и запустить по нему рабочий процесс
-(функциональное требование 5 ТЗ: данные из внешней системы добавляются
-в существующий или новый workflow).
+Контракт от кейсодержателя: сайт отдаёт заявки на обучение - список
+объектов с полями «Номер заявки», «Курс», «Фамилия», «Имя», «Отчество»,
+«Телефон», «Email», «Номер потока». В выгрузке встречаются пустые
+элементы (null) - они пропускаются и учитываются в журнале запуска.
+
+Заявка - это спрос на программу: по заявкам и потокам считается
+статистика востребованности (ТЗ, раздел «Актуальность»). Если источник
+дополнительно передаёт вуз («Вуз»), заявка попадает в процесс по договору
+этого вуза - существующий или новый (функциональное требование 5 ТЗ).
+
+Прежний тестовый формат (объект с universities и requests) тоже
+разбирается: на нём построены демонстрационные сюжеты заведения договора
+по заявке вуза.
 """
 
 from __future__ import annotations
@@ -12,13 +21,39 @@ from typing import Any
 
 from app.core.config import settings
 from app.services.integrations.base import (
+    ExternalApplication,
     ExternalRequest,
     ExternalUniversity,
     IntegrationPayload,
     contacts_from,
     fetch_json,
     load_fixture,
+    normalize_email,
+    normalize_phone,
+    parse_datetime,
+    parse_int,
+    pick,
+    text,
 )
+
+
+def parse_application(item: dict[str, Any]) -> ExternalApplication | None:
+    number = text(pick(item, "Номер заявки", "id", "number"))
+    course = text(pick(item, "Курс", "course", "program"))
+    if not number or not course:
+        return None
+    return ExternalApplication(
+        external_id=number,
+        course_name=course,
+        stream_number=parse_int(pick(item, "Номер потока", "stream")),
+        last_name=text(pick(item, "Фамилия", "last_name")) or "",
+        first_name=text(pick(item, "Имя", "first_name")) or "",
+        middle_name=text(pick(item, "Отчество", "Отчество (при наличии)", "middle_name")),
+        phone=normalize_phone(pick(item, "Телефон", "Номер телефона", "phone")),
+        email=normalize_email(pick(item, "Email", "Почта", "email")),
+        university_name=text(pick(item, "Вуз", "Учебное заведение", "university")),
+        submitted_at=parse_datetime(pick(item, "Дата заявки", "Дата", "created_at")),
+    )
 
 
 class SiteAdapter:
@@ -37,31 +72,45 @@ class SiteAdapter:
         if self.uses_fixture:
             raw = load_fixture("site")
         else:
-            raw = await fetch_json(f"{self.base_url}/api/partners", self._token)
+            raw = await fetch_json(f"{self.base_url}/api/applications", self._token)
         return self.parse(raw)
 
     @staticmethod
-    def parse(raw: dict[str, Any]) -> IntegrationPayload:
-        universities = [
-            ExternalUniversity(
-                external_id=str(item["id"]),
-                name=item["name"],
-                short_name=item.get("short_name"),
-                city=item.get("city"),
-                website=item.get("website"),
-                contacts=contacts_from(item.get("contacts")),
-            )
-            for item in raw.get("universities", [])
-            if item.get("id") and item.get("name")
-        ]
-        requests = [
-            ExternalRequest(
-                external_id=str(item["id"]),
-                university_external_id=str(item["university_id"]),
-                program_external_ids=[str(value) for value in item.get("program_ids", [])],
-                comment=item.get("comment"),
-            )
-            for item in raw.get("requests", [])
-            if item.get("id") and item.get("university_id")
-        ]
-        return IntegrationPayload(universities=universities, requests=requests)
+    def parse(raw: Any) -> IntegrationPayload:
+        payload = IntegrationPayload()
+        if isinstance(raw, dict):
+            items = raw.get("applications") or []
+            payload.universities = [
+                ExternalUniversity(
+                    external_id=str(item["id"]),
+                    name=item["name"],
+                    short_name=item.get("short_name"),
+                    city=item.get("city"),
+                    website=item.get("website"),
+                    contacts=contacts_from(item.get("contacts")),
+                )
+                for item in raw.get("universities", [])
+                if item.get("id") and item.get("name")
+            ]
+            payload.requests = [
+                ExternalRequest(
+                    external_id=str(item["id"]),
+                    university_external_id=str(item["university_id"]),
+                    program_external_ids=[str(value) for value in item.get("program_ids", [])],
+                    comment=item.get("comment"),
+                )
+                for item in raw.get("requests", [])
+                if item.get("id") and item.get("university_id")
+            ]
+        elif isinstance(raw, list):
+            items = raw
+        else:
+            items = []
+
+        for item in items:
+            application = parse_application(item) if isinstance(item, dict) else None
+            if application is None:
+                payload.skipped += 1
+            else:
+                payload.applications.append(application)
+        return payload

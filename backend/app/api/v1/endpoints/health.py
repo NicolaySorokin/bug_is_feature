@@ -1,15 +1,39 @@
 """Проверка живости сервиса и служебные словари для клиента."""
 
 from fastapi import APIRouter
-from sqlalchemy import text
+from pydantic import BaseModel
+from sqlalchemy import func, select, text
 
 from app.api.deps import SessionDep
 from app.core.config import settings
 from app.core.errors import ErrorCode
+from app.models.user import User
+from app.services import cache
 from app.services.labels import ENUM_LABELS
 from app.services.storage import ALLOWED_TYPES
 
 router = APIRouter(tags=["service"])
+
+
+class KeycloakConfig(BaseModel):
+    url: str
+    realm: str
+    client_id: str
+
+
+class DemoAccount(BaseModel):
+    username: str
+    full_name: str
+    roles: list[str]
+
+
+class AuthConfig(BaseModel):
+    """Как входить в систему. Клиент читает это до входа, поэтому без токена."""
+
+    mode: str
+    keycloak: KeycloakConfig | None = None
+    # Только в режиме разработки: учётные записи для входа без пароля.
+    demo_accounts: list[DemoAccount] = []
 
 
 @router.get("/health", summary="Состояние сервиса")
@@ -20,6 +44,41 @@ async def health(session: SessionDep) -> dict[str, str]:
         "environment": settings.environment,
         "auth_backend": settings.auth_backend,
     }
+
+
+@router.get(
+    "/meta/auth",
+    response_model=AuthConfig,
+    summary="Настройки входа для клиентской части",
+    description=(
+        "С Keycloak - адрес, реалм и публичный клиент для входа по Authorization "
+        "Code + PKCE. В режиме разработки - список учётных записей заглушки."
+    ),
+)
+async def auth_config(session: SessionDep) -> AuthConfig:
+    if settings.auth_backend == "keycloak":
+        return AuthConfig(
+            mode="keycloak",
+            keycloak=KeycloakConfig(
+                url=settings.keycloak_base_url.rstrip("/"),
+                realm=settings.keycloak_realm,
+                client_id=settings.keycloak_web_client_id,
+            ),
+        )
+
+    users = await session.execute(
+        select(User)
+        .where(User.is_active.is_(True), func.cardinality(User.roles) > 0)
+        .order_by(User.full_name)
+        .limit(100)
+    )
+    return AuthConfig(
+        mode="dev",
+        demo_accounts=[
+            DemoAccount(username=user.username, full_name=user.full_name, roles=user.roles)
+            for user in users.scalars()
+        ],
+    )
 
 
 @router.get(
@@ -43,3 +102,8 @@ async def meta_enums() -> dict[str, object]:
             "expiring_days": settings.alert_expiring_days,
         },
     }
+
+
+@router.get("/meta/cache", summary="Состояние кэша выборок", include_in_schema=False)
+async def cache_state(session: SessionDep) -> dict[str, object]:
+    return {"version": await cache.current_version(session), **cache.stats()}

@@ -171,7 +171,7 @@ async def _get_attachment(
     attachment = (await session.execute(statement)).scalar_one_or_none()
     if attachment is None:
         raise NotFoundError("Файл не найден")
-    access.ensure_contract_access(attachment.contract, principal, user)
+    await access.ensure_contract_access(session, attachment.contract, principal, user)
     return attachment
 
 

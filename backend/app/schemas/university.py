@@ -1,10 +1,12 @@
 """Схемы вузов и контактных лиц."""
 
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
 from app.schemas.common import ORMModel
+from app.schemas.user import UserRead
 
 
 class UniversityContactCreate(BaseModel):
@@ -12,6 +14,14 @@ class UniversityContactCreate(BaseModel):
     position: str | None = Field(default=None, max_length=255)
     email: str | None = Field(default=None, max_length=255)
     phone: str | None = Field(default=None, max_length=50)
+
+
+class UniversityContactUpdate(BaseModel):
+    full_name: str | None = Field(default=None, min_length=1, max_length=255)
+    position: str | None = Field(default=None, max_length=255)
+    email: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=50)
+    is_active: bool | None = None
 
 
 class UniversityContactRead(ORMModel):
@@ -54,5 +64,12 @@ class UniversityRead(ORMModel):
     is_active: bool
 
 
-class UniversityDetail(UniversityRead):
+class UniversityListItem(UniversityRead):
+    manager: UserRead | None = None
+    contracts_count: int = 0
+    active_contracts_count: int = 0
+
+
+class UniversityDetail(UniversityListItem):
     contacts: list[UniversityContactRead] = []
+    created_at: datetime | None = None

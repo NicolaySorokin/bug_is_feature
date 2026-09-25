@@ -25,9 +25,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async
 from app.core.config import settings
 from app.core.security import DevAuthBackend
 from app.db.base import Base
-from app.db.session import get_session
+from app.db.session import commit, get_session
 from app.main import app
 from app.models import User  # noqa: F401 - импорт наполняет метадату
+from app.services import cache
 
 TEST_DB = f"{settings.postgres_db}_test"
 
@@ -78,7 +79,7 @@ async def client(engine: AsyncEngine, tmp_path: Path) -> AsyncIterator[AsyncClie
         async with factory() as session:
             try:
                 yield session
-                await session.commit()
+                await commit(session)
             except Exception:
                 await session.rollback()
                 raise
@@ -90,13 +91,22 @@ async def client(engine: AsyncEngine, tmp_path: Path) -> AsyncIterator[AsyncClie
 
     previous_storage = settings.storage_dir
     settings.storage_dir = tmp_path / "storage"
+    # Кэш выборок в тестах выключен: часть тестов правит базу напрямую,
+    # мимо счётчика изменений. Сам кэш проверяется отдельно (test_cache.py).
+    previous_ttl = settings.cache_ttl_seconds
+    settings.cache_ttl_seconds = 0
+    cache.clear()
 
-    transport = ASGITransport(app=app)
+    # raise_app_exceptions=False: непредвиденная ошибка должна дойти до клиента
+    # ответом 500 с кодом internal_error, как в работе, а не исключением в тесте.
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as instance:
         yield instance
 
     app.dependency_overrides.clear()
     settings.storage_dir = previous_storage
+    settings.cache_ttl_seconds = previous_ttl
+    cache.clear()
 
 
 @pytest.fixture
