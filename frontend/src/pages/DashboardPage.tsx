@@ -344,11 +344,6 @@ export default function DashboardPage() {
       <PageHeader
         eyebrow={formatLongDate()}
         title={`${greeting()}, ${firstName(me.full_name)}`}
-        description={
-          isManagerView
-            ? "Ваши вузы и договоры: что требует действия сегодня."
-            : "Картина по всем вузам: процессы, проблемы и нагрузка ответственных."
-        }
         actions={
           <>
             <Button variant="outline" icon={FileText} onClick={() => navigate("/reports")}>

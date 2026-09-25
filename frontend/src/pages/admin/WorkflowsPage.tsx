@@ -609,7 +609,6 @@ export default function WorkflowsPage() {
     <div className="page">
       <PageHeader
         title="Рабочие процессы"
-        description="Шаблоны процессов работы с вузами: этапы, нормы сроков, разрешённые переходы. Опубликованная версия не меняется - изменения делаются в новой."
         actions={
           <Button icon={Plus} onClick={() => setCreating(true)}>
             Новый шаблон

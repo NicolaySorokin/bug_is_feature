@@ -117,7 +117,6 @@ export default function IntegrationsPage() {
     <div className="page">
       <PageHeader
         title="LMS и сайт"
-        description="Загрузка данных из LMS и с сайта ИТ Школы в существующий или новый рабочий процесс. Повторная загрузка не создаёт дублей."
         actions={
           can("sync_integrations") && (
             <Button icon={RefreshCw} loading={syncEverything.isPending} onClick={() => syncEverything.mutate(undefined)}>
