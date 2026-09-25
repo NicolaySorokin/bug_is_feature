@@ -6,7 +6,7 @@
  * записей заглушки, сгруппированный по ролям.
  */
 import { KeyRound, LogIn, ShieldCheck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DemoAccount } from "../api/types";
 import type { AuthSession } from "../auth/auth";
 import { Avatar, Button, SearchInput } from "../components/ui";
@@ -29,6 +29,17 @@ export function LoginPage({ auth, onLogin }: { auth: AuthSession; onLogin: (acco
       .sort((left, right) => ROLE_ORDER.indexOf(mainRole(left)) - ROLE_ORDER.indexOf(mainRole(right)));
   }, [auth.demoAccounts, query]);
 
+  // Вход через Keycloak уводит со страницы, и промис login() не завершается.
+  // Если вернуться кнопкой «Назад», браузер достаёт страницу из кэша
+  // (bfcache) вместе с состоянием - кнопка так и осталась бы в загрузке.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setBusy(false);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   const enter = async (account?: DemoAccount) => {
     setBusy(true);
     try {
@@ -41,33 +52,15 @@ export function LoginPage({ auth, onLogin }: { auth: AuthSession; onLogin: (acco
   return (
     <div className="login">
       <section className="login__hero">
-        <a className="sidebar__brand" style={{ padding: 0, height: "auto" }} href="/">
-          <span className="brand-mark">РТ</span>
-          <span className="brand-text">
-            <strong>ИТ Школа Ростелекома</strong>
-            <small>Взаимодействие с вузами</small>
-          </span>
+        <a className="login__brand" href="/">
+          <img src="/rostelecom-it-school.png" alt="Ростелеком ИТ Школа" width={216} height={56} />
         </a>
-        <div className="stack" style={{ gap: 20 }}>
+        <div className="stack login__intro" style={{ gap: 20 }}>
           <h1>Система контроля взаимодействия ИТ Школы с вузами и школами</h1>
           <p>
             Договоры и ИТ-программы, рабочие процессы с вузами, лицензии на ИТ-продукты, статистика обучения студентов и отчёты
             для руководства - в одном месте.
           </p>
-        </div>
-        <div className="login__facts">
-          <div>
-            <strong>14 этапов</strong>
-            <span>процесса работы с вузом</span>
-          </div>
-          <div>
-            <strong>XLSX · XLS · PDF</strong>
-            <span>отчёты и выгрузки</span>
-          </div>
-          <div>
-            <strong>LMS и сайт</strong>
-            <span>заявки и обучающиеся</span>
-          </div>
         </div>
       </section>
 

@@ -381,7 +381,6 @@ export default function CatalogPage() {
     <div className="page">
       <PageHeader
         title="Справочники"
-        description="Каталог ИТ Школы: направления, программы, вендоры и продукты. Используются в договорах, отчётах и статистике."
         actions={
           <Button variant="outline" icon={FileSpreadsheet} onClick={() => navigate("/admin/imports")}>
             Загрузить из Excel

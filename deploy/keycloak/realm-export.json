@@ -21,7 +21,7 @@
   "adminEventsEnabled": true,
   "adminEventsDetailsEnabled": false,
   "internationalizationEnabled": true,
-  "supportedLocales": ["ru", "en"],
+  "supportedLocales": ["ru"],
   "defaultLocale": "ru",
   "roles": {
     "realm": [

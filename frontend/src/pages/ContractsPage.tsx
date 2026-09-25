@@ -201,11 +201,6 @@ export default function ContractsPage() {
     <div className="page">
       <PageHeader
         title="Договоры"
-        description={
-          me.sees_all_contracts
-            ? "Все договоры ИТ Школы с вузами: статус, этап рабочего процесса, сроки."
-            : "Договоры ваших вузов: статус, этап рабочего процесса, сроки."
-        }
         actions={
           <Button icon={Plus} onClick={() => setCreating(true)}>
             Новый договор
