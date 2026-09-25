@@ -22,13 +22,8 @@ services:
     expose:
       - "8080"
 
+  # Образ с клиентской частью (edu-crm-web) описан в docker-compose.yml.
   nginx:
-    image: nginx:1.27-alpine
-    container_name: edu_crm_nginx
-    restart: unless-stopped
-    depends_on:
-      api:
-        condition: service_healthy
     ports:
       - "${HTTP_PORT:-80}:80"
     volumes:

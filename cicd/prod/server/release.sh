@@ -15,13 +15,14 @@
 #   shared/prod.env                    секреты из PROD_ENV; при активации
 #                                      из него собирается cicd/prod/.env релиза
 #
-# Образ API для релиза - edu-crm-api:<коммит>, его привозит деплой.
+# Образы релиза - edu-crm-api:<коммит> (API) и edu-crm-web:<коммит>
+# (Nginx с клиентской частью), их привозит деплой.
 # Данные (PostgreSQL, файлы) лежат в томах Docker и между релизами не меняются.
 set -euo pipefail
 
 APP_DIR=${APP_DIR:-/opt/edu-crm}
 KEEP_RELEASES=${KEEP_RELEASES:-5}
-IMAGE_REPO=edu-crm-api
+IMAGE_REPOS="edu-crm-api edu-crm-web"
 NGINX_CONTAINER=edu_crm_nginx
 
 log() { printf '==> %s\n' "$*"; }
@@ -54,6 +55,7 @@ write_env() {
             cat "$APP_DIR/shared/prod.env"
             printf '\n# Добавлено release.sh при активации релиза.\n'
             printf 'API_IMAGE_TAG=%s\n' "$(image_tag "$(basename "$dir")")"
+            printf 'WEB_IMAGE_TAG=%s\n' "$(image_tag "$(basename "$dir")")"
             printf 'NGINX_CONF_SHA=%s\n' "$(sha256sum "$dir/cicd/prod/nginx.conf" | cut -c1-16)"
             printf 'KEYCLOAK_REALM_SHA=%s\n' \
                 "$(sha256sum "$dir/deploy/keycloak/realm-export.json" | cut -c1-16)"
@@ -96,24 +98,31 @@ cleanup() {
     done
 
     used=" $(releases | while read -r rel; do image_tag "$rel"; done | tr '\n' ' ') "
-    while read -r tag; do
-        [ -n "$tag" ] || continue
-        case "$used" in
-            *" $tag "*) ;;
-            *)
-                log "Удаляю образ $IMAGE_REPO:$tag"
-                docker image rm "$IMAGE_REPO:$tag" > /dev/null || true
-                ;;
-        esac
-    done < <(docker image ls "$IMAGE_REPO" --format '{{.Tag}}')
+    for repo in $IMAGE_REPOS; do
+        while read -r tag; do
+            [ -n "$tag" ] || continue
+            case "$used" in
+                *" $tag "*) ;;
+                *)
+                    log "Удаляю образ $repo:$tag"
+                    docker image rm "$repo:$tag" > /dev/null || true
+                    ;;
+            esac
+        done < <(docker image ls "$repo" --format '{{.Tag}}')
+    done
     docker image prune -f > /dev/null
 }
 
 activate() {
     local target=${1:?укажите релиз: release.sh list} prev
     [ -d "$APP_DIR/releases/$target" ] || die "нет релиза $target"
-    docker image inspect "$IMAGE_REPO:$(image_tag "$target")" > /dev/null 2>&1 \
-        || die "нет образа $IMAGE_REPO:$(image_tag "$target")"
+    for repo in $IMAGE_REPOS; do
+        # Релизы до появления клиентской части образа edu-crm-web не знают.
+        grep -qs "$repo" "$APP_DIR/releases/$target/docker-compose.yml" \
+            "$APP_DIR/releases/$target/cicd/prod/docker-compose.yml" || continue
+        docker image inspect "$repo:$(image_tag "$target")" > /dev/null 2>&1 \
+            || die "нет образа $repo:$(image_tag "$target")"
+    done
     prev=$(current_release)
 
     if switch_to "$target" && up; then

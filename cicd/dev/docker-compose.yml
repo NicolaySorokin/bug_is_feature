@@ -1,5 +1,6 @@
 # Среда разработки: код монтируется в контейнер, сервер перезапускается
 # при изменении файлов, порты API, PostgreSQL и Keycloak открыты наружу.
+# Система целиком (интерфейс и API) - http://localhost:3000.
 #
 # Относительные пути считаются от каталога первого compose-файла, то есть
 # от корня проекта, а не от этой папки.
@@ -27,3 +28,9 @@ services:
   keycloak:
     ports:
       - "${KEYCLOAK_PORT:-8080}:8080"
+
+  nginx:
+    ports:
+      - "${WEB_PORT:-3000}:80"
+    volumes:
+      - ./cicd/dev/nginx.conf:/etc/nginx/conf.d/default.conf:ro

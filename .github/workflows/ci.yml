@@ -1,7 +1,7 @@
 name: CI
 
 # Результат виден галочкой у коммита и блоком Checks в pull request.
-# Название задания (backend / docker) - это и есть имя проверки в списке.
+# Название задания (backend / frontend / docker) - это и есть имя проверки в списке.
 on:
   push:
     branches: [main]
@@ -123,14 +123,60 @@ jobs:
             exit 1
           fi
 
+  frontend:
+    name: Клиентская часть
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Установка зависимостей
+        run: npm ci --no-audit --no-fund
+
+      # Типы клиента генерируются из docs/openapi.json: разошлись -
+      # значит, клиент собран под старую версию API.
+      - name: Типы API не отстали от схемы
+        run: |
+          npm run api:types
+          if ! git diff --quiet -- src/api/schema.d.ts; then
+            echo "::error::src/api/schema.d.ts устарел - выполните npm run api:types и закоммитьте результат"
+            git diff --stat -- src/api/schema.d.ts
+            exit 1
+          fi
+
+      - name: Проверка типов
+        run: npm run typecheck
+
+      - name: Проверка стиля
+        run: |
+          npm run lint -- --max-warnings=0
+          npm run format:check
+
+      - name: Тесты
+        run: npm test
+
+      - name: Сборка
+        run: npm run build
+
   docker:
-    name: Сборка образа
+    name: Сборка образов
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Сборка образа backend
         run: docker build -t edu-crm-api:ci ./backend
+
+      - name: Сборка образа клиентской части (Nginx)
+        run: docker build -t edu-crm-web:ci ./frontend
 
       - name: Проверка конфигураций сред
         run: |
