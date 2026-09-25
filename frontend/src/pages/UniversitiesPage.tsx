@@ -1,16 +1,16 @@
 /**
  * Вузы.
  *
- * Руководитель назначает, меняет и снимает ответственного за вуз прямо
- * в строке списка (раздел «Роли» ТЗ). Остальные видят, кто отвечает.
+ * В списке видно, кто отвечает за вуз. Назначает, меняет и снимает
+ * ответственного руководитель (раздел «Роли» ТЗ) - кнопкой «Изменить»
+ * в карточке вуза.
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Building2, Plus, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { listUniversities, updateUniversity } from "../api/endpoints";
-import { useApiMutation } from "../api/mutations";
-import { invalidateContractData, keys, useUsers } from "../api/queries";
+import { listUniversities } from "../api/endpoints";
+import { keys, useUsers } from "../api/queries";
 import type { UniversityListItem } from "../api/types";
 import { useSession } from "../auth/session";
 import { DataTable, Pager, type Column } from "../components/DataTable";
@@ -65,15 +65,6 @@ export default function UniversitiesPage() {
     placeholderData: keepPreviousData,
   });
 
-  const assign = useApiMutation(
-    ({ id, managerId }: { id: string; managerId: string }) => updateUniversity(id, { manager_id: managerId || null }),
-    {
-      success: (saved) =>
-        saved.manager ? `Ответственный за ${saved.short_name || saved.name}: ${saved.manager.full_name}` : "Ответственный снят",
-      onSuccess: () => invalidateContractData(),
-    },
-  );
-
   const managers = (users.data || [])
     .filter((user) => user.is_active && (user.roles || []).includes("manager"))
     .map((user) => ({ value: user.id, label: user.full_name }));
@@ -96,19 +87,7 @@ export default function UniversitiesPage() {
     {
       key: "manager",
       title: "Ответственный",
-      render: (row) =>
-        can("assign_responsible") ? (
-          <SelectField
-            size="s"
-            label={<span className="visually-hidden">Ответственный за {row.name}</span>}
-            value={row.manager_id || ""}
-            onChange={(value) => assign.mutate({ id: row.id, managerId: value })}
-            placeholder="— не назначен —"
-            options={managers}
-          />
-        ) : (
-          row.manager?.full_name || <Tag tone="warn">Не назначен</Tag>
-        ),
+      render: (row) => row.manager?.full_name || <Tag tone="warn">Не назначен</Tag>,
     },
     {
       key: "contracts",
@@ -134,11 +113,6 @@ export default function UniversitiesPage() {
     <div className="page">
       <PageHeader
         title="Вузы"
-        description={
-          can("assign_responsible")
-            ? "Вузы и школы-партнёры ИТ Школы. Ответственного можно назначить или снять прямо в списке."
-            : "Вузы и школы-партнёры ИТ Школы и ответственные за них."
-        }
         actions={
           can("edit_university") && (
             <Button icon={Plus} onClick={() => setCreating(true)}>

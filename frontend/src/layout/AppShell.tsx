@@ -114,18 +114,6 @@ function Sidebar({ onNavigate, alerts }: { onNavigate: () => void; alerts: numbe
         <div className="nav-group__title">Помощь</div>
         {link({ to: "/help", label: "Руководства", icon: BookOpen })}
       </nav>
-      <div className="sidebar__footer">
-        Персональные данные обрабатываются по 152-ФЗ.
-        <br />
-        API:{" "}
-        <a href="/docs" target="_blank" rel="noreferrer">
-          Swagger
-        </a>{" "}
-        ·{" "}
-        <a href="/redoc" target="_blank" rel="noreferrer">
-          ReDoc
-        </a>
-      </div>
     </aside>
   );
 }
@@ -297,10 +285,7 @@ function UserMenu() {
             <div className="stack-s" style={{ gap: 2, minWidth: 0 }}>
               <strong>{me.full_name}</strong>
               <small className="muted">{me.email || me.username}</small>
-              <small className="muted">
-                {roleText}
-                {me.sees_all_contracts ? " · видит все договоры" : " · свои вузы"}
-              </small>
+              <small className="muted">{roleText}</small>
             </div>
           </div>
           {account && (

@@ -246,10 +246,7 @@ export default function AuditPage() {
 
   return (
     <div className="page">
-      <PageHeader
-        title="Журнал изменений"
-        description="Кто и когда менял данные, права и настройки. Персональные данные в журнале замаскированы. Нажмите на запись, чтобы увидеть изменения."
-      />
+      <PageHeader title="Журнал изменений" />
       <div className="toolbar">
         <SelectField
           label="Что менялось"

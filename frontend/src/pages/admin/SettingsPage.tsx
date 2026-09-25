@@ -49,10 +49,7 @@ export default function SettingsPage() {
 
   return (
     <div className="page">
-      <PageHeader
-        title="Настройки"
-        description="Пороги, по которым система предупреждает о проблемах на главной странице и в уведомлениях."
-      />
+      <PageHeader title="Настройки" />
       <Card
         footer={
           <>

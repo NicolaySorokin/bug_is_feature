@@ -15,10 +15,9 @@ import {
   listAudit,
   listContracts,
   updateContact,
-  updateUniversity,
 } from "../api/endpoints";
 import { useApiMutation } from "../api/mutations";
-import { invalidateContractData, keys, useLabel, useUsers } from "../api/queries";
+import { invalidateContractData, keys, useLabel } from "../api/queries";
 import type { UniversityContact } from "../api/types";
 import { useSession } from "../auth/session";
 import { useConfirm } from "../components/Confirm";
@@ -31,7 +30,6 @@ import {
   ErrorState,
   Loading,
   PageHeader,
-  SelectField,
   StatusBadge,
   Tag,
   TextField,
@@ -155,7 +153,6 @@ export default function UniversityPage() {
   const label = useLabel();
   const confirm = useConfirm();
   const { can, me } = useSession();
-  const users = useUsers();
   const [editing, setEditing] = useState(false);
   const [contact, setContact] = useState<UniversityContact | null | undefined>(undefined);
   const [creatingContract, setCreatingContract] = useState(false);
@@ -172,10 +169,6 @@ export default function UniversityPage() {
   });
   usePageTitle(university.data?.short_name || university.data?.name || "Вуз");
 
-  const assign = useApiMutation((managerId: string) => updateUniversity(universityId, { manager_id: managerId || null }), {
-    success: (saved) => (saved.manager ? `Ответственный: ${saved.manager.full_name}` : "Ответственный снят"),
-    onSuccess: () => invalidateContractData(),
-  });
   const removeContact = useApiMutation((id: string) => deleteContact(universityId, id), {
     success: "Контакт удалён",
     onSuccess: () => invalidateContractData(),
@@ -207,9 +200,6 @@ export default function UniversityPage() {
   }
   const data = university.data;
   const manageContacts = can("edit_university") || data.manager_id === me.id;
-  const managers = (users.data || [])
-    .filter((user) => user.is_active && (user.roles || []).includes("manager"))
-    .map((user) => ({ value: user.id, label: user.full_name }));
 
   return (
     <div className="page">
@@ -219,14 +209,12 @@ export default function UniversityPage() {
             <ArrowLeft size={14} /> Вузы
           </Link>
         }
-        eyebrow={data.city || undefined}
         title={
           <span className="row" style={{ gap: 12 }}>
             {data.short_name || data.name}
             {!data.is_active && <StatusBadge>Не активен</StatusBadge>}
           </span>
         }
-        description={data.short_name ? data.name : undefined}
         actions={
           <>
             <Button variant="outline" icon={Plus} onClick={() => setCreatingContract(true)}>
@@ -409,18 +397,7 @@ export default function UniversityPage() {
             />
           </Card>
           <Card title="Ответственный от ИТ Школы">
-            {can("assign_responsible") ? (
-              <div className="stack-s">
-                <SelectField
-                  label="Сотрудник"
-                  value={data.manager_id || ""}
-                  onChange={(value) => assign.mutate(value)}
-                  placeholder="— не назначен —"
-                  options={managers}
-                  hint="Ответственный видит договоры вуза и получает уведомления о проблемах."
-                />
-              </div>
-            ) : data.manager ? (
+            {data.manager ? (
               <div className="stack-s">
                 <strong>{data.manager.full_name}</strong>
                 {data.manager.email && <a href={`mailto:${data.manager.email}`}>{data.manager.email}</a>}

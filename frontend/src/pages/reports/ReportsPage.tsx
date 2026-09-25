@@ -22,10 +22,7 @@ export default function ReportsPage() {
   usePageTitle("Отчёты и статистика");
   return (
     <div className="page">
-      <PageHeader
-        title="Отчёты и статистика"
-        description="Отчёты строятся по данным, которые вам доступны. Фильтры и выбранные колонки запоминаются."
-      />
+      <PageHeader title="Отчёты и статистика" />
       <Tabs
         value={tab}
         onChange={(key) => setParams({ tab: key }, { replace: true })}
