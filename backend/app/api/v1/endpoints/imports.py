@@ -231,7 +231,8 @@ async def read_run(run_id: uuid.UUID, session: SessionDep, _: CurrentUserDep) ->
     response_model=ImportResult,
     summary="Проверить данные перед импортом",
     description=(
-        "Разбирает даты и статусы, возвращает список проблемных строк. Ничего не меняет."
+        "Пробная загрузка с откатом: сколько строк будет добавлено и обновлено, "
+        "какие строки не пройдут и почему. Данные не меняются."
     ),
 )
 async def validate(
@@ -246,12 +247,24 @@ async def validate(
     sheet = await _read(run.storage_path)
 
     mapping = _mapping(run, payload)
-    errors = imports.validate(spec, sheet, mapping)
+    # Пробная загрузка в точке сохранения с откатом: видно, сколько строк
+    # добавится и обновится и какие строки не пройдут, а данные не меняются.
+    savepoint = await session.begin_nested()
+    try:
+        outcome = await imports.run_import(session, spec, sheet, mapping)
+    finally:
+        await savepoint.rollback()
 
     run.mapping = mapping
     run.rows_total = len(sheet.rows)
-    run.status = ImportRunStatus.FAILED if errors else ImportRunStatus.VALIDATED
-    return _result(run, await _replace_errors(session, run, errors))
+    loadable = outcome.created + outcome.updated
+    run.status = ImportRunStatus.VALIDATED if loadable else ImportRunStatus.FAILED
+    result = _result(run, await _replace_errors(session, run, outcome.errors))
+    # Прогноз - только в ответе: счётчики запуска заполняет настоящая загрузка.
+    result.run.rows_created = outcome.created
+    result.run.rows_updated = outcome.updated
+    result.run.rows_failed = outcome.failed
+    return result
 
 
 @router.post(

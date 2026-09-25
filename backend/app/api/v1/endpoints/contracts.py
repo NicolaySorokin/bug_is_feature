@@ -60,6 +60,15 @@ class ContractOrder(StrEnum):
     UNIVERSITY = "university"
 
 
+class ProcessFilter(StrEnum):
+    """Фильтр реестра по состоянию рабочего процесса."""
+
+    IN_PROGRESS = "in_progress"
+    BLOCKED = "blocked"
+    COMPLETED = "completed"
+    NONE = "none"  # процесс не запущен
+
+
 def _process_summary(contract: Contract) -> ProcessSummary | None:
     """Текущий процесс договора для строки реестра (в первой версии он один)."""
     instances = contract.__dict__.get("workflow_instances")
@@ -133,6 +142,7 @@ def _apply_filters(
     stage_id: uuid.UUID | None,
     stage_name: str | None,
     search: str | None,
+    process: ProcessFilter | None = None,
 ) -> Select:
     if university_id is not None:
         statement = statement.where(Contract.university_id == university_id)
@@ -194,6 +204,18 @@ def _apply_filters(
                 .where(WorkflowStage.name == stage_name)
             )
         )
+    if process is ProcessFilter.NONE:
+        statement = statement.where(
+            Contract.id.not_in(select(WorkflowInstance.contract_id))
+        )
+    elif process is not None:
+        statement = statement.where(
+            Contract.id.in_(
+                select(WorkflowInstance.contract_id).where(
+                    WorkflowInstance.status == process.value
+                )
+            )
+        )
     return statement
 
 
@@ -235,6 +257,9 @@ async def list_contracts(
     product_id: uuid.UUID | None = None,
     stage_id: uuid.UUID | None = Query(default=None, description="Текущий этап процесса"),
     stage: str | None = Query(default=None, description="Название текущего этапа"),
+    process: ProcessFilter | None = Query(
+        default=None, description="Состояние процесса; none - процесс не запущен"
+    ),
     search: str | None = Query(default=None, description="Номер, название, вуз"),
     order: ContractOrder = ContractOrder.CREATED,
 ) -> Page[ContractListItem]:
@@ -249,6 +274,7 @@ async def list_contracts(
         "stage_id": stage_id,
         "stage_name": stage,
         "search": search,
+        "process": process,
     }
 
     def scoped(statement: Select) -> Select:

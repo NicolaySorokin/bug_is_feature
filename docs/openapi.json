@@ -3839,6 +3839,17 @@
         "title": "PeriodBasis",
         "type": "string"
       },
+      "ProcessFilter": {
+        "description": "Фильтр реестра по состоянию рабочего процесса.",
+        "enum": [
+          "in_progress",
+          "blocked",
+          "completed",
+          "none"
+        ],
+        "title": "ProcessFilter",
+        "type": "string"
+      },
       "ProcessSummary": {
         "description": "Где сейчас процесс по договору - для строки реестра.",
         "properties": {
@@ -8896,6 +8907,24 @@
             }
           },
           {
+            "description": "Состояние процесса; none - процесс не запущен",
+            "in": "query",
+            "name": "process",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ProcessFilter"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Состояние процесса; none - процесс не запущен",
+              "title": "Process"
+            }
+          },
+          {
             "description": "Номер, название, вуз",
             "in": "query",
             "name": "search",
@@ -12314,7 +12343,7 @@
     },
     "/api/v1/imports/{run_id}/validate": {
       "post": {
-        "description": "Разбирает даты и статусы, возвращает список проблемных строк. Ничего не меняет.",
+        "description": "Пробная загрузка с откатом: сколько строк будет добавлено и обновлено, какие строки не пройдут и почему. Данные не меняются.",
         "operationId": "validate_api_v1_imports__run_id__validate_post",
         "parameters": [
           {

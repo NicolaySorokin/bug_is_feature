@@ -77,7 +77,6 @@ from scripts.demo.people import EMPLOYEES, Employee, university_contacts
 from scripts.demo.plans import STORIES, ContractPlan, Move, generate
 from scripts.demo.processes import (
     BACKWARD_REASONS,
-    COLUMN_STEP,
     SKIP_REASONS,
     TEMPLATE_BY_KEY,
     TEMPLATES,
@@ -372,8 +371,6 @@ class DemoLoader:
                         is_optional=stage.optional,
                         is_final=stage.final,
                         sla_days=stage.sla_days,
-                        layout_x=stage.column * COLUMN_STEP,
-                        layout_y=stage.row,
                     )
                     for index, stage in enumerate(version_spec.stages)
                 }

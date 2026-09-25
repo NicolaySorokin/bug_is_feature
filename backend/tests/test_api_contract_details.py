@@ -118,6 +118,41 @@ async def test_registry_row_shows_current_stage(
     assert none["total"] == 0
 
 
+async def test_registry_filters_by_process_state(
+    client: AsyncClient, university: dict, workflow_version: dict
+) -> None:
+    started = await make_contract(
+        client,
+        university["id"],
+        MANAGER,
+        workflow_template_id=workflow_version["template_id"],
+    )
+    await make_contract(client, university["id"], MANAGER)
+
+    async def total(process: str) -> int:
+        response = await client.get(
+            "/api/v1/contracts", params={"process": process}, headers=MANAGER
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["total"]
+
+    assert await total("in_progress") == 1
+    assert await total("none") == 1
+    assert await total("blocked") == 0
+
+    workflow = (
+        await client.get(f"/api/v1/contracts/{started['id']}/workflow", headers=MANAGER)
+    ).json()
+    blocked = await client.post(
+        f"/api/v1/workflow/instances/{workflow['id']}/block",
+        json={"reason": "Ждём подписи ректора"},
+        headers=MANAGER,
+    )
+    assert blocked.status_code == 200, blocked.text
+    assert await total("blocked") == 1
+    assert await total("in_progress") == 0
+
+
 async def test_registry_filters_by_direction(client: AsyncClient, university: dict) -> None:
     direction = (
         await client.post("/api/v1/catalog/directions", json={"name": "QA"}, headers=ADMIN)

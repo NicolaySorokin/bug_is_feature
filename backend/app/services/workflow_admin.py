@@ -31,9 +31,6 @@ from app.models.workflow import (
 )
 from app.schemas.workflow import GraphWrite, LayoutWrite
 
-# Шаг координат при автоматической раскладке нового этапа.
-LAYOUT_STEP = 220
-
 
 async def get_template(session: AsyncSession, template_id: uuid.UUID) -> WorkflowTemplate:
     template = await session.get(WorkflowTemplate, template_id)
@@ -224,8 +221,9 @@ async def replace_graph(
             is_optional=item.is_optional,
             is_final=item.is_final,
             sla_days=item.sla_days,
-            layout_x=item.layout_x if item.layout_x is not None else index * LAYOUT_STEP,
-            layout_y=item.layout_y if item.layout_y is not None else 0,
+            # Без координат этап раскладывает клиент - по порядку этапов.
+            layout_x=item.layout_x,
+            layout_y=item.layout_y,
         )
         session.add(stage)
         stage_by_code[item.code] = stage

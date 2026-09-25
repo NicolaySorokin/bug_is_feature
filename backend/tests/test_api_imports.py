@@ -76,7 +76,12 @@ async def test_catalog_import_creates_contract_with_license(client: AsyncClient)
         await client.post(f"/api/v1/imports/{run_id}/validate", json={}, headers=ADMIN)
     ).json()
     assert checked["run"]["status"] == "validated"
-    assert checked["errors"] == []
+    # Проверка - пробная загрузка: известно, что добавится, но данных ещё нет.
+    assert checked["run"]["rows_created"] == 1
+    assert checked["run"]["rows_failed"] == 0
+    # Замечание про ненайденного менеджера не мешает загрузке строки.
+    assert all("не найден" in item["message"] for item in checked["errors"])
+    assert (await client.get("/api/v1/contracts", headers=ADMIN)).json()["total"] == 0
 
     result = (
         await client.post(f"/api/v1/imports/{run_id}/commit", json={}, headers=ADMIN)
