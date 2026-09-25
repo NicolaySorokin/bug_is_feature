@@ -13,8 +13,11 @@ API := $(DC) exec -T api
 # Разовый контейнер из собранного образа: нужен, когда стенд не поднят.
 RUN_API := $(DC) run --rm --no-deps -T api
 
-.PHONY: help build up down restart logs seed migrate makemigration check test lint fmt \
-        lock openapi shell psql keycloak reset dev-deps
+# Сколько договоров добавить для нагрузочной проверки: make seed-load N=5000
+N ?= 3000
+
+.PHONY: help build up down restart logs seed seed-load loadtest testdata migrate makemigration \
+        check test lint fmt lock openapi shell psql keycloak reset dev-deps
 
 help: ## Показать список команд
 	@echo Среда задаётся переменной ENV: make up ENV=prod. По умолчанию dev.
@@ -24,6 +27,9 @@ help: ## Показать список команд
 	@echo restart        - перезапустить API
 	@echo logs           - логи API
 	@echo seed           - загрузить демонстрационные данные
+	@echo seed-load      - добавить договоры для нагрузки, вызов: make seed-load N=3000
+	@echo loadtest       - нагрузочная проверка по ТЗ: 50 пользователей и 10 отчётов
+	@echo testdata       - пересобрать файлы для ручных проверок в testdata/
 	@echo migrate        - применить миграции
 	@echo makemigration  - новая миграция, вызов: make makemigration m=описание
 	@echo check          - стиль, тесты и сверка моделей с миграциями
@@ -62,6 +68,18 @@ logs: ## Логи API
 
 seed: ## Загрузить демонстрационные данные
 	$(API) python -m scripts.seed
+
+seed-load: ## Добавить договоры для нагрузочной проверки: make seed-load N=3000
+	$(API) python -m scripts.seed --load $(N)
+
+# Параметры скрипта передаются через ARGS: make loadtest ARGS="--duration 120".
+# Под Keycloak (preprod, prod): ARGS="--keycloak-url http://keycloak:8080".
+loadtest: ## Нагрузочная проверка по ТЗ: 50 пользователей и 10 отчётов
+	$(API) python -m scripts.loadtest $(ARGS)
+
+# Каталог testdata подключён только в среде разработки.
+testdata: dev-deps ## Пересобрать файлы для ручных проверок в testdata/
+	$(API) python -m scripts.testdata /testdata
 
 migrate: ## Применить миграции
 	$(API) alembic upgrade head

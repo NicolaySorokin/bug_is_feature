@@ -1,0 +1,275 @@
+name: Деплой
+
+# Боевой стенд https://edu-crm.nikitarodionov.ru обновляется сам после
+# зелёного CI на main: пуш или слияние pull request. Вручную
+# (Actions → Деплой → Run workflow) можно выложить ветку или коммит -
+# так же откатываются на старую версию. Как это устроено - cicd/README.md.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Коммит, тег или ветка. Пусто - ветка, выбранная выше
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+# Один деплой за раз; очередной ждёт, а не отменяет идущий.
+concurrency:
+  group: prod-server
+  cancel-in-progress: false
+
+env:
+  DOMAIN: edu-crm.nikitarodionov.ru
+  LE_EMAIL: sorokin.n.04@mail.ru
+  APP_DIR: /opt/edu-crm
+
+jobs:
+  deploy:
+    name: Выкладка на prod
+    # После CI - только если он прошёл и запускался пушем в main, а не PR.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Ровно тот коммит, который проверил CI.
+          ref: ${{ github.event.workflow_run.head_sha || inputs.ref || github.sha }}
+
+      - name: Что выкладываем
+        run: |
+          sha=$(git rev-parse HEAD)
+          tag=${sha:0:12}
+          {
+            echo "SHA=$sha"
+            echo "TAG=$tag"
+            echo "RELEASE=$(date -u +%Y%m%d-%H%M%S)-$tag"
+          } >> "$GITHUB_ENV"
+          git log -1 --format='%h %s (%an)'
+
+      - name: Сборка образа API
+        run: >
+          docker build
+          --label "org.opencontainers.image.revision=$SHA"
+          -t "edu-crm-api:$TAG" ./backend
+
+      - name: Проверка PROD_ENV
+        env:
+          PROD_ENV: ${{ secrets.PROD_ENV }}
+        run: |
+          set -euo pipefail
+          # Секрет вставлен из Windows: убираем \r, иначе он окажется в паролях.
+          printf '%s\n' "$PROD_ENV" | tr -d '\r' > "$RUNNER_TEMP/prod.env"
+          value() { sed -n "s/^$1=//p" "$RUNNER_TEMP/prod.env" | tail -1 | tr -d "\"'"; }
+
+          keys=$(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$RUNNER_TEMP/prod.env" | sort -u | tr '\n' ' ')
+          [ -n "$keys" ] || { echo "::error::Секрет PROD_ENV пуст или не в формате КЛЮЧ=значение"; exit 1; }
+          echo "Переменные в PROD_ENV: $keys"
+
+          # Без паролей compose подставил бы значения по умолчанию для разработки.
+          for key in POSTGRES_PASSWORD KEYCLOAK_ADMIN_PASSWORD; do
+            [ -n "$(value "$key")" ] || { echo "::error::В PROD_ENV не задан $key"; exit 1; }
+          done
+          if [ "$(value KEYCLOAK_BASE_URL)" != "https://$DOMAIN" ]; then
+            echo "::warning::KEYCLOAK_BASE_URL в PROD_ENV не https://$DOMAIN - токены Keycloak не пройдут проверку издателя"
+          fi
+
+      - uses: ./.github/actions/ssh-setup
+        id: ssh
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          user: ${{ secrets.SSH_USER }}
+          private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known-hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
+
+      - name: Подготовка сервера
+        run: |
+          ssh prod "sudo env DEPLOY_USER=\$(id -un) APP_DIR=$APP_DIR bash -s" < cicd/prod/server/bootstrap.sh
+          # Группа docker действует с нового входа: закрываем общее соединение.
+          ssh -O exit prod 2> /dev/null || true
+
+      - name: Код релиза
+        env:
+          REF_NAME: ${{ github.event.workflow_run.head_branch || inputs.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          dir="$APP_DIR/releases/$RELEASE"
+          ssh prod "mkdir -p $dir"
+          git archive --format=tar HEAD | ssh prod "tar -xf - -C $dir"
+          printf 'commit=%s\nref=%s\nrun=%s\nbuilt_at=%s\n' \
+            "$SHA" "$REF_NAME" \
+            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            "$(date -u +%FT%TZ)" | ssh prod "cat > $dir/REVISION"
+          echo "Код выложен в $dir"
+
+      # Образы едут с раннера: сервер не собирает и не ходит в реестры.
+      # Уже привезённые повторно не передаются.
+      - name: Образы на сервер
+        run: |
+          set -euo pipefail
+          external=$(docker compose -f docker-compose.yml -f cicd/prod/docker-compose.yml \
+            --profile keycloak config --images | grep -v '^edu-crm-api:' | sort -u)
+          for image in $external "edu-crm-api:$TAG"; do
+            if ssh prod docker image inspect "$image" > /dev/null 2>&1; then
+              echo "$image: уже на сервере"
+              continue
+            fi
+            [[ $image == edu-crm-api:* ]] || docker pull -q "$image"
+            echo "$image: передаю"
+            docker save "$image" | gzip -1 | ssh prod 'gunzip | docker load'
+          done
+
+      - name: Секреты среды
+        run: ssh prod "umask 077 && cat > $APP_DIR/shared/prod.env.new && mv -f $APP_DIR/shared/prod.env.new $APP_DIR/shared/prod.env" < "$RUNNER_TEMP/prod.env"
+
+      # Первый сертификат - до запуска Nginx, certbot --standalone на 80-м
+      # порту. Если сертификат уже есть, шаг ничего не делает.
+      - name: Сертификат
+        run: ssh prod "sudo env DOMAIN=$DOMAIN LE_EMAIL=$LE_EMAIL bash $APP_DIR/releases/$RELEASE/cicd/prod/server/certificate.sh issue"
+
+      # Не поднялся (healthcheck API не прошёл) - release.sh сам вернёт
+      # прежний релиз, а шаг упадёт.
+      - name: Запуск
+        id: activate
+        run: ssh prod "APP_DIR=$APP_DIR bash $APP_DIR/releases/$RELEASE/cicd/prod/server/release.sh activate $RELEASE"
+
+      # Продление идёт через webroot, пока стенд работает. Перевод делается
+      # один раз, с пробным продлением на тестовом сервере Let's Encrypt.
+      - name: Продление сертификата через webroot
+        run: ssh prod "sudo env DOMAIN=$DOMAIN bash $APP_DIR/current/cicd/prod/server/certificate.sh webroot"
+
+      - name: Проверка стенда
+        run: |
+          set +e
+          checks="$RUNNER_TEMP/checks.md"
+          : > "$checks"
+          failed=0
+          ok() { echo "| $1 | ✅ $2 |" >> "$checks"; echo "OK: $1 - $2"; }
+          fail() { echo "| $1 | ❌ $2 |" >> "$checks"; echo "::error::$1 - $2"; failed=1; }
+          # Контейнеры только что пересозданы: даём им время ответить.
+          retry() {
+            local tries=$1 i
+            shift
+            for ((i = 1; i <= tries; i++)); do "$@" && return 0; sleep 5; done
+            return 1
+          }
+          base="https://$DOMAIN"
+
+          # curl проверяет сертификат: невалидный сертификат - это провал.
+          health() {
+            curl -fsS --max-time 10 -o "$RUNNER_TEMP/health.json" "$base/api/v1/health" \
+              && grep -q '"status":"ok"' "$RUNNER_TEMP/health.json"
+          }
+          if retry 24 health; then
+            ok "API здоров: /api/v1/health" "\`$(cat "$RUNNER_TEMP/health.json")\`"
+          else
+            fail "API здоров: /api/v1/health" "нет ответа status ok за 2 минуты"
+          fi
+
+          read -r code url < <(curl -sS -L --max-time 20 -o /dev/null -w '%{http_code} %{url_effective}' "$base/")
+          if [ "$code" = 200 ]; then ok "Сайт отвечает по HTTPS" "200, $url"; else fail "Сайт отвечает по HTTPS" "код $code, $url"; fi
+
+          read -r code url < <(curl -sS --max-time 10 -o /dev/null -w '%{http_code} %{redirect_url}' "http://$DOMAIN/")
+          if [ "$code" = 301 ] && [ "$url" = "$base/" ]; then
+            ok "HTTP ведёт на HTTPS" "301 → $url"
+          else
+            fail "HTTP ведёт на HTTPS" "код $code → $url"
+          fi
+
+          # Keycloak после пересоздания импортирует реалм, это до пары минут.
+          oidc() { curl -fsS --max-time 10 -o /dev/null "$base/realms/edu-crm/.well-known/openid-configuration"; }
+          if retry 36 oidc; then ok "Keycloak: реалм edu-crm" "200"; else fail "Keycloak: реалм edu-crm" "не отвечает за 3 минуты"; fi
+
+          cert=$(openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" < /dev/null 2> /dev/null \
+            | openssl x509 -noout -enddate -issuer)
+          until_date=$(sed -n 's/^notAfter=//p' <<< "$cert")
+          issuer=$(sed -n 's/^issuer=.*CN *= *//p' <<< "$cert")
+          if [ -n "$until_date" ]; then ok "Сертификат" "$issuer, действует до $until_date"; else fail "Сертификат" "не прочитан"; fi
+
+          # Тот же путь, по которому certbot продлевает сертификат: файл
+          # в webroot на хосте должен отдаваться Nginx по HTTP.
+          token="deploy-check-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          acme=/var/www/certbot/.well-known/acme-challenge
+          ssh prod "sudo install -d -m 755 $acme && echo $token | sudo tee $acme/$token > /dev/null"
+          got=$(curl -sS --max-time 10 "http://$DOMAIN/.well-known/acme-challenge/$token")
+          ssh prod "sudo rm -f $acme/$token"
+          if [ "$got" = "$token" ]; then
+            ok "Webroot для продления" "/.well-known/acme-challenge/ отдаётся"
+          else
+            fail "Webroot для продления" "файл из /var/www/certbot не отдаётся по HTTP"
+          fi
+
+          exit $failed
+
+      - name: Память и диск сервера
+        if: always() && steps.activate.outcome != 'skipped'
+        run: |
+          ssh prod "APP_DIR=$APP_DIR bash -s" > "$RUNNER_TEMP/server.txt" <<'SH'
+          echo "== Память"
+          free -h
+          echo
+          echo "== Контейнеры"
+          docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}'
+          echo
+          echo "== Диск"
+          df -h /
+          echo
+          echo "== Релизы (* - текущий)"
+          bash "$APP_DIR/current/cicd/prod/server/release.sh" list
+          SH
+          cat "$RUNNER_TEMP/server.txt"
+          # Запас памяти меньше 400 МБ - повод уменьшить WEB_CONCURRENCY в PROD_ENV.
+          available=$(ssh prod "free -m | awk '/^Mem:/ {print \$7}'")
+          if [ "$available" -lt 400 ]; then
+            echo "::warning::На сервере свободно всего $available МБ памяти - уменьшите WEB_CONCURRENCY в PROD_ENV"
+          fi
+
+      - name: Логи стенда при сбое
+        if: failure() && steps.ssh.outcome == 'success'
+        run: ssh prod "APP_DIR=$APP_DIR bash $APP_DIR/current/cicd/prod/server/release.sh compose logs --no-color --tail 100" || true
+
+      - name: Итог
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          TRIGGER: ${{ github.event_name == 'workflow_run' && 'после CI на main' || format('вручную, {0}', github.actor) }}
+        run: |
+          subject=$(git log -1 --format=%s | sed 's/|/\\|/g')
+          {
+            if [ "$JOB_STATUS" = success ]; then
+              echo "## ✅ Стенд обновлён: https://$DOMAIN"
+            else
+              echo "## ❌ Деплой не удался"
+            fi
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Коммит | \`${SHA:0:12}\` $subject |"
+            echo "| Релиз на сервере | \`${RELEASE:-}\` |"
+            echo "| Запуск | $TRIGGER |"
+            if [ -s "$RUNNER_TEMP/checks.md" ]; then
+              echo
+              echo "### Проверки после деплоя"
+              echo
+              echo "| Проверка | Результат |"
+              echo "| --- | --- |"
+              cat "$RUNNER_TEMP/checks.md"
+            fi
+            if [ -s "$RUNNER_TEMP/server.txt" ]; then
+              echo
+              echo "### Сервер"
+              echo
+              echo '```'
+              cat "$RUNNER_TEMP/server.txt"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

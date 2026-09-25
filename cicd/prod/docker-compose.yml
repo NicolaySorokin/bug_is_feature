@@ -4,6 +4,15 @@
 #
 # Обязательно задайте секреты в cicd/prod/.env (см. .env.example)
 # и запускайте с ним:  make up ENV=prod
+#
+# На сервере стенд разворачивает workflow deploy.yml, см. cicd/README.md.
+# Сервер - 4 ГБ. Под нагрузкой из ТЗ (make loadtest: 50 пользователей
+# и 10 отчётов) занято около 1,4 ГБ: API с 4 процессами ~550 МБ, Keycloak
+# ~560 МБ, PostgreSQL ~220 МБ. Лимиты ниже - потолок на случай утечки.
+
+# Имя проекта не зависит от каталога: на сервере каждый релиз лежит
+# в своей папке, а контейнеры и тома должны оставаться теми же.
+name: edu-crm
 
 services:
   db:
@@ -12,6 +21,9 @@ services:
     restart: always
 
   api:
+    # Образ собирается в CI и привозится на сервер готовым, тег - коммит.
+    # Без API_IMAGE_TAG (make up ENV=prod на своей машине) собирается как обычно.
+    image: edu-crm-api:${API_IMAGE_TAG:-latest}
     environment:
       ENVIRONMENT: prod
       AUTH_BACKEND: keycloak
@@ -32,9 +44,15 @@ services:
     expose:
       - "8080"
     restart: always
+    # Без лимита JVM берёт кучу от памяти всего сервера (70%).
+    mem_limit: 1g
     environment:
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
+    labels:
+      # Реалм импортируется только при создании контейнера: новая выгрузка
+      # меняет метку, и compose пересоздаёт Keycloak. Метку ставит деплой.
+      edu-crm.realm-sha: ${KEYCLOAK_REALM_SHA:-}
 
   nginx:
     image: nginx:1.27-alpine
@@ -46,11 +64,14 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    mem_limit: 128m
+    labels:
+      # Конфигурация подключена файлом: при её изменении контейнер
+      # нужно пересоздать, иначе Nginx продолжит читать старую.
+      edu-crm.nginx-conf-sha: ${NGINX_CONF_SHA:-}
     volumes:
       - ./cicd/prod/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # Сертификаты Let's Encrypt с хоста: certbot certonly --webroot
+      # Сертификаты Let's Encrypt с хоста. Выпуск и продление - certbot
+      # на хосте, проверочные файлы он кладёт в CERTBOT_WEBROOT.
       - ${CERTS_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro
-      - certbot_webroot:/var/www/certbot
-
-volumes:
-  certbot_webroot:
+      - ${CERTBOT_WEBROOT:-/var/www/certbot}:/var/www/certbot:ro
