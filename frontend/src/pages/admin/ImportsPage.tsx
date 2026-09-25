@@ -162,7 +162,6 @@ export default function ImportsPage() {
     <div className="page">
       <PageHeader
         title="Загрузка из Excel"
-        description="Обновление справочников файлами XLSX и XLS: вузы, ответственные от вузов, ИТ-программы, продукты, вендоры, обучающиеся."
         actions={
           step > 1 && (
             <Button variant="outline" onClick={restart}>

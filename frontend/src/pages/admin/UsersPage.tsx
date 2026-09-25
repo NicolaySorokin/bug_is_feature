@@ -379,7 +379,6 @@ export default function UsersPage() {
     <div className="page">
       <PageHeader
         title="Пользователи и права"
-        description="Роли, доступ к данным вузов и учётные записи. Изменения ролей записываются в Keycloak и попадают в журнал."
         actions={
           <>
             {mode === "keycloak" && (
