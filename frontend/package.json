@@ -11,6 +11,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "api:types": "openapi-typescript ../docs/openapi.json --default-non-nullable false -o src/api/schema.d.ts",
+    "theme": "node scripts/rt-theme.mjs",
+    "help:screenshots": "node scripts/help-screenshots.cjs",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\""
   },

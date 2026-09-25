@@ -1004,6 +1004,21 @@ select.control--s {
   min-width: 0;
 }
 
+/* Фокус Atomaro рисует на обёртке поля - второй контур у самого поля не нужен. */
+.input .input__field:focus-visible {
+  box-shadow: none;
+}
+
+/* Многострочное поле наследует от однострочного запрет переноса строк:
+   без этого длинный комментарий уезжает вбок, а не переносится. */
+.input textarea.input__field {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .status-badge {
   gap: 6px;
   white-space: nowrap;

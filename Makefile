@@ -55,7 +55,7 @@ build: ## Собрать образы и подготовить проект, б
 up: ## Запустить проект: контейнеры, миграции, демоданные
 	$(DC) up -d --wait
 	$(MAKE) seed ENV=$(ENV)
-	@echo Готово. Swagger UI: http://localhost:8000/docs
+	@echo Готово. Система: http://localhost:3000, Swagger UI: http://localhost:8000/docs
 
 down: ## Остановить стенд
 	$(DC) down

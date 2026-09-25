@@ -7,10 +7,10 @@
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { listAudit } from "../../api/endpoints";
-import { useUsers } from "../../api/queries";
+import { useDirections, useLabel, usePrograms, useProducts, useUniversities, useUsers, useVendors } from "../../api/queries";
 import type { AuditEntry } from "../../api/types";
 import { Pager } from "../../components/DataTable";
 import { PeriodPicker, type Period } from "../../components/PeriodPicker";
@@ -56,6 +56,77 @@ const LINKS: Record<string, (id: string) => string> = {
   universities: (id) => `/universities/${id}`,
 };
 
+// Названия полей в журнале - по-русски; неизвестные остаются как есть.
+const FIELD_LABELS: Record<string, string> = {
+  name: "Название",
+  short_name: "Краткое название",
+  full_name: "ФИО",
+  description: "Описание",
+  city: "Город",
+  website: "Сайт",
+  number: "Номер",
+  title: "Предмет",
+  status: "Статус",
+  comment: "Комментарий",
+  manager_id: "Ответственный",
+  university_id: "Вуз",
+  program_id: "ИТ-программа",
+  product_id: "ИТ-продукт",
+  direction_id: "ИТ-направление",
+  vendor_id: "Вендор",
+  contact_id: "Контакт",
+  user_id: "Сотрудник",
+  signed_at: "Подписан",
+  valid_from: "Действует с",
+  valid_to: "Действует по",
+  implementation_status: "Статус внедрения",
+  transfer_status: "Статус передачи",
+  is_active: "Используется",
+  is_primary: "Основной контакт",
+  role: "Роль",
+  roles: "Роли",
+  data_scope: "Доступ к данным",
+  email: "Почта",
+  phone: "Телефон",
+  position: "Должность",
+  seats: "Мест",
+  sla_days: "Норма, дней",
+  is_optional: "Необязательный",
+  is_final: "Завершающий",
+  value: "Значение",
+  key: "Параметр",
+};
+
+const STATUS_GROUPS: Record<string, string> = {
+  status: "contract_status",
+  implementation_status: "implementation_status",
+  transfer_status: "implementation_status",
+};
+
+/** Идентификаторы в журнале показываются именами: кого назначили, какой вуз. */
+function useNames(): Record<string, Record<string, string>> {
+  const users = useUsers();
+  const universities = useUniversities();
+  const programs = usePrograms();
+  const products = useProducts();
+  const directions = useDirections();
+  const vendors = useVendors();
+  return useMemo(() => {
+    const byId = <T extends { id: string }>(items: T[] | undefined, label: (item: T) => string) =>
+      Object.fromEntries((items || []).map((item) => [item.id, label(item)]));
+    const people = byId(users.data, (item) => item.full_name);
+    return {
+      manager_id: people,
+      user_id: people,
+      university_id: byId(universities.data, (item) => item.short_name || item.name),
+      program_id: byId(programs.data, (item) => item.name),
+      product_id: byId(products.data, (item) => item.name),
+      direction_id: byId(directions.data, (item) => item.name),
+      vendor_id: byId(vendors.data, (item) => item.name),
+    };
+  }, [users.data, universities.data, programs.data, products.data, directions.data, vendors.data]);
+}
+
 function show(value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "boolean") return value ? "да" : "нет";
@@ -64,11 +135,20 @@ function show(value: unknown): string {
 }
 
 function Changes({ entry }: { entry: AuditEntry }) {
+  const names = useNames();
+  const label = useLabel();
   const before = entry.before_data || {};
   const after = entry.after_data || {};
   const fields = Array.from(new Set([...Object.keys(before), ...Object.keys(after)])).filter(
     (key) => entry.action !== "update" || show(before[key]) !== show(after[key]),
   );
+  const value = (field: string, raw: unknown) => {
+    const text = show(raw);
+    if (typeof raw === "string" && names[field]?.[raw]) return names[field][raw];
+    const group = field === "status" && entry.entity_type === "licenses" ? "license_status" : STATUS_GROUPS[field];
+    if (typeof raw === "string" && group) return label(group, raw);
+    return text;
+  };
   if (fields.length === 0) return <p className="muted">Подробностей нет.</p>;
   return (
     <div className="diff">
@@ -77,9 +157,9 @@ function Changes({ entry }: { entry: AuditEntry }) {
       <div className="diff__head">Стало</div>
       {fields.map((field) => (
         <div key={field} style={{ display: "contents" }}>
-          <div className="mono">{field}</div>
-          <div className="diff__old">{show(before[field])}</div>
-          <div className="diff__new">{show(after[field])}</div>
+          <div title={field}>{FIELD_LABELS[field] || <span className="mono">{field}</span>}</div>
+          <div className="diff__old">{value(field, before[field])}</div>
+          <div className="diff__new">{value(field, after[field])}</div>
         </div>
       ))}
     </div>
@@ -88,6 +168,7 @@ function Changes({ entry }: { entry: AuditEntry }) {
 
 export function AuditEntries({ entries, compact }: { entries: AuditEntry[]; compact?: boolean }) {
   const [open, setOpen] = useState<string | null>(null);
+  const names = useNames();
   if (entries.length === 0) return <EmptyState title="Изменений нет" />;
   return (
     <div className="list">
@@ -108,7 +189,14 @@ export function AuditEntries({ entries, compact }: { entries: AuditEntry[]; comp
               <span className="list-item__main">
                 <strong style={{ whiteSpace: "normal" }}>
                   {ENTITY_LABELS[entry.entity_type] || entry.entity_type}
-                  {!compact && entry.entity_id ? <span className="muted mono"> · {entry.entity_id.slice(0, 8)}</span> : null}
+                  {!compact && entry.entity_id ? (
+                    <span className="muted">
+                      {" · "}
+                      {(entry.entity_type === "universities" && names.university_id[entry.entity_id]) || (
+                        <span className="mono">{entry.entity_id.slice(0, 8)}</span>
+                      )}
+                    </span>
+                  ) : null}
                 </strong>
                 <small>
                   {entry.user_name || "Система"} · {formatDateTime(entry.created_at)}
