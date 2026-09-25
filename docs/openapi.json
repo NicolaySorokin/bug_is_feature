@@ -675,6 +675,16 @@
             "title": "Id",
             "type": "string"
           },
+          "manager": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "manager_id": {
             "anyOf": [
               {
@@ -805,6 +815,16 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "manager": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "manager_id": {
             "anyOf": [
@@ -1349,6 +1369,16 @@
               }
             ],
             "title": "To Stage Id"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "user_id": {
             "anyOf": [
