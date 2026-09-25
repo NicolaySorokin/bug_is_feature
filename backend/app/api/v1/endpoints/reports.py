@@ -6,7 +6,6 @@
 (``/chart``) - выборка при этом считается одинаково.
 """
 
-import anyio
 from fastapi import APIRouter, Query, Response
 
 from app.api.deps import CurrentUserDep, PrincipalDep, SessionDep
@@ -24,6 +23,7 @@ from app.schemas.report import (
 from app.services import reports
 from app.services.export import charts as chart_export
 from app.services.export import pdf as pdf_export
+from app.services.export import runner
 from app.services.export import table as table_export
 from app.services.export import xlsx as xlsx_export
 
@@ -89,8 +89,8 @@ def report_table(report: ReportResponse) -> table_export.Table:
 
 
 def render_report(report: ReportResponse, export_format: ExportFormat) -> bytes:
-    """Файл отчёта. Вызывается в пуле потоков: сборка PDF и XLSX - работа
-    процессора, в цикле событий она задержала бы остальные запросы."""
+    """Файл отчёта. Собирается через export.runner: сборка PDF и XLSX -
+    работа процессора, в цикле событий она задержала бы остальные запросы."""
     if export_format is ExportFormat.PDF:
         return pdf_export.build(report)
     if export_format is ExportFormat.JSON:
@@ -122,7 +122,7 @@ async def export(
     media_type, extension = CONTENT_TYPES[export_format]
 
     try:
-        content = await anyio.to_thread.run_sync(render_report, report, export_format)
+        content = await runner.run(render_report, report, export_format)
     except AppError:
         raise
     except Exception as exc:  # noqa: BLE001 - наружу уходит понятный код ошибки
@@ -162,10 +162,10 @@ async def chart(
 
     try:
         if image_format is ImageFormat.PNG:
-            content = await anyio.to_thread.run_sync(chart_export.to_png, data)
+            content = await runner.run(chart_export.to_png, data)
             media_type = "image/png"
         else:
-            content = await anyio.to_thread.run_sync(chart_export.to_pdf, data)
+            content = await runner.run(chart_export.to_pdf, data)
             media_type = "application/pdf"
     except Exception as exc:  # noqa: BLE001 - наружу уходит понятный код ошибки
         raise AppError(

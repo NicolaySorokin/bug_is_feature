@@ -54,6 +54,9 @@ services:
       SITE_BASE_URL: ${SITE_BASE_URL:-}
       SITE_TOKEN: ${SITE_TOKEN:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      # Сколько выгрузок (PDF, XLSX, диаграммы) один процесс API собирает
+      # одновременно; остальные ждут в очереди, не задерживая интерфейс.
+      EXPORT_CONCURRENCY: ${EXPORT_CONCURRENCY:-1}
     volumes:
       - api_storage:/app/storage
     command: >
