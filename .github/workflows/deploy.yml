@@ -56,11 +56,12 @@ jobs:
           } >> "$GITHUB_ENV"
           git log -1 --format='%h %s (%an)'
 
-      - name: Сборка образа API
-        run: >
-          docker build
-          --label "org.opencontainers.image.revision=$SHA"
-          -t "edu-crm-api:$TAG" ./backend
+      - name: Сборка образов
+        run: |
+          set -euo pipefail
+          docker build --label "org.opencontainers.image.revision=$SHA" -t "edu-crm-api:$TAG" ./backend
+          # Nginx с собранной клиентской частью: интерфейс и прокси к API.
+          docker build --label "org.opencontainers.image.revision=$SHA" -t "edu-crm-web:$TAG" ./frontend
 
       - name: Проверка PROD_ENV
         env:
@@ -117,13 +118,13 @@ jobs:
         run: |
           set -euo pipefail
           external=$(docker compose -f docker-compose.yml -f cicd/prod/docker-compose.yml \
-            --profile keycloak config --images | grep -v '^edu-crm-api:' | sort -u)
-          for image in $external "edu-crm-api:$TAG"; do
+            --profile keycloak config --images | grep -Ev '^edu-crm-(api|web):' | sort -u)
+          for image in $external "edu-crm-api:$TAG" "edu-crm-web:$TAG"; do
             if ssh prod docker image inspect "$image" > /dev/null 2>&1; then
               echo "$image: уже на сервере"
               continue
             fi
-            [[ $image == edu-crm-api:* ]] || docker pull -q "$image"
+            [[ $image == edu-crm-* ]] || docker pull -q "$image"
             echo "$image: передаю"
             docker save "$image" | gzip -1 | ssh prod 'gunzip | docker load'
           done
@@ -175,8 +176,34 @@ jobs:
             fail "API здоров: /api/v1/health" "нет ответа status ok за 2 минуты"
           fi
 
-          read -r code url < <(curl -sS -L --max-time 20 -o /dev/null -w '%{http_code} %{url_effective}' "$base/")
-          if [ "$code" = 200 ]; then ok "Сайт отвечает по HTTPS" "200, $url"; else fail "Сайт отвечает по HTTPS" "код $code, $url"; fi
+          read -r code url < <(curl -sS -L --max-time 20 -o "$RUNNER_TEMP/index.html" -w '%{http_code} %{url_effective}' "$base/")
+          if [ "$code" = 200 ] && grep -q 'id="root"' "$RUNNER_TEMP/index.html"; then
+            ok "Открывается система (не Swagger)" "200, $url - клиентская часть"
+          else
+            fail "Открывается система (не Swagger)" "код $code, $url - на / нет клиентской части"
+          fi
+
+          # Адрес страницы приложения открывается напрямую (закладка, ссылка из письма).
+          code=$(curl -sS --max-time 10 -o "$RUNNER_TEMP/deep.html" -w '%{http_code}' "$base/contracts")
+          if [ "$code" = 200 ] && grep -q 'id="root"' "$RUNNER_TEMP/deep.html"; then
+            ok "Прямая ссылка на страницу" "/contracts → 200"
+          else
+            fail "Прямая ссылка на страницу" "/contracts → $code"
+          fi
+
+          asset=$(grep -o '/assets/[^"]*\.js' "$RUNNER_TEMP/index.html" | head -1)
+          headers=$(curl -sS --max-time 10 -o /dev/null -D - "$base$asset")
+          if grep -qi '^HTTP/[0-9.]* 200' <<< "$headers" && grep -qi 'cache-control:.*immutable' <<< "$headers"; then
+            ok "Статика клиентской части" "$asset, кэш на год"
+          else
+            fail "Статика клиентской части" "$asset не отдаётся или без кэширования"
+          fi
+
+          if curl -sS --max-time 10 -o /dev/null -D - "$base/" | grep -qi '^content-security-policy:'; then
+            ok "Заголовки безопасности" "Content-Security-Policy на месте"
+          else
+            fail "Заголовки безопасности" "нет Content-Security-Policy"
+          fi
 
           read -r code url < <(curl -sS --max-time 10 -o /dev/null -w '%{http_code} %{redirect_url}' "http://$DOMAIN/")
           if [ "$code" = 301 ] && [ "$url" = "$base/" ]; then

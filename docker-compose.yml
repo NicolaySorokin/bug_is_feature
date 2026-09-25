@@ -86,6 +86,19 @@ services:
     volumes:
       - ./deploy/keycloak:/opt/keycloak/data/import:ro
 
+  # Единая точка входа: клиентская часть и прокси к API (и Keycloak -
+  # в preprod и prod). Образ собирается из frontend/: Node собирает
+  # статику, Nginx её раздаёт. Конфигурацию Nginx задаёт среда:
+  # cicd/<среда>/nginx.conf.
+  nginx:
+    build: ./frontend
+    image: edu-crm-web:${WEB_IMAGE_TAG:-latest}
+    container_name: edu_crm_nginx
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   pgdata:
   api_storage:

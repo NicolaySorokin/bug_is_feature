@@ -54,13 +54,11 @@ services:
       # меняет метку, и compose пересоздаёт Keycloak. Метку ставит деплой.
       edu-crm.realm-sha: ${KEYCLOAK_REALM_SHA:-}
 
+  # Nginx с клиентской частью: образ edu-crm-web собирается в CI и
+  # привозится на сервер готовым, тег - коммит (как у API).
   nginx:
-    image: nginx:1.27-alpine
-    container_name: edu_crm_nginx
+    image: edu-crm-web:${WEB_IMAGE_TAG:-latest}
     restart: always
-    depends_on:
-      api:
-        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"
