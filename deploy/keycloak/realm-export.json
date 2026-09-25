@@ -72,6 +72,7 @@
   ],
   "users": [
     {
+      "id": "d32988ab-b733-5978-a482-28c6388e7515",
       "username": "petrov",
       "email": "petrov@example.com",
       "firstName": "Пётр",
@@ -82,6 +83,7 @@
       "realmRoles": ["manager"]
     },
     {
+      "id": "fd092f0e-0eb1-57cb-b17d-2dd0eb9406b1",
       "username": "ivanova",
       "email": "ivanova@example.com",
       "firstName": "Мария",
@@ -92,6 +94,205 @@
       "realmRoles": ["manager"]
     },
     {
+      "id": "8a2e1c73-3cd6-5446-a925-26e1d75e53fc",
+      "username": "smirnov",
+      "email": "smirnov@example.com",
+      "firstName": "Алексей",
+      "lastName": "Смирнов",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "smirnov", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "75d67127-0534-5ae7-87d1-195642af607d",
+      "username": "kuznetsova",
+      "email": "kuznetsova@example.com",
+      "firstName": "Елена",
+      "lastName": "Кузнецова",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "kuznetsova", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "cb481f25-6fe3-5c1e-b311-adfddbebffaf",
+      "username": "sokolov",
+      "email": "sokolov@example.com",
+      "firstName": "Дмитрий",
+      "lastName": "Соколов",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "sokolov", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "d6792fc1-0931-5606-85e2-9d9c3d47157e",
+      "username": "popova",
+      "email": "popova@example.com",
+      "firstName": "Наталья",
+      "lastName": "Попова",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "popova", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "1f1db2a3-88bc-5439-aca1-4eaa359c69e2",
+      "username": "lebedev",
+      "email": "lebedev@example.com",
+      "firstName": "Игорь",
+      "lastName": "Лебедев",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lebedev", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "0e38bfe8-58e3-5029-9e86-9d1dbb384ec7",
+      "username": "kozlova",
+      "email": "kozlova@example.com",
+      "firstName": "Анастасия",
+      "lastName": "Козлова",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "kozlova", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "beda254e-3fac-547e-be49-35876318d04b",
+      "username": "novikov",
+      "email": "novikov@example.com",
+      "firstName": "Сергей",
+      "lastName": "Новиков",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "novikov", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "9938e810-ddb4-5f08-af89-d0e24c61b532",
+      "username": "morozova",
+      "email": "morozova@example.com",
+      "firstName": "Татьяна",
+      "lastName": "Морозова",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "morozova", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "a3c2724f-92e5-5754-b86a-b42d65bfd46d",
+      "username": "volkov",
+      "email": "volkov@example.com",
+      "firstName": "Андрей",
+      "lastName": "Волков",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "volkov", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "bee60867-93dd-518c-94ed-282100ef8bab",
+      "username": "alekseeva",
+      "email": "alekseeva@example.com",
+      "firstName": "Юлия",
+      "lastName": "Алексеева",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "alekseeva", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "8df3eed3-71b3-5d29-824e-55f9d8b53c30",
+      "username": "semenov",
+      "email": "semenov@example.com",
+      "firstName": "Максим",
+      "lastName": "Семёнов",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "semenov", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "4cac5f99-f159-51dd-b7dc-dd058f6afc96",
+      "username": "egorova",
+      "email": "egorova@example.com",
+      "firstName": "Дарья",
+      "lastName": "Егорова",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "egorova", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "a5dbfc7e-5726-55ad-9b49-49e3fa0d4d48",
+      "username": "pavlov",
+      "email": "pavlov@example.com",
+      "firstName": "Кирилл",
+      "lastName": "Павлов",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "pavlov", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "75f9c0c4-7b13-58c7-b85e-8f9b5efdbf37",
+      "username": "stepanova",
+      "email": "stepanova@example.com",
+      "firstName": "Ирина",
+      "lastName": "Степанова",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "stepanova", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "7ffc8212-ceff-518e-a0ca-ec9ff8b50fef",
+      "username": "nikolaev",
+      "email": "nikolaev@example.com",
+      "firstName": "Роман",
+      "lastName": "Николаев",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "nikolaev", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "1444cb3f-664f-586e-9aea-262e77e83c23",
+      "username": "zakharova",
+      "email": "zakharova@example.com",
+      "firstName": "Светлана",
+      "lastName": "Захарова",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "zakharova", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "61af2acf-a869-54e5-afb6-464d4d2d4301",
+      "username": "zaitsev",
+      "email": "zaitsev@example.com",
+      "firstName": "Артём",
+      "lastName": "Зайцев",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "zaitsev", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "e5224e0f-6d81-571e-af98-066711297685",
+      "username": "belova",
+      "email": "belova@example.com",
+      "firstName": "Ксения",
+      "lastName": "Белова",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "belova", "temporary": false }],
+      "realmRoles": ["manager"]
+    },
+    {
+      "id": "3d434a27-fedb-5de8-b8c9-f454a86ef525",
       "username": "orlova",
       "email": "orlova@example.com",
       "firstName": "Ольга",
@@ -102,10 +303,22 @@
       "realmRoles": ["manager", "head"]
     },
     {
+      "id": "adf8eaf3-566b-5bfb-b7eb-f6a5517c5f89",
+      "username": "fedorov",
+      "email": "fedorov@example.com",
+      "firstName": "Виктор",
+      "lastName": "Фёдоров",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "fedorov", "temporary": false }],
+      "realmRoles": ["manager", "head"]
+    },
+    {
+      "id": "f9284642-fa22-559a-bfa8-115f59208e12",
       "username": "admin",
       "email": "admin@example.com",
-      "firstName": "Администратор",
-      "lastName": "Платформы",
+      "firstName": "Олег",
+      "lastName": "Григорьев",
       "enabled": true,
       "emailVerified": true,
       "credentials": [{ "type": "password", "value": "admin", "temporary": false }],

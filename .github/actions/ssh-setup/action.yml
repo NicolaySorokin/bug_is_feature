@@ -1,0 +1,68 @@
+name: SSH до боевого сервера
+description: >
+  Ключ, known_hosts и псевдоним prod в ~/.ssh/config. Ключ хоста проверяется
+  всегда: сверка идёт с секретом SSH_KNOWN_HOSTS, чужой сервер не пройдёт.
+
+inputs:
+  host:
+    description: Адрес сервера (секрет SSH_HOST)
+    required: true
+  user:
+    description: Пользователь на сервере (секрет SSH_USER)
+    required: true
+  private-key:
+    description: Закрытый ключ (секрет SSH_PRIVATE_KEY)
+    required: true
+  known-hosts:
+    description: Ключи хоста в формате known_hosts (секрет SSH_KNOWN_HOSTS)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Ключ, known_hosts и ~/.ssh/config
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.host }}
+        SSH_USER: ${{ inputs.user }}
+        SSH_PRIVATE_KEY: ${{ inputs.private-key }}
+        SSH_KNOWN_HOSTS: ${{ inputs.known-hosts }}
+      run: |
+        set -euo pipefail
+        # Секреты вставлены из Windows: \r в конце строк ломает и ключ,
+        # и known_hosts, а в адресе и логине даёт «неизвестный хост».
+        host=$(printf '%s' "$SSH_HOST" | tr -d '\r\n\t ')
+        user=$(printf '%s' "$SSH_USER" | tr -d '\r\n\t ')
+
+        install -m 700 -d ~/.ssh
+        printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null; then
+          echo "::error::SSH_PRIVATE_KEY не читается как закрытый ключ OpenSSH"
+          exit 1
+        fi
+
+        printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
+        chmod 644 ~/.ssh/known_hosts
+        if ! ssh-keygen -F "$host" -f ~/.ssh/known_hosts > /dev/null; then
+          echo "::error::В SSH_KNOWN_HOSTS нет ключа для адреса из SSH_HOST. Строка должна начинаться с того же адреса (IP или имени), что и SSH_HOST: ssh-keyscan -t ed25519 <адрес>"
+          exit 1
+        fi
+
+        # ControlMaster: десятки команд деплоя идут по одному соединению.
+        cat > ~/.ssh/config <<EOF
+        Host prod
+          HostName $host
+          User $user
+          IdentityFile ~/.ssh/deploy_key
+          IdentitiesOnly yes
+          StrictHostKeyChecking yes
+          UserKnownHostsFile ~/.ssh/known_hosts
+          ConnectTimeout 20
+          ServerAliveInterval 15
+          ServerAliveCountMax 8
+          ControlMaster auto
+          ControlPath ~/.ssh/cm-%C
+          ControlPersist 15m
+        EOF
+        chmod 600 ~/.ssh/config
