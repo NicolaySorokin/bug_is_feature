@@ -19,7 +19,12 @@ from app.core.security import Principal
 from app.enums import Role
 from app.models.contract import Contract
 from app.models.user import User
-from app.models.workflow import WorkflowEvent, WorkflowInstance, WorkflowTemplate, WorkflowVersion
+from app.models.workflow import (
+    WorkflowEvent,
+    WorkflowInstance,
+    WorkflowTemplate,
+    WorkflowVersion,
+)
 from app.schemas.workflow import (
     BlockRequest,
     EventRead,
