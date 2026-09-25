@@ -4,8 +4,8 @@
  * Пакет темы @atomaro-rt/theme-rostelecom закрытый, поэтому здесь её
  * повторение: все токены Atomaro, в которых стоит акцентный синий,
  * получают фирменный фиолетовый Ростелекома #7700FF с той же шкалой
- * светлоты. Файл собран скриптом из default-light.css - не править руками:
- * см. frontend/README.md.
+ * светлоты. Файл собирает scripts/rt-theme.mjs из default-light.css -
+ * не править руками: см. frontend/README.md.
  */
 :root {
   --base-accent: #7700ff;
