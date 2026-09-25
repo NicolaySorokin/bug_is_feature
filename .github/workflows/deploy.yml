@@ -9,9 +9,6 @@ on:
     workflows: [CI]
     types: [completed]
     branches: [main]
-  # ВРЕМЕННО: проверка деплоя с ветки до слияния в main. Убрать.
-  push:
-    branches: [feature/demo-test-data]
   workflow_dispatch:
     inputs:
       ref:
@@ -37,7 +34,7 @@ jobs:
     name: Выкладка на prod
     # После CI - только если он прошёл и запускался пушем в main, а не PR.
     if: >-
-      github.event_name == 'workflow_dispatch' || github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
