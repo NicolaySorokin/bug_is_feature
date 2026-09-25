@@ -77,6 +77,32 @@ async def test_changes_get_into_audit_log(client: AsyncClient, university: dict)
     assert entry["after_data"]["number"] == contract["number"]
 
 
+async def test_audit_names_author_even_when_role_check_is_enough(
+    client: AsyncClient, university: dict
+) -> None:
+    # Назначение ответственного проверяет только роль из токена - автор
+    # изменения всё равно должен попасть в журнал.
+    manager = (await client.get("/api/v1/me", headers=MANAGER)).json()
+    response = await client.patch(
+        f"/api/v1/universities/{university['id']}",
+        json={"manager_id": manager["id"]},
+        headers=HEAD,
+    )
+    assert response.status_code == 200, response.text
+
+    entries = (
+        await client.get(
+            "/api/v1/audit",
+            params={"entity_type": "universities", "entity_id": university["id"]},
+            headers=ADMIN,
+        )
+    ).json()
+    update = next(item for item in entries["items"] if item["action"] == "update")
+    head = (await client.get("/api/v1/me", headers=HEAD)).json()
+    assert update["user_id"] == head["id"]
+    assert update["user_name"] == head["full_name"]
+
+
 async def test_audit_is_closed_for_manager(client: AsyncClient) -> None:
     response = await client.get("/api/v1/audit", headers=MANAGER)
     assert response.status_code == 403

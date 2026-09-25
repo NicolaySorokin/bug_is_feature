@@ -9,7 +9,6 @@
 import uuid
 from datetime import date
 
-import anyio
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import Date, case, cast, func, or_, select
 from sqlalchemy.orm import selectinload
@@ -26,6 +25,7 @@ from app.schemas.report import ChartKey, ExportFormat, ImageFormat
 from app.schemas.statistics import ApplicationRead, StatisticsFilters, StatisticsResponse
 from app.services import statistics
 from app.services.export import charts as chart_export
+from app.services.export import runner
 from app.services.export import table as table_export
 
 router = APIRouter(prefix="/statistics", tags=["statistics"])
@@ -132,7 +132,7 @@ async def export_statistics(
     data = await statistics.build(session, payload)
     media_type, extension = CONTENT_TYPES[export_format]
     try:
-        content = await anyio.to_thread.run_sync(_render, data, export_format)
+        content = await runner.run(_render, data, export_format)
     except AppError:
         raise
     except Exception as exc:  # noqa: BLE001 - наружу уходит понятный код ошибки
@@ -168,7 +168,7 @@ async def statistics_chart(
     if chart is None:
         raise AppError("Такой диаграммы в статистике нет", code=ErrorCode.REPORT_FAILED)
     render = chart_export.to_png if image_format is ImageFormat.PNG else chart_export.to_pdf
-    content = await anyio.to_thread.run_sync(render, chart)
+    content = await runner.run(render, chart)
     media_type = "image/png" if image_format is ImageFormat.PNG else "application/pdf"
     stamp = data.generated_at.strftime("%Y%m%d-%H%M")
     return Response(

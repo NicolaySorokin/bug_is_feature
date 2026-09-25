@@ -109,7 +109,7 @@ _CONTRACT_REMARKS = (
 
 _SYNC_ERROR = (
     "Внешняя система не ответила: Server error '502 Bad Gateway' "
-    "for url 'https://it-school.example/api/partners'"
+    "for url 'https://it-school.example/api/applications'"
 )
 
 
