@@ -20,9 +20,11 @@ from typing import Any
 from sqlalchemy import event, inspect
 from sqlalchemy.orm import Session
 
+from app.db.session import DATA_CHANGED
 from app.enums import AuditAction
+from app.models.access import UserUniversityAccess
 from app.models.audit import AuditLog
-from app.models.catalog import ItDirection, ItProduct, ItProgram, Vendor
+from app.models.catalog import ItDirection, ItProduct, ItProgram, Vendor, VendorContact
 from app.models.contract import (
     Contract,
     ContractContact,
@@ -31,7 +33,10 @@ from app.models.contract import (
     License,
 )
 from app.models.integration import IntegrationSource
+from app.models.learning import Learner, LearningApplication
+from app.models.system import AppSetting
 from app.models.university import University, UniversityContact
+from app.models.user import User
 from app.models.workflow import (
     WorkflowStage,
     WorkflowTemplate,
@@ -55,15 +60,36 @@ AUDITED_MODELS: tuple[type, ...] = (
     ItProgram,
     Vendor,
     ItProduct,
+    VendorContact,
     WorkflowTemplate,
     WorkflowVersion,
     WorkflowStage,
     WorkflowTransition,
     IntegrationSource,
+    # Права и доступ сотрудников: кто, кому и когда их менял.
+    User,
+    UserUniversityAccess,
+    AppSetting,
+    # Персональные данные заявителей и обучающихся - с маскированием.
+    LearningApplication,
+    Learner,
 )
 
 # Поля, которые не несут смысла в журнале.
-SKIPPED_FIELDS = frozenset({"created_at", "updated_at"})
+SKIPPED_FIELDS = frozenset({"created_at", "updated_at", "last_seen_at"})
+
+# Персональные данные в журнал не копируются: запись показывает, что поле
+# изменилось, но не само значение. Иначе журнал стал бы ещё одним местом
+# хранения ПДн, которое пришлось бы защищать наравне с основным (152-ФЗ).
+MASKED_FIELDS: dict[type, frozenset[str]] = {
+    LearningApplication: frozenset(
+        {"last_name", "first_name", "middle_name", "phone", "email"}
+    ),
+    Learner: frozenset(
+        {"last_name", "first_name", "middle_name", "phone", "email", "gender", "region"}
+    ),
+}
+MASK = "***"
 
 
 def set_actor(user_id: uuid.UUID | None) -> None:
@@ -89,10 +115,16 @@ def _entity_id(obj: object) -> uuid.UUID | None:
     return value if isinstance(value, uuid.UUID) else None
 
 
+def _masked(obj: object, key: str, value: Any) -> Any:
+    if value is not None and key in MASKED_FIELDS.get(type(obj), ()):
+        return MASK
+    return _jsonable(value)
+
+
 def _column_values(obj: object) -> dict[str, Any]:
     mapper = inspect(type(obj))
     return {
-        attr.key: _jsonable(getattr(obj, attr.key))
+        attr.key: _masked(obj, attr.key, getattr(obj, attr.key))
         for attr in mapper.column_attrs
         if attr.key not in SKIPPED_FIELDS
     }
@@ -109,8 +141,10 @@ def _changed_values(obj: object) -> tuple[dict[str, Any], dict[str, Any]]:
         history = state.attrs[attr.key].history
         if not history.has_changes():
             continue
-        before[attr.key] = _jsonable(history.deleted[0]) if history.deleted else None
-        after[attr.key] = _jsonable(history.added[0]) if history.added else None
+        before[attr.key] = (
+            _masked(obj, attr.key, history.deleted[0]) if history.deleted else None
+        )
+        after[attr.key] = _masked(obj, attr.key, history.added[0]) if history.added else None
     return before, after
 
 
@@ -135,6 +169,11 @@ def _record(
 
 @event.listens_for(Session, "before_flush")
 def _write_audit_log(session: Session, _flush_context: Any, _instances: Any) -> None:
+    if session.new or session.dirty or session.deleted:
+        # Отметка для кэша выборок: при фиксации транзакции увеличится
+        # счётчик изменений, и закэшированные сводки перестанут совпадать.
+        session.info[DATA_CHANGED] = True
+
     for obj in session.new:
         if not isinstance(obj, AUDITED_MODELS):
             continue

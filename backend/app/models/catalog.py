@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, UUIDPrimaryKeyMixin
+from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class ItDirection(UUIDPrimaryKeyMixin, Base):
@@ -42,6 +42,33 @@ class Vendor(UUIDPrimaryKeyMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
     products: Mapped[list["ItProduct"]] = relationship(back_populates="vendor")
+    contacts: Mapped[list["VendorContact"]] = relationship(
+        back_populates="vendor",
+        cascade="all, delete-orphan",
+        order_by="VendorContact.full_name",
+    )
+
+
+class VendorContact(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Ответственный со стороны вендора (каталог «Вендоры» кейсодержателя).
+
+    Отвечает за конкретные продукты: у одной компании по разным продуктам
+    бывают разные люди, поэтому связь «продукт -> контакт» лежит у продукта.
+    """
+
+    __tablename__ = "vendor_contacts"
+
+    vendor_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("vendors.id", ondelete="CASCADE"), index=True
+    )
+    full_name: Mapped[str] = mapped_column(String(255))
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # «Способ связи»: почта, чат в Telegram и т. п. - как удобнее контакту.
+    contact_channel: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+
+    vendor: Mapped[Vendor] = relationship(back_populates="contacts")
 
 
 class ItProduct(UUIDPrimaryKeyMixin, Base):
@@ -49,6 +76,10 @@ class ItProduct(UUIDPrimaryKeyMixin, Base):
 
     vendor_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Ответственный со стороны вендора за этот продукт.
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("vendor_contacts.id", ondelete="SET NULL"), nullable=True
     )
     name: Mapped[str] = mapped_column(String(500), index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

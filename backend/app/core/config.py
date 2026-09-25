@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     postgres_db: str = "edu_crm"
     # Печатать каждый SQL-запрос в лог. Полезно при отладке, шумно в остальное время.
     db_echo: bool = False
+    # Пул соединений на один рабочий процесс API. В бою процессов несколько
+    # (WEB_CONCURRENCY), сумма должна укладываться в max_connections PostgreSQL.
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
 
     # --- Авторизация ---
     # dev      - заглушка, пользователь берётся из заголовков запроса;
@@ -35,7 +39,13 @@ class Settings(BaseSettings):
     keycloak_internal_url: str = ""
     keycloak_realm: str = "edu-crm"
     keycloak_audience: str = "edu-crm-api"
+    # Публичный клиент, через который входит браузер (Authorization Code + PKCE).
+    keycloak_web_client_id: str = "edu-crm-web"
     keycloak_jwks_ttl_seconds: int = 600
+    # Управление пользователями и ролями идёт через Admin REST API Keycloak
+    # с токеном самого администратора CRM: роль admin в реалме включает права
+    # realm-management на пользователей. Отдельных секретов не требуется.
+    keycloak_admin_timeout_seconds: float = 10.0
 
     # Пользователь, который подставляется dev-заглушкой, если заголовки не переданы.
     dev_user_subject: str = "00000000-0000-0000-0000-0000000000de"
@@ -64,6 +74,10 @@ class Settings(BaseSettings):
     alert_default_sla_days: int = 14
     # За сколько дней до конца срока договора или лицензии поднимать тревогу.
     alert_expiring_days: int = 60
+
+    # --- Кэш тяжёлых выборок (требование 13 ТЗ) ---
+    # Сколько секунд живёт запись. 0 - кэш выключен.
+    cache_ttl_seconds: int = 60
 
     # --- Прочее ---
     cors_origins: str = "http://localhost:5173,http://localhost:3000"

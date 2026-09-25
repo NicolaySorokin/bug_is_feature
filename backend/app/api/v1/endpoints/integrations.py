@@ -5,9 +5,13 @@
 и администратору - это действие меняет общие справочники.
 """
 
-from fastapi import APIRouter, Depends, Query
+import json
+
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 
 from app.api.deps import CurrentUserDep, PaginationDep, SessionDep, require_roles
+from app.core.config import settings
+from app.core.errors import AppError, ErrorCode
 from app.enums import Role
 from app.models.integration import IntegrationSource
 from app.schemas.integration import (
@@ -68,6 +72,42 @@ async def update_source(
 )
 async def run_sync(code: str, session: SessionDep, user: CurrentUserDep) -> IntegrationRunRead:
     run = await sync.run_sync(session, code, user)
+    return IntegrationRunRead.from_model(run, code)
+
+
+@router.post(
+    "/sources/{code}/upload",
+    response_model=IntegrationRunRead,
+    dependencies=staff_only,
+    summary="Загрузить ответ источника файлом JSON",
+    description=(
+        "Ответ API LMS или сайта, сохранённый в файл, разбирается тем же "
+        "адаптером, что и ответ по сети: так проверяется выгрузка до того, "
+        "как открыт сетевой доступ к источнику. Формат сайта - список заявок "
+        "с полями «Номер заявки», «Курс», «Фамилия», «Имя», «Отчество», "
+        "«Телефон», «Email», «Номер потока»."
+    ),
+)
+async def upload_payload(
+    code: str,
+    session: SessionDep,
+    user: CurrentUserDep,
+    file: UploadFile = File(description="Файл JSON с ответом источника"),
+) -> IntegrationRunRead:
+    content = await file.read(settings.max_upload_bytes + 1)
+    if len(content) > settings.max_upload_bytes:
+        raise AppError(
+            f"Файл больше допустимых {settings.max_upload_mb} МБ",
+            code=ErrorCode.FILE_TOO_LARGE,
+            status_code=413,
+        )
+    try:
+        raw = json.loads(content.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise AppError(
+            f"Файл не похож на JSON: {exc}", code=ErrorCode.INTEGRATION_FAILED
+        ) from exc
+    run = await sync.run_sync(session, code, user, raw=raw, filename=file.filename)
     return IntegrationRunRead.from_model(run, code)
 
 

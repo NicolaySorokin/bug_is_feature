@@ -31,7 +31,12 @@ API системы контроля взаимодействия ИТ Школы
 
 TAGS = [
     {"name": "service", "description": "Проверка живости и служебные словари."},
-    {"name": "users", "description": "Текущий пользователь и сотрудники ИТ Школы."},
+    {
+        "name": "users",
+        "description": (
+            "Текущий пользователь, сотрудники, их роли в Keycloak и доступ к данным."
+        ),
+    },
     {"name": "universities", "description": "Вузы и их контактные лица."},
     {"name": "catalog", "description": "Справочники направлений, программ и продуктов."},
     {"name": "contracts", "description": "Реестр договоров и карточка договора."},
@@ -42,11 +47,19 @@ TAGS = [
     },
     {"name": "comments & files", "description": "Комментарии и вложения по договору."},
     {"name": "licenses", "description": "Лицензии на продукты в составе договора."},
-    {"name": "reports", "description": "Отчёты, выгрузки XLSX и PDF, диаграммы."},
+    {"name": "reports", "description": "Отчёты, выгрузки XLS, XLSX, PDF и JSON, диаграммы."},
+    {
+        "name": "statistics",
+        "description": (
+            "Статистика обучения: заявки с сайта, обучающиеся из LMS и потоки "
+            "по ИТ-программам - рейтинг востребованности."
+        ),
+    },
     {"name": "dashboard", "description": "Сводка на главной и проблемные процессы."},
     {"name": "integrations", "description": "Обмен с LMS и сайтом ИТ Школы."},
     {"name": "imports", "description": "Загрузка каталогов из XLS и XLSX."},
     {"name": "audit", "description": "Журнал изменений предметных данных."},
+    {"name": "settings", "description": "Системные настройки: нормы контроля процессов."},
 ]
 
 

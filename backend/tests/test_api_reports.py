@@ -98,9 +98,12 @@ async def test_exports_return_files(client: AsyncClient, university: dict) -> No
     pdf = await client.post("/api/v1/reports/export?format=pdf", json={}, headers=MANAGER)
     assert pdf.content[:4] == b"%PDF"
 
-    # xls принимается как синоним xlsx.
+    # xls - настоящий двоичный формат Excel 97 (контейнер OLE2), а не xlsx.
     xls = await client.post("/api/v1/reports/export?format=xls", json={}, headers=MANAGER)
-    assert xls.content[:2] == b"PK"
+    assert xls.status_code == 200
+    assert xls.content[:4] == b"\xd0\xcf\x11\xe0"
+    assert xls.headers["content-type"] == "application/vnd.ms-excel"
+    assert xls.headers["content-disposition"].endswith('.xls"')
 
     result_json = await client.post(
         "/api/v1/reports/export?format=json", json={}, headers=MANAGER

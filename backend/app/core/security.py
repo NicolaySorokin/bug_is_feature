@@ -56,7 +56,7 @@ def _unauthorized(detail: str) -> HTTPException:
     )
 
 
-def _bearer_token(request: Request) -> str | None:
+def bearer_token(request: Request) -> str | None:
     header = request.headers.get("Authorization", "")
     scheme, _, token = header.partition(" ")
     if scheme.lower() != "bearer" or not token:
@@ -119,7 +119,7 @@ class KeycloakAuthBackend:
         )
 
     async def authenticate(self, request: Request) -> Principal:
-        token = _bearer_token(request)
+        token = bearer_token(request)
         if token is None:
             raise _unauthorized("Требуется Bearer-токен")
 
@@ -147,10 +147,14 @@ class KeycloakAuthBackend:
             .get(self._config.keycloak_audience, {})
             .get("roles", [])
         )
+        # В документах и отчётах принят порядок «Фамилия Имя»: собираем ФИО
+        # из отдельных полей, а поле name (там «Имя Фамилия») - запасной вариант.
+        parts = [claims.get("family_name"), claims.get("given_name")]
+        full_name = " ".join(part for part in parts if part) or claims.get("name")
         return Principal(
             subject=claims["sub"],
             username=claims.get("preferred_username") or claims["sub"],
-            full_name=claims.get("name") or claims.get("preferred_username") or claims["sub"],
+            full_name=full_name or claims.get("preferred_username") or claims["sub"],
             email=claims.get("email"),
             roles=frozenset([*realm_roles, *client_roles]),
         )

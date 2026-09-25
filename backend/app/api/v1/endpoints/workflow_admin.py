@@ -5,7 +5,9 @@
 основной метод здесь один: ``PUT /versions/{id}/graph``.
 
 Доступ у администратора: менеджер работает внутри правил шаблона,
-но саму структуру не меняет.
+но саму структуру не меняет. Руководителю (раздел 3.3 концепции: изменение
+структуры «по решению команды») доступно то, что ход процессов не меняет:
+названия статусов и расположение узлов схемы.
 """
 
 import uuid
@@ -13,10 +15,14 @@ import uuid
 from fastapi import APIRouter, Depends, status
 
 from app.api.deps import SessionDep, require_roles
+from app.core.errors import NotFoundError
 from app.enums import Role
+from app.models.workflow import WorkflowStage
 from app.schemas.workflow import (
     GraphWrite,
     LayoutWrite,
+    StageRead,
+    StageRename,
     TemplateCreate,
     TemplateRead,
     TemplateUpdate,
@@ -30,6 +36,12 @@ router = APIRouter(
     prefix="/workflow",
     tags=["workflow admin"],
     dependencies=[Depends(require_roles(Role.ADMIN))],
+)
+# Правки, которые не меняют ход процессов: руководителю тоже можно.
+presentation_router = APIRouter(
+    prefix="/workflow",
+    tags=["workflow admin"],
+    dependencies=[Depends(require_roles(Role.HEAD, Role.ADMIN))],
 )
 
 
@@ -100,7 +112,7 @@ async def save_graph(
     )
 
 
-@router.put(
+@presentation_router.put(
     "/versions/{version_id}/layout",
     response_model=VersionGraph,
     summary="Сохранить расположение узлов схемы",
@@ -137,3 +149,27 @@ async def publish_version(version_id: uuid.UUID, session: SessionDep) -> Version
 async def delete_version(version_id: uuid.UUID, session: SessionDep) -> None:
     version = await workflow_admin.get_version(session, version_id)
     await workflow_admin.delete_version(session, version)
+
+
+@presentation_router.patch(
+    "/stages/{stage_id}",
+    response_model=StageRead,
+    summary="Переименовать статус (этап) процесса",
+    description=(
+        "Корректировка названия и описания этапа. Работает и в опубликованной "
+        "версии: на ход процессов название не влияет, а новое видно сразу - "
+        "в схеме, истории и отчётах."
+    ),
+)
+async def rename_stage(
+    stage_id: uuid.UUID, payload: StageRename, session: SessionDep
+) -> StageRead:
+    stage = await session.get(WorkflowStage, stage_id)
+    if stage is None:
+        raise NotFoundError("Этап не найден")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        if field == "name" and value is None:
+            continue
+        setattr(stage, field, value)
+    await session.flush()
+    return StageRead.model_validate(stage)

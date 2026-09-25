@@ -1,14 +1,19 @@
 """Схемы договоров, их состава и лицензий."""
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
-from app.enums import ContractStatus, ImplementationStatus
+from app.enums import (
+    ContractStatus,
+    ImplementationStatus,
+    WorkflowInstanceStatus,
+)
 from app.schemas.catalog import ItProductRead, ItProgramRead
 from app.schemas.common import ORMModel
-from app.schemas.university import UniversityRead
+from app.schemas.license import LicenseRead
+from app.schemas.university import UniversityContactRead, UniversityRead
 from app.schemas.user import UserRead
 
 
@@ -42,6 +47,22 @@ class ContractProductRead(ORMModel):
     product_id: uuid.UUID
     transfer_status: ImplementationStatus
     product: ItProductRead | None = None
+    licenses: list[LicenseRead] = []
+
+
+class ContractContactCreate(BaseModel):
+    contact_id: uuid.UUID
+    role: str | None = Field(default=None, max_length=255)
+    is_primary: bool = False
+
+
+class ContractContactRead(ORMModel):
+    """Ответственный от вуза по конкретному договору."""
+
+    contact_id: uuid.UUID
+    role: str | None
+    is_primary: bool
+    contact: UniversityContactRead
 
 
 class ContractCreate(BaseModel):
@@ -83,12 +104,27 @@ class ContractRead(ORMModel):
     valid_to: date | None
     status: ContractStatus
     comment: str | None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class ProcessSummary(BaseModel):
+    """Где сейчас процесс по договору - для строки реестра."""
+
+    instance_id: uuid.UUID
+    status: WorkflowInstanceStatus
+    stage_id: uuid.UUID | None = None
+    stage_name: str | None = None
+    days_on_stage: int | None = None
+    sla_days: int | None = None
 
 
 class ContractListItem(ContractRead):
     university: UniversityRead | None = None
+    process: ProcessSummary | None = None
 
 
 class ContractDetail(ContractListItem):
     programs: list[ContractProgramRead] = []
     products: list[ContractProductRead] = []
+    contacts: list[ContractContactRead] = []

@@ -13,6 +13,8 @@ from app.api.v1.endpoints import (
     integrations,
     licenses,
     reports,
+    settings,
+    statistics,
     universities,
     users,
     workflow,
@@ -30,11 +32,14 @@ api_router.include_router(workflow.contract_router)
 api_router.include_router(workflow.router)
 # Редактор шаблонов идёт после чтения: у него тот же префикс, но свои права.
 api_router.include_router(workflow_admin.router)
+api_router.include_router(workflow_admin.presentation_router)
 api_router.include_router(content.router)
 api_router.include_router(content.files_router)
 api_router.include_router(licenses.contract_router)
 api_router.include_router(licenses.router)
 api_router.include_router(reports.router)
+api_router.include_router(statistics.router)
 api_router.include_router(integrations.router)
 api_router.include_router(imports.router)
 api_router.include_router(audit.router)
+api_router.include_router(settings.router)

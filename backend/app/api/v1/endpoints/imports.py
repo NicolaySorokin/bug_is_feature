@@ -9,12 +9,13 @@
 import uuid
 from datetime import UTC, datetime
 
+import anyio
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import CurrentUserDep, PaginationDep, SessionDep, require_roles
-from app.core.errors import NotFoundError
+from app.core.errors import ConflictError, NotFoundError
 from app.enums import ImportRunStatus, ImportType, Role
 from app.models.importing import ImportRowError, ImportRun
 from app.schemas.importing import (
@@ -58,9 +59,7 @@ def _spec(import_type: ImportType) -> imports.ImportSpec:
 
 async def _get_run(session: SessionDep, run_id: uuid.UUID) -> ImportRun:
     statement = (
-        select(ImportRun)
-        .where(ImportRun.id == run_id)
-        .options(selectinload(ImportRun.errors))
+        select(ImportRun).where(ImportRun.id == run_id).options(selectinload(ImportRun.errors))
     )
     run = (await session.execute(statement)).scalar_one_or_none()
     if run is None:
@@ -102,6 +101,22 @@ def _mapping(run: ImportRun, payload: ImportMappingRequest) -> dict[str, str | N
     return payload.mapping or dict(run.mapping or {})
 
 
+def _ensure_not_imported(run: ImportRun) -> None:
+    # Повторный импорт того же файла ничего не испортит, но исказит итог
+    # загрузки в журнале: для повтора файл загружают заново.
+    if run.status == ImportRunStatus.COMPLETED:
+        raise ConflictError(
+            "Этот файл уже импортирован. Чтобы повторить, загрузите его заново"
+        )
+
+
+async def _read(storage_path: str) -> imports.SheetData:
+    # Разбор книги - работа процессора: выносим из цикла событий.
+    return await anyio.to_thread.run_sync(
+        imports.read_sheet, storage.absolute_path(storage_path)
+    )
+
+
 @router.get("/types", response_model=list[ImportTypeInfo], summary="Типы загрузок")
 async def list_types(_: CurrentUserDep) -> list[ImportTypeInfo]:
     return [
@@ -128,9 +143,7 @@ async def download_template(
     spec = _spec(import_type)
     return Response(
         content=imports.build_template(spec),
-        media_type=(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        ),
+        media_type=("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
         headers={
             "Content-Disposition": f'attachment; filename="template-{import_type.value}.xlsx"'
         },
@@ -169,7 +182,7 @@ async def upload(
     spec = _spec(import_type)
     stored = await storage.save_upload(file, "imports", allowed=SPREADSHEETS)
 
-    sheet = imports.read_sheet(storage.absolute_path(stored.storage_path))
+    sheet = await _read(stored.storage_path)
     mapping = imports.suggest_mapping(spec, sheet.headers)
 
     run = ImportRun(
@@ -218,8 +231,7 @@ async def read_run(run_id: uuid.UUID, session: SessionDep, _: CurrentUserDep) ->
     response_model=ImportResult,
     summary="Проверить данные перед импортом",
     description=(
-        "Разбирает даты и статусы, возвращает список проблемных строк. "
-        "Ничего не меняет."
+        "Разбирает даты и статусы, возвращает список проблемных строк. Ничего не меняет."
     ),
 )
 async def validate(
@@ -229,8 +241,9 @@ async def validate(
     _: CurrentUserDep,
 ) -> ImportResult:
     run = await _get_run(session, run_id)
+    _ensure_not_imported(run)
     spec = _spec(ImportType(run.import_type))
-    sheet = imports.read_sheet(storage.absolute_path(run.storage_path))
+    sheet = await _read(run.storage_path)
 
     mapping = _mapping(run, payload)
     errors = imports.validate(spec, sheet, mapping)
@@ -257,8 +270,9 @@ async def commit(
     _: CurrentUserDep,
 ) -> ImportResult:
     run = await _get_run(session, run_id)
+    _ensure_not_imported(run)
     spec = _spec(ImportType(run.import_type))
-    sheet = imports.read_sheet(storage.absolute_path(run.storage_path))
+    sheet = await _read(run.storage_path)
 
     mapping = _mapping(run, payload)
     outcome = await imports.run_import(session, spec, sheet, mapping)

@@ -171,8 +171,8 @@ async def update_license(
     principal: PrincipalDep,
 ) -> LicenseRead:
     license_ = await _get_license(session, license_id)
-    access.ensure_contract_access(
-        license_.contract_product.contract, principal, user
+    await access.ensure_contract_access(
+        session, license_.contract_product.contract, principal, user
     )
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(license_, field, value)
@@ -190,5 +190,7 @@ async def delete_license(
     principal: PrincipalDep,
 ) -> None:
     license_ = await _get_license(session, license_id)
-    access.ensure_contract_access(license_.contract_product.contract, principal, user)
+    await access.ensure_contract_access(
+        session, license_.contract_product.contract, principal, user
+    )
     await session.delete(license_)

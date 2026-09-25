@@ -1,6 +1,58 @@
 {
   "components": {
     "schemas": {
+      "AdminSummary": {
+        "description": "Главная администратора: интеграции, импорты, пользователи, настройки.",
+        "properties": {
+          "imports": {
+            "items": {
+              "$ref": "#/components/schemas/ImportSummary"
+            },
+            "title": "Imports",
+            "type": "array"
+          },
+          "integrations": {
+            "items": {
+              "$ref": "#/components/schemas/IntegrationStatus"
+            },
+            "title": "Integrations",
+            "type": "array"
+          },
+          "settings": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Settings",
+            "type": "object"
+          },
+          "users_active": {
+            "title": "Users Active",
+            "type": "integer"
+          },
+          "users_by_role": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Users By Role",
+            "type": "object"
+          },
+          "users_seen_recently": {
+            "title": "Users Seen Recently",
+            "type": "integer"
+          },
+          "users_total": {
+            "title": "Users Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "users_total",
+          "users_active",
+          "users_seen_recently"
+        ],
+        "title": "AdminSummary",
+        "type": "object"
+      },
       "AlertKind": {
         "description": "Причины, по которым договор попадает в проблемные (раздел 7).",
         "enum": [
@@ -106,6 +158,154 @@
         ],
         "title": "AlertSeverity",
         "type": "string"
+      },
+      "ApplicationRead": {
+        "properties": {
+          "contract_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Id"
+          },
+          "contract_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Number"
+          },
+          "course_name": {
+            "title": "Course Name",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "enrolled": {
+            "default": false,
+            "title": "Enrolled",
+            "type": "boolean"
+          },
+          "external_id": {
+            "title": "External Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "program_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Id"
+          },
+          "source_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Code"
+          },
+          "stream_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stream Number"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "university_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "University Id"
+          },
+          "university_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "University Name"
+          }
+        },
+        "required": [
+          "id",
+          "external_id",
+          "course_name",
+          "program_id",
+          "stream_number",
+          "full_name",
+          "phone",
+          "email",
+          "university_id",
+          "contract_id",
+          "submitted_at"
+        ],
+        "title": "ApplicationRead",
+        "type": "object"
       },
       "AttachmentRead": {
         "properties": {
@@ -298,6 +498,38 @@
         "title": "AuditEntryRead",
         "type": "object"
       },
+      "AuthConfig": {
+        "description": "Как входить в систему. Клиент читает это до входа, поэтому без токена.",
+        "properties": {
+          "demo_accounts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DemoAccount"
+            },
+            "title": "Demo Accounts",
+            "type": "array"
+          },
+          "keycloak": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KeycloakConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "AuthConfig",
+        "type": "object"
+      },
       "BlockRequest": {
         "properties": {
           "reason": {
@@ -358,6 +590,21 @@
         "title": "Body_upload_attachment_api_v1_contracts__contract_id__attachments_post",
         "type": "object"
       },
+      "Body_upload_payload_api_v1_integrations_sources__code__upload_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "description": "Файл JSON с ответом источника",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_payload_api_v1_integrations_sources__code__upload_post",
+        "type": "object"
+      },
       "ChartData": {
         "properties": {
           "items": {
@@ -411,7 +658,12 @@
           "by_stage",
           "by_direction",
           "by_university",
-          "by_manager"
+          "by_manager",
+          "applications_by_program",
+          "applications_by_direction",
+          "applications_by_month",
+          "streams_by_program",
+          "learners_by_education"
         ],
         "title": "ChartKey",
         "type": "string"
@@ -529,6 +781,73 @@
           "created_at"
         ],
         "title": "CommentRead",
+        "type": "object"
+      },
+      "ContractContactCreate": {
+        "properties": {
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "is_primary": {
+            "default": false,
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          }
+        },
+        "required": [
+          "contact_id"
+        ],
+        "title": "ContractContactCreate",
+        "type": "object"
+      },
+      "ContractContactRead": {
+        "description": "Ответственный от вуза по конкретному договору.",
+        "properties": {
+          "contact": {
+            "$ref": "#/components/schemas/UniversityContactRead"
+          },
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "is_primary": {
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          }
+        },
+        "required": [
+          "contact_id",
+          "role",
+          "is_primary",
+          "contact"
+        ],
+        "title": "ContractContactRead",
         "type": "object"
       },
       "ContractCreate": {
@@ -670,6 +989,26 @@
             ],
             "title": "Comment"
           },
+          "contacts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ContractContactRead"
+            },
+            "title": "Contacts",
+            "type": "array"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -700,6 +1039,16 @@
           "number": {
             "title": "Number",
             "type": "string"
+          },
+          "process": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProcessSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "products": {
             "default": [],
@@ -758,6 +1107,18 @@
             "title": "University Id",
             "type": "string"
           },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "valid_from": {
             "anyOf": [
               {
@@ -811,6 +1172,18 @@
             ],
             "title": "Comment"
           },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -841,6 +1214,16 @@
           "number": {
             "title": "Number",
             "type": "string"
+          },
+          "process": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProcessSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "signed_at": {
             "anyOf": [
@@ -883,6 +1266,18 @@
             "title": "University Id",
             "type": "string"
           },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "valid_from": {
             "anyOf": [
               {
@@ -923,6 +1318,18 @@
         "title": "ContractListItem",
         "type": "object"
       },
+      "ContractOrder": {
+        "description": "Сортировка реестра.",
+        "enum": [
+          "created",
+          "updated",
+          "number",
+          "valid_to",
+          "university"
+        ],
+        "title": "ContractOrder",
+        "type": "string"
+      },
       "ContractProductCreate": {
         "properties": {
           "product_id": {
@@ -947,6 +1354,14 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "licenses": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LicenseRead"
+            },
+            "title": "Licenses",
+            "type": "array"
           },
           "product": {
             "anyOf": [
@@ -1216,6 +1631,16 @@
       },
       "DashboardResponse": {
         "properties": {
+          "admin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdminSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "alerts": {
             "items": {
               "$ref": "#/components/schemas/AlertRead"
@@ -1252,6 +1677,13 @@
             "title": "Manager Load",
             "type": "array"
           },
+          "next_actions": {
+            "items": {
+              "$ref": "#/components/schemas/NextAction"
+            },
+            "title": "Next Actions",
+            "type": "array"
+          },
           "recent": {
             "items": {
               "$ref": "#/components/schemas/RecentChange"
@@ -1272,10 +1704,46 @@
         "title": "DashboardResponse",
         "type": "object"
       },
+      "DataScope": {
+        "description": "Какие договоры видит пользователь. Задаёт администратор.",
+        "enum": [
+          "default",
+          "all"
+        ],
+        "title": "DataScope",
+        "type": "string"
+      },
+      "DemoAccount": {
+        "properties": {
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "full_name",
+          "roles"
+        ],
+        "title": "DemoAccount",
+        "type": "object"
+      },
       "ErrorCode": {
         "enum": [
           "unauthorized",
           "forbidden",
+          "account_disabled",
           "not_found",
           "validation_error",
           "conflict",
@@ -1285,6 +1753,7 @@
           "import_failed",
           "integration_failed",
           "report_failed",
+          "identity_provider_error",
           "internal_error"
         ],
         "title": "ErrorCode",
@@ -1709,13 +2178,64 @@
         "title": "ImportRunStatus",
         "type": "string"
       },
+      "ImportSummary": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "import_type": {
+            "$ref": "#/components/schemas/ImportType"
+          },
+          "rows_created": {
+            "title": "Rows Created",
+            "type": "integer"
+          },
+          "rows_failed": {
+            "title": "Rows Failed",
+            "type": "integer"
+          },
+          "rows_updated": {
+            "title": "Rows Updated",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ImportRunStatus"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "import_type",
+          "status",
+          "rows_created",
+          "rows_updated",
+          "rows_failed",
+          "created_at"
+        ],
+        "title": "ImportSummary",
+        "type": "object"
+      },
       "ImportType": {
         "description": "Что именно загружаем. Набор колонок у каждого типа свой.",
         "enum": [
           "catalog",
           "universities",
+          "contacts",
           "programs",
-          "products"
+          "products",
+          "vendors",
+          "learners"
         ],
         "title": "ImportType",
         "type": "string"
@@ -1891,6 +2411,17 @@
             "title": "Id",
             "type": "string"
           },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
           "records_created": {
             "title": "Records Created",
             "type": "integer"
@@ -2029,6 +2560,67 @@
         "title": "IntegrationSourceUpdate",
         "type": "object"
       },
+      "IntegrationStatus": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "is_enabled": {
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Started At"
+          },
+          "last_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntegrationRunStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "uses_fixture": {
+            "title": "Uses Fixture",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "is_enabled",
+          "uses_fixture"
+        ],
+        "title": "IntegrationStatus",
+        "type": "object"
+      },
       "ItDirectionRead": {
         "properties": {
           "description": {
@@ -2067,6 +2659,18 @@
       },
       "ItProductCreate": {
         "properties": {
+          "contact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Id"
+          },
           "description": {
             "anyOf": [
               {
@@ -2105,6 +2709,18 @@
       },
       "ItProductRead": {
         "properties": {
+          "contact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Id"
+          },
           "description": {
             "anyOf": [
               {
@@ -2150,6 +2766,71 @@
           "is_active"
         ],
         "title": "ItProductRead",
+        "type": "object"
+      },
+      "ItProductUpdate": {
+        "properties": {
+          "contact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Id"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "vendor_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Id"
+          }
+        },
+        "title": "ItProductUpdate",
         "type": "object"
       },
       "ItProgramCreate": {
@@ -2237,6 +2918,82 @@
           "is_active"
         ],
         "title": "ItProgramRead",
+        "type": "object"
+      },
+      "ItProgramUpdate": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "direction_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction Id"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "ItProgramUpdate",
+        "type": "object"
+      },
+      "KeycloakConfig": {
+        "properties": {
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "realm": {
+            "title": "Realm",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "realm",
+          "client_id"
+        ],
+        "title": "KeycloakConfig",
         "type": "object"
       },
       "LayoutWrite": {
@@ -2633,6 +3390,16 @@
       },
       "ManagerLoad": {
         "properties": {
+          "active": {
+            "default": 0,
+            "title": "Active",
+            "type": "integer"
+          },
+          "blocked": {
+            "default": 0,
+            "title": "Blocked",
+            "type": "integer"
+          },
           "contracts": {
             "title": "Contracts",
             "type": "integer"
@@ -2670,6 +3437,10 @@
       "MeRead": {
         "description": "Профиль текущего пользователя вместе с ролями из токена.",
         "properties": {
+          "data_scope": {
+            "$ref": "#/components/schemas/DataScope",
+            "default": "default"
+          },
           "email": {
             "anyOf": [
               {
@@ -2695,11 +3466,17 @@
             "type": "boolean"
           },
           "roles": {
+            "default": [],
             "items": {
               "type": "string"
             },
             "title": "Roles",
             "type": "array"
+          },
+          "sees_all_contracts": {
+            "default": false,
+            "title": "Sees All Contracts",
+            "type": "boolean"
           },
           "username": {
             "title": "Username",
@@ -2711,8 +3488,7 @@
           "username",
           "full_name",
           "email",
-          "is_active",
-          "roles"
+          "is_active"
         ],
         "title": "MeRead",
         "type": "object"
@@ -2741,6 +3517,146 @@
           "name"
         ],
         "title": "NamedCreate",
+        "type": "object"
+      },
+      "NamedUpdate": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "NamedUpdate",
+        "type": "object"
+      },
+      "NextAction": {
+        "description": "Ближайшее действие менеджера: договор, где пора двигать процесс.",
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "contract_id": {
+            "format": "uuid",
+            "title": "Contract Id",
+            "type": "string"
+          },
+          "contract_number": {
+            "title": "Contract Number",
+            "type": "string"
+          },
+          "days_on_stage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days On Stage"
+          },
+          "overdue": {
+            "default": false,
+            "title": "Overdue",
+            "type": "boolean"
+          },
+          "process_status": {
+            "$ref": "#/components/schemas/WorkflowInstanceStatus"
+          },
+          "sla_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Days"
+          },
+          "stage_name": {
+            "title": "Stage Name",
+            "type": "string"
+          },
+          "university_name": {
+            "title": "University Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "contract_id",
+          "contract_number",
+          "university_name",
+          "stage_name",
+          "process_status"
+        ],
+        "title": "NextAction",
+        "type": "object"
+      },
+      "Page_ApplicationRead_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[ApplicationRead]",
         "type": "object"
       },
       "Page_AuditEntryRead_": {
@@ -2836,11 +3752,11 @@
         "title": "Page[LicenseListItem]",
         "type": "object"
       },
-      "Page_UniversityRead_": {
+      "Page_UniversityListItem_": {
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/UniversityRead"
+              "$ref": "#/components/schemas/UniversityListItem"
             },
             "title": "Items",
             "type": "array"
@@ -2864,7 +3780,7 @@
           "limit",
           "offset"
         ],
-        "title": "Page[UniversityRead]",
+        "title": "Page[UniversityListItem]",
         "type": "object"
       },
       "Page_UserRead_": {
@@ -2898,6 +3814,21 @@
         "title": "Page[UserRead]",
         "type": "object"
       },
+      "PasswordReset": {
+        "properties": {
+          "password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "PasswordReset",
+        "type": "object"
+      },
       "PeriodBasis": {
         "description": "По какой дате считается «за выбранный период».",
         "enum": [
@@ -2907,6 +3838,195 @@
         ],
         "title": "PeriodBasis",
         "type": "string"
+      },
+      "ProcessSummary": {
+        "description": "Где сейчас процесс по договору - для строки реестра.",
+        "properties": {
+          "days_on_stage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days On Stage"
+          },
+          "instance_id": {
+            "format": "uuid",
+            "title": "Instance Id",
+            "type": "string"
+          },
+          "sla_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Days"
+          },
+          "stage_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage Id"
+          },
+          "stage_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowInstanceStatus"
+          }
+        },
+        "required": [
+          "instance_id",
+          "status"
+        ],
+        "title": "ProcessSummary",
+        "type": "object"
+      },
+      "ProgramProductLink": {
+        "properties": {
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "program_id": {
+            "format": "uuid",
+            "title": "Program Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "program_id",
+          "product_id"
+        ],
+        "title": "ProgramProductLink",
+        "type": "object"
+      },
+      "ProgramProductsWrite": {
+        "properties": {
+          "product_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Product Ids",
+            "type": "array"
+          }
+        },
+        "title": "ProgramProductsWrite",
+        "type": "object"
+      },
+      "ProgramStatistics": {
+        "description": "Строка рейтинга: насколько востребована программа.",
+        "properties": {
+          "applications": {
+            "title": "Applications",
+            "type": "integer"
+          },
+          "contracts": {
+            "title": "Contracts",
+            "type": "integer"
+          },
+          "conversion": {
+            "title": "Conversion",
+            "type": "number"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "first_application": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Application"
+          },
+          "last_application": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Application"
+          },
+          "learners": {
+            "title": "Learners",
+            "type": "integer"
+          },
+          "program": {
+            "title": "Program",
+            "type": "string"
+          },
+          "program_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Id"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "streams": {
+            "title": "Streams",
+            "type": "integer"
+          },
+          "universities": {
+            "title": "Universities",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rank",
+          "program_id",
+          "program",
+          "direction",
+          "applications",
+          "learners",
+          "streams",
+          "conversion",
+          "contracts",
+          "universities"
+        ],
+        "title": "ProgramStatistics",
+        "type": "object"
       },
       "RecentChange": {
         "description": "Строка ленты «последние изменения».",
@@ -3312,6 +4432,96 @@
         "title": "ReportTotals",
         "type": "object"
       },
+      "Role": {
+        "description": "Роли из Keycloak. Соответствуют разделу 8 концепции.",
+        "enum": [
+          "manager",
+          "head",
+          "admin"
+        ],
+        "title": "Role",
+        "type": "string"
+      },
+      "RoleSyncResult": {
+        "properties": {
+          "users_created": {
+            "title": "Users Created",
+            "type": "integer"
+          },
+          "users_total": {
+            "title": "Users Total",
+            "type": "integer"
+          },
+          "users_updated": {
+            "title": "Users Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "users_total",
+          "users_created",
+          "users_updated"
+        ],
+        "title": "RoleSyncResult",
+        "type": "object"
+      },
+      "SettingRead": {
+        "properties": {
+          "default": {
+            "title": "Default",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "maximum": {
+            "title": "Maximum",
+            "type": "integer"
+          },
+          "minimum": {
+            "title": "Minimum",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "description",
+          "value",
+          "default",
+          "minimum",
+          "maximum"
+        ],
+        "title": "SettingRead",
+        "type": "object"
+      },
+      "SettingsUpdate": {
+        "properties": {
+          "values": {
+            "additionalProperties": true,
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "values"
+        ],
+        "title": "SettingsUpdate",
+        "type": "object"
+      },
       "SkipRequest": {
         "description": "Пропуск необязательного этапа обязательно требует причину.",
         "properties": {
@@ -3463,6 +4673,37 @@
         "title": "StageRead",
         "type": "object"
       },
+      "StageRename": {
+        "description": "Корректировка названия статуса (этапа).\n\nНазвание и описание на ход процесса не влияют, поэтому их можно\nпоправить и в опубликованной версии - изменение сразу видно во всех\nпроцессах этой версии и в их истории.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "StageRename",
+        "type": "object"
+      },
       "StageState": {
         "description": "Пять состояний этапа из раздела 3.4.\n\nСостояние не хранится отдельно, а вычисляется из истории переходов\nи текущего этапа экземпляра процесса.",
         "enum": [
@@ -3589,6 +4830,137 @@
           "template_id"
         ],
         "title": "StartRequest",
+        "type": "object"
+      },
+      "StatisticsFilters": {
+        "description": "Период считается по дате подачи заявки.",
+        "properties": {
+          "date_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          },
+          "direction_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Direction Ids",
+            "type": "array"
+          },
+          "program_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Program Ids",
+            "type": "array"
+          },
+          "university_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "University Ids",
+            "type": "array"
+          }
+        },
+        "title": "StatisticsFilters",
+        "type": "object"
+      },
+      "StatisticsResponse": {
+        "properties": {
+          "charts": {
+            "items": {
+              "$ref": "#/components/schemas/ChartData"
+            },
+            "title": "Charts",
+            "type": "array"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/StatisticsFilters"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ProgramStatistics"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/StatisticsTotals"
+          }
+        },
+        "required": [
+          "title",
+          "generated_at",
+          "filters",
+          "totals",
+          "rows",
+          "charts"
+        ],
+        "title": "StatisticsResponse",
+        "type": "object"
+      },
+      "StatisticsTotals": {
+        "properties": {
+          "applications": {
+            "title": "Applications",
+            "type": "integer"
+          },
+          "directions": {
+            "title": "Directions",
+            "type": "integer"
+          },
+          "learners": {
+            "title": "Learners",
+            "type": "integer"
+          },
+          "programs": {
+            "title": "Programs",
+            "type": "integer"
+          },
+          "streams": {
+            "title": "Streams",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "applications",
+          "learners",
+          "streams",
+          "programs",
+          "directions"
+        ],
+        "title": "StatisticsTotals",
         "type": "object"
       },
       "TemplateCreate": {
@@ -3939,6 +5311,72 @@
         "title": "UniversityContactRead",
         "type": "object"
       },
+      "UniversityContactUpdate": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          }
+        },
+        "title": "UniversityContactUpdate",
+        "type": "object"
+      },
       "UniversityCreate": {
         "properties": {
           "city": {
@@ -4015,6 +5453,11 @@
       },
       "UniversityDetail": {
         "properties": {
+          "active_contracts_count": {
+            "default": 0,
+            "title": "Active Contracts Count",
+            "type": "integer"
+          },
           "city": {
             "anyOf": [
               {
@@ -4033,6 +5476,23 @@
             },
             "title": "Contacts",
             "type": "array"
+          },
+          "contracts_count": {
+            "default": 0,
+            "title": "Contracts Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
           },
           "description": {
             "anyOf": [
@@ -4053,6 +5513,16 @@
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
+          },
+          "manager": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "manager_id": {
             "anyOf": [
@@ -4104,6 +5574,111 @@
           "is_active"
         ],
         "title": "UniversityDetail",
+        "type": "object"
+      },
+      "UniversityListItem": {
+        "properties": {
+          "active_contracts_count": {
+            "default": 0,
+            "title": "Active Contracts Count",
+            "type": "integer"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "contracts_count": {
+            "default": 0,
+            "title": "Contracts Count",
+            "type": "integer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "manager": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manager_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manager Id"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "short_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short Name"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "short_name",
+          "city",
+          "website",
+          "description",
+          "manager_id",
+          "is_active"
+        ],
+        "title": "UniversityListItem",
         "type": "object"
       },
       "UniversityRead": {
@@ -4280,6 +5855,174 @@
         "title": "UniversityUpdate",
         "type": "object"
       },
+      "UserCreate": {
+        "properties": {
+          "data_scope": {
+            "$ref": "#/components/schemas/DataScope",
+            "default": "default"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "full_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "university_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "University Ids",
+            "type": "array"
+          },
+          "username": {
+            "maxLength": 64,
+            "minLength": 2,
+            "pattern": "^[a-zA-Z0-9._-]+$",
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "full_name"
+        ],
+        "title": "UserCreate",
+        "type": "object"
+      },
+      "UserDetail": {
+        "description": "Карточка пользователя для администратора: права и доступ к данным.",
+        "properties": {
+          "contracts_count": {
+            "default": 0,
+            "title": "Contracts Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "data_scope": {
+            "$ref": "#/components/schemas/DataScope"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "keycloak_id": {
+            "title": "Keycloak Id",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "managed_university_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Managed University Ids",
+            "type": "array"
+          },
+          "roles": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "university_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "University Ids",
+            "type": "array"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "full_name",
+          "email",
+          "is_active",
+          "keycloak_id",
+          "data_scope",
+          "last_seen_at",
+          "created_at"
+        ],
+        "title": "UserDetail",
+        "type": "object"
+      },
       "UserRead": {
         "properties": {
           "email": {
@@ -4306,6 +6049,14 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "roles": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
           "username": {
             "title": "Username",
             "type": "string"
@@ -4321,8 +6072,280 @@
         "title": "UserRead",
         "type": "object"
       },
+      "UserUpdate": {
+        "properties": {
+          "data_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "roles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Role"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roles"
+          },
+          "university_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "University Ids"
+          }
+        },
+        "title": "UserUpdate",
+        "type": "object"
+      },
+      "VendorContactCreate": {
+        "properties": {
+          "contact_channel": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Channel"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "full_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "required": [
+          "full_name"
+        ],
+        "title": "VendorContactCreate",
+        "type": "object"
+      },
+      "VendorContactRead": {
+        "properties": {
+          "contact_channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Channel"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "vendor_id": {
+            "format": "uuid",
+            "title": "Vendor Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "vendor_id",
+          "full_name",
+          "phone",
+          "email",
+          "contact_channel",
+          "is_active"
+        ],
+        "title": "VendorContactRead",
+        "type": "object"
+      },
+      "VendorContactUpdate": {
+        "properties": {
+          "contact_channel": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Channel"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "title": "VendorContactUpdate",
+        "type": "object"
+      },
       "VendorRead": {
         "properties": {
+          "contacts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/VendorContactRead"
+            },
+            "title": "Contacts",
+            "type": "array"
+          },
           "description": {
             "anyOf": [
               {
@@ -4384,10 +6407,27 @@
       "VersionGraph": {
         "description": "Версия шаблона целиком: узлы и связи для режима просмотра схемы.",
         "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "instances_count": {
+            "default": 0,
+            "title": "Instances Count",
+            "type": "integer"
           },
           "published_at": {
             "anyOf": [
@@ -4438,10 +6478,27 @@
       },
       "VersionRead": {
         "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "instances_count": {
+            "default": 0,
+            "title": "Instances Count",
+            "type": "integer"
           },
           "published_at": {
             "anyOf": [
@@ -4816,7 +6873,7 @@
             "required": false,
             "schema": {
               "default": 50,
-              "maximum": 200,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -5116,6 +7173,119 @@
         ]
       }
     },
+    "/api/v1/catalog/directions/{item_id}": {
+      "patch": {
+        "operationId": "update_direction_api_v1_catalog_directions__item_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItDirectionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Изменить ИТ-направление",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/api/v1/catalog/products": {
       "get": {
         "operationId": "list_products_api_v1_catalog_products_get",
@@ -5305,6 +7475,214 @@
           }
         },
         "summary": "Добавить ИТ-продукт",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/products/{item_id}": {
+      "patch": {
+        "operationId": "update_product_api_v1_catalog_products__item_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItProductUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItProductRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Изменить ИТ-продукт",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/program-products": {
+      "get": {
+        "operationId": "list_program_products_api_v1_catalog_program_products_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProgramProductLink"
+                  },
+                  "title": "Response List Program Products Api V1 Catalog Program Products Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Какие ИТ-продукты используются в программах",
         "tags": [
           "catalog"
         ]
@@ -5504,6 +7882,444 @@
         ]
       }
     },
+    "/api/v1/catalog/programs/{item_id}": {
+      "patch": {
+        "operationId": "update_program_api_v1_catalog_programs__item_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItProgramUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItProgramRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Изменить ИТ-программу",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/programs/{item_id}/products": {
+      "put": {
+        "operationId": "set_program_products_api_v1_catalog_programs__item_id__products_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgramProductsWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProgramProductLink"
+                  },
+                  "title": "Response Set Program Products Api V1 Catalog Programs  Item Id  Products Put",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Задать ИТ-продукты программы",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/vendor-contacts/{contact_id}": {
+      "delete": {
+        "description": "С продуктов, за которые он отвечал, контакт снимается.",
+        "operationId": "delete_vendor_contact_api_v1_catalog_vendor_contacts__contact_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Удалить контакт вендора",
+        "tags": [
+          "catalog"
+        ]
+      },
+      "patch": {
+        "operationId": "update_vendor_contact_api_v1_catalog_vendor_contacts__contact_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VendorContactUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorContactRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Изменить контакт вендора",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/api/v1/catalog/vendors": {
       "get": {
         "operationId": "list_vendors_api_v1_catalog_vendors_get",
@@ -5698,9 +8514,235 @@
         ]
       }
     },
+    "/api/v1/catalog/vendors/{item_id}": {
+      "patch": {
+        "operationId": "update_vendor_api_v1_catalog_vendors__item_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Изменить вендора",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/vendors/{vendor_id}/contacts": {
+      "post": {
+        "operationId": "create_vendor_contact_api_v1_catalog_vendors__vendor_id__contacts_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Vendor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VendorContactCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorContactRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Добавить контакт вендора",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/api/v1/contracts": {
       "get": {
-        "description": "Менеджер видит договоры, где он ответственный или закреплён за вузом; руководитель и администратор - все.",
+        "description": "Менеджер видит договоры, где он ответственный или закреплён за вузом, и договоры вузов, открытых ему администратором; руководитель и администратор - все. В строке - текущий этап процесса.",
         "operationId": "list_contracts_api_v1_contracts_get",
         "parameters": [
           {
@@ -5738,6 +8780,18 @@
             }
           },
           {
+            "description": "Только без ответственного",
+            "in": "query",
+            "name": "unassigned",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Только без ответственного",
+              "title": "Unassigned",
+              "type": "boolean"
+            }
+          },
+          {
             "in": "query",
             "name": "status",
             "required": false,
@@ -5751,6 +8805,23 @@
                 }
               ],
               "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "direction_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Direction Id"
             }
           },
           {
@@ -5807,7 +8878,25 @@
             }
           },
           {
-            "description": "Поиск по номеру договора",
+            "description": "Название текущего этапа",
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Название текущего этапа",
+              "title": "Stage"
+            }
+          },
+          {
+            "description": "Номер, название, вуз",
             "in": "query",
             "name": "search",
             "required": false,
@@ -5820,8 +8909,17 @@
                   "type": "null"
                 }
               ],
-              "description": "Поиск по номеру договора",
+              "description": "Номер, название, вуз",
               "title": "Search"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ContractOrder",
+              "default": "created"
             }
           },
           {
@@ -5830,7 +8928,7 @@
             "required": false,
             "schema": {
               "default": 50,
-              "maximum": 200,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -5936,6 +9034,7 @@
         ]
       },
       "post": {
+        "description": "Менеджер заводит договор на себя; назначить другого ответственного может руководитель. Можно сразу задать состав и запустить процесс.",
         "operationId": "create_contract_api_v1_contracts_post",
         "requestBody": {
           "content": {
@@ -6232,6 +9331,7 @@
         ]
       },
       "patch": {
+        "description": "Сменить или снять ответственного (manager_id) может только руководитель.",
         "operationId": "update_contract_api_v1_contracts__contract_id__patch",
         "parameters": [
           {
@@ -6814,6 +9914,331 @@
         ]
       }
     },
+    "/api/v1/contracts/{contract_id}/contacts": {
+      "get": {
+        "operationId": "list_contract_contacts_api_v1_contracts__contract_id__contacts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contract_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contract Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ContractContactRead"
+                  },
+                  "title": "Response List Contract Contacts Api V1 Contracts  Contract Id  Contacts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Ответственные от вуза по договору",
+        "tags": [
+          "contracts"
+        ]
+      },
+      "put": {
+        "description": "Контакт берётся из контактных лиц того же вуза: один человек не дублируется для каждого договора (раздел 9.2 концепции). Повторный вызов обновляет роль и признак основного контакта.",
+        "operationId": "put_contract_contact_api_v1_contracts__contract_id__contacts_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contract_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contract Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractContactCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractContactRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Назначить контакт вуза ответственным по договору",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/v1/contracts/{contract_id}/contacts/{contact_id}": {
+      "delete": {
+        "operationId": "remove_contract_contact_api_v1_contracts__contract_id__contacts__contact_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "contract_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contract Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Снять ответственного от вуза с договора",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
     "/api/v1/contracts/{contract_id}/licenses": {
       "get": {
         "operationId": "list_contract_licenses_api_v1_contracts__contract_id__licenses_get",
@@ -7158,6 +10583,111 @@
       }
     },
     "/api/v1/contracts/{contract_id}/products/{link_id}": {
+      "delete": {
+        "description": "Вместе с продуктом удаляются и его лицензии по этому договору.",
+        "operationId": "remove_product_api_v1_contracts__contract_id__products__link_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "contract_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contract Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Убрать продукт из договора",
+        "tags": [
+          "contracts"
+        ]
+      },
       "patch": {
         "operationId": "update_product_api_v1_contracts__contract_id__products__link_id__patch",
         "parameters": [
@@ -7394,6 +10924,110 @@
       }
     },
     "/api/v1/contracts/{contract_id}/programs/{link_id}": {
+      "delete": {
+        "operationId": "remove_program_api_v1_contracts__contract_id__programs__link_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "contract_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contract Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Убрать программу из договора",
+        "tags": [
+          "contracts"
+        ]
+      },
       "patch": {
         "operationId": "update_program_api_v1_contracts__contract_id__programs__link_id__patch",
         "parameters": [
@@ -8058,7 +11692,7 @@
             "required": false,
             "schema": {
               "default": 50,
-              "maximum": 200,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -8818,7 +12452,7 @@
             "required": false,
             "schema": {
               "default": 50,
-              "maximum": 200,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -9239,6 +12873,119 @@
         ]
       }
     },
+    "/api/v1/integrations/sources/{code}/upload": {
+      "post": {
+        "description": "Ответ API LMS или сайта, сохранённый в файл, разбирается тем же адаптером, что и ответ по сети: так проверяется выгрузка до того, как открыт сетевой доступ к источнику. Формат сайта - список заявок с полями «Номер заявки», «Курс», «Фамилия», «Имя», «Отчество», «Телефон», «Email», «Номер потока».",
+        "operationId": "upload_payload_api_v1_integrations_sources__code__upload_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_payload_api_v1_integrations_sources__code__upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Загрузить ответ источника файлом JSON",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
     "/api/v1/integrations/sync": {
       "post": {
         "description": "Сначала LMS с программами, затем сайт с заявками на эти программы.",
@@ -9414,7 +13161,7 @@
             "required": false,
             "schema": {
               "default": 50,
-              "maximum": 200,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -9818,6 +13565,98 @@
         ]
       }
     },
+    "/api/v1/meta/auth": {
+      "get": {
+        "description": "С Keycloak - адрес, реалм и публичный клиент для входа по Authorization Code + PKCE. В режиме разработки - список учётных записей заглушки.",
+        "operationId": "auth_config_api_v1_meta_auth_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Настройки входа для клиентской части",
+        "tags": [
+          "service"
+        ]
+      }
+    },
     "/api/v1/meta/enums": {
       "get": {
         "description": "Подписи статусов, коды ошибок и ограничения на файлы одним ответом: клиенту не нужно держать эти списки у себя.",
@@ -10130,7 +13969,7 @@
     },
     "/api/v1/reports/export": {
       "post": {
-        "description": "Форматы: xlsx, xls, pdf, json. Формат xls отдаётся содержимым xlsx - Excel открывает его без вопросов, а двоичный формат Excel 97 давно не используется.",
+        "description": "Форматы: xlsx, xls (Excel 97), pdf, json. Диаграммы строятся по той же выборке, что и таблица: в XLSX - диаграммами Excel, в PDF - картинками, в XLS - сводными листами.",
         "operationId": "export_api_v1_reports_export_post",
         "parameters": [
           {
@@ -10339,12 +14178,280 @@
         ]
       }
     },
-    "/api/v1/universities": {
+    "/api/v1/settings": {
       "get": {
-        "operationId": "list_universities_api_v1_universities_get",
+        "operationId": "read_settings_api_v1_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SettingRead"
+                  },
+                  "title": "Response Read Settings Api V1 Settings Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Системные настройки",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "operationId": "update_settings_api_v1_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SettingRead"
+                  },
+                  "title": "Response Update Settings Api V1 Settings Put",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Изменить системные настройки",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/statistics/applications": {
+      "get": {
+        "description": "Заявки с персональными данными заявителей - только руководителю и администратору.",
+        "operationId": "list_applications_api_v1_statistics_applications_get",
         "parameters": [
           {
-            "description": "Поиск по названию",
+            "in": "query",
+            "name": "program_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Program Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "university_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "University Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stream",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stream"
+            }
+          },
+          {
+            "description": "Нашёлся ли в LMS",
+            "in": "query",
+            "name": "enrolled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Нашёлся ли в LMS",
+              "title": "Enrolled"
+            }
+          },
+          {
+            "description": "Номер заявки, ФИО, почта, курс",
             "in": "query",
             "name": "search",
             "required": false,
@@ -10357,7 +14464,622 @@
                   "type": "null"
                 }
               ],
-              "description": "Поиск по названию",
+              "description": "Номер заявки, ФИО, почта, курс",
+              "title": "Search"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ApplicationRead_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Заявки на обучение",
+        "tags": [
+          "statistics"
+        ]
+      }
+    },
+    "/api/v1/statistics/chart": {
+      "post": {
+        "description": "Форматы изображения: png и pdf.",
+        "operationId": "statistics_chart_api_v1_statistics_chart_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ChartKey",
+              "default": "applications_by_program"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ImageFormat",
+              "default": "png"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatisticsFilters"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {},
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Диаграмма статистики отдельным файлом",
+        "tags": [
+          "statistics"
+        ]
+      }
+    },
+    "/api/v1/statistics/export": {
+      "post": {
+        "description": "Форматы: xlsx, xls, pdf, json.",
+        "operationId": "export_statistics_api_v1_statistics_export_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ExportFormat",
+              "default": "xlsx"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatisticsFilters"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Выгрузить статистику файлом",
+        "tags": [
+          "statistics"
+        ]
+      }
+    },
+    "/api/v1/statistics/programs": {
+      "post": {
+        "description": "Заявки с сайта, обучающиеся из LMS и число потоков по каждой программе за период подачи заявок. Таблица и диаграммы - из одной выборки.",
+        "operationId": "program_statistics_api_v1_statistics_programs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatisticsFilters"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatisticsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Рейтинг ИТ-программ по востребованности",
+        "tags": [
+          "statistics"
+        ]
+      }
+    },
+    "/api/v1/statistics/programs/{program_id}/streams": {
+      "get": {
+        "operationId": "program_streams_api_v1_statistics_programs__program_id__streams_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "program_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Program Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "type": "object"
+                  },
+                  "title": "Response Program Streams Api V1 Statistics Programs  Program Id  Streams Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Потоки программы: заявки и обучающиеся по каждому",
+        "tags": [
+          "statistics"
+        ]
+      }
+    },
+    "/api/v1/universities": {
+      "get": {
+        "operationId": "list_universities_api_v1_universities_get",
+        "parameters": [
+          {
+            "description": "Поиск по названию и сокращению",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Поиск по названию и сокращению",
               "title": "Search"
             }
           },
@@ -10376,6 +15098,18 @@
                 }
               ],
               "title": "Manager Id"
+            }
+          },
+          {
+            "description": "Только без ответственного",
+            "in": "query",
+            "name": "unassigned",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Только без ответственного",
+              "title": "Unassigned",
+              "type": "boolean"
             }
           },
           {
@@ -10400,7 +15134,7 @@
             "required": false,
             "schema": {
               "default": 50,
-              "maximum": 200,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -10423,7 +15157,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_UniversityRead_"
+                  "$ref": "#/components/schemas/Page_UniversityListItem_"
                 }
               }
             },
@@ -10607,6 +15341,7 @@
     },
     "/api/v1/universities/{university_id}": {
       "delete": {
+        "description": "Вуз с договорами удалить нельзя - его можно перевести в архив (is_active).",
         "operationId": "delete_university_api_v1_universities__university_id__delete",
         "parameters": [
           {
@@ -10802,6 +15537,7 @@
         ]
       },
       "patch": {
+        "description": "Ответственного (manager_id) назначает, меняет и снимает руководитель: передайте id сотрудника или null.",
         "operationId": "update_university_api_v1_universities__university_id__patch",
         "parameters": [
           {
@@ -10907,7 +15643,7 @@
             "description": "Запрос не прошёл проверку"
           }
         },
-        "summary": "Изменить вуз",
+        "summary": "Изменить вуз и ответственного за него",
         "tags": [
           "universities"
         ]
@@ -11026,17 +15762,297 @@
         ]
       }
     },
+    "/api/v1/universities/{university_id}/contacts/{contact_id}": {
+      "delete": {
+        "description": "Контакт снимается и со всех договоров, где он был ответственным от вуза.",
+        "operationId": "delete_contact_api_v1_universities__university_id__contacts__contact_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "university_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "University Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Удалить контактное лицо вуза",
+        "tags": [
+          "universities"
+        ]
+      },
+      "patch": {
+        "operationId": "update_contact_api_v1_universities__university_id__contacts__contact_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "university_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "University Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UniversityContactUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UniversityContactRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Изменить контактное лицо вуза",
+        "tags": [
+          "universities"
+        ]
+      }
+    },
     "/api/v1/users": {
       "get": {
         "operationId": "list_users_api_v1_users_get",
         "parameters": [
+          {
+            "description": "ФИО, логин или почта",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ФИО, логин или почта",
+              "title": "Search"
+            }
+          },
+          {
+            "description": "Только с этой ролью",
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Только с этой ролью",
+              "title": "Role"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_active",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Active"
+            }
+          },
           {
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
               "default": 50,
-              "maximum": 200,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -11137,6 +16153,520 @@
           }
         },
         "summary": "Сотрудники ИТ Школы",
+        "tags": [
+          "users"
+        ]
+      },
+      "post": {
+        "description": "С Keycloak учётная запись создаётся в реалме с временным паролем и ролями, в CRM - карточка с ФИО и доступом к данным. Без Keycloak (режим разработки) заводится только карточка: войти можно заголовком X-Dev-User.",
+        "operationId": "create_user_api_v1_users_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Завести пользователя",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/sync-roles": {
+      "post": {
+        "description": "Обновляет снимок ролей в CRM по данным Keycloak и заводит карточки тем, кто получил роль, но ещё ни разу не входил: их можно сразу назначать ответственными.",
+        "operationId": "sync_roles_api_v1_users_sync_roles_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleSyncResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Сверить роли с Keycloak",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/{user_id}": {
+      "get": {
+        "description": "Администратор видит любого сотрудника, остальные - только себя.",
+        "operationId": "read_user_api_v1_users__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Карточка пользователя",
+        "tags": [
+          "users"
+        ]
+      },
+      "patch": {
+        "description": "Роли меняются в Keycloak (без Keycloak - только в карточке). Отключённый пользователь не проходит в CRM даже с действующим токеном.",
+        "operationId": "update_user_api_v1_users__user_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Изменить права и доступ пользователя",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/{user_id}/reset-password": {
+      "post": {
+        "operationId": "reset_password_api_v1_users__user_id__reset_password_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordReset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Выдать временный пароль",
         "tags": [
           "users"
         ]
@@ -11591,6 +17121,120 @@
         "summary": "Снять блокировку процесса",
         "tags": [
           "workflow"
+        ]
+      }
+    },
+    "/api/v1/workflow/stages/{stage_id}": {
+      "patch": {
+        "description": "Корректировка названия и описания этапа. Работает и в опубликованной версии: на ход процессов название не влияет, а новое видно сразу - в схеме, истории и отчётах.",
+        "operationId": "rename_stage_api_v1_workflow_stages__stage_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stage_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stage Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StageRename"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StageRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Договор не входит в зону вашей ответственности"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне зоны ответственности"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Договор не найден"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Запрос не прошёл проверку"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку"
+          }
+        },
+        "summary": "Переименовать статус (этап) процесса",
+        "tags": [
+          "workflow admin"
         ]
       }
     },
@@ -12657,7 +18301,7 @@
       "name": "service"
     },
     {
-      "description": "Текущий пользователь и сотрудники ИТ Школы.",
+      "description": "Текущий пользователь, сотрудники, их роли в Keycloak и доступ к данным.",
       "name": "users"
     },
     {
@@ -12689,8 +18333,12 @@
       "name": "licenses"
     },
     {
-      "description": "Отчёты, выгрузки XLSX и PDF, диаграммы.",
+      "description": "Отчёты, выгрузки XLS, XLSX, PDF и JSON, диаграммы.",
       "name": "reports"
+    },
+    {
+      "description": "Статистика обучения: заявки с сайта, обучающиеся из LMS и потоки по ИТ-программам - рейтинг востребованности.",
+      "name": "statistics"
     },
     {
       "description": "Сводка на главной и проблемные процессы.",
@@ -12707,6 +18355,10 @@
     {
       "description": "Журнал изменений предметных данных.",
       "name": "audit"
+    },
+    {
+      "description": "Системные настройки: нормы контроля процессов.",
+      "name": "settings"
     }
   ]
 }

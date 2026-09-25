@@ -15,20 +15,45 @@
   для дополнительных соглашений;
 * около 85 договоров за два года с историей переходов, комментариями
   и файлами всех форматов из ТЗ, кроме xls;
-* журналы синхронизаций с LMS и сайтом и прошлых загрузок каталогов.
+* журналы синхронизаций с LMS и сайтом и прошлых загрузок каталогов;
+* каталог вендоров с ответственными и около 400 заявок на обучение
+  с анкетами обучающихся - для статистики востребованности программ.
 
 На главной видна ровно одна тревога каждого вида из раздела 7 концепции.
 
 Пользователи заводятся под ту схему входа, что настроена сейчас
 (AUTH_BACKEND): под dev-заглушкой - ``X-Dev-User: petrov``, под Keycloak -
 учётные записи реалма с тем же логином и паролем. Сменили схему - перезалейте.
+
+Дополнения, появившиеся после первого выпуска (роли сотрудников в карточках,
+вендоры, заявки и обучающиеся), подгружаются и в уже заполненную базу -
+каждое только если его таблица пуста.
 """
 
 import argparse
 import asyncio
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.db.session import SessionFactory, engine
+from app.models.user import User
+from app.services import cache
+from scripts.demo import learning, vendors
 from scripts.demo.loader import DemoLoader
+from scripts.demo.people import EMPLOYEE_BY_USERNAME
+
+
+async def sync_demo_roles(session: AsyncSession) -> int:
+    """Снимок ролей у демо-сотрудников, которые ещё ни разу не входили."""
+    updated = 0
+    for user in (await session.execute(select(User))).scalars():
+        employee = EMPLOYEE_BY_USERNAME.get(user.username)
+        if employee is not None and not user.roles:
+            user.roles = sorted(str(role) for role in employee.roles)
+            updated += 1
+    await session.flush()
+    return updated
 
 
 async def main(load: int) -> None:
@@ -46,8 +71,21 @@ async def main(load: int) -> None:
         else:
             print("В базе уже есть данные, демонстрационные не загружаю.")
 
+        if updated := await sync_demo_roles(session):
+            print(f"Роли в карточках демо-сотрудников: {updated}.")
+        if await vendors.is_empty(session):
+            outcome = await vendors.load(session)
+            print(f"Каталог вендоров: создано {outcome.created}, обновлено {outcome.updated}.")
+        if await learning.is_empty(session):
+            applications, learners = await learning.load(session)
+            print(f"Заявки на обучение: {applications}, обучающихся в LMS: {learners}.")
+        # Кэш выборок работающего API должен увидеть новые данные сразу.
+        await cache.bump_version(session)
+        await session.commit()
+
         if load:
             added = await loader.load_extra(load)
+            await cache.bump_version(session)
             await session.commit()
             print(f"Для нагрузочной проверки добавлено договоров: {added}.")
 

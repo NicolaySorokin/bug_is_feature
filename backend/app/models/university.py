@@ -7,6 +7,7 @@ from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.user import User
 
 if TYPE_CHECKING:
     from app.models.contract import Contract
@@ -26,8 +27,11 @@ class University(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
+    manager: Mapped[User | None] = relationship()
     contacts: Mapped[list["UniversityContact"]] = relationship(
-        back_populates="university", cascade="all, delete-orphan"
+        back_populates="university",
+        cascade="all, delete-orphan",
+        order_by="UniversityContact.full_name",
     )
     contracts: Mapped[list["Contract"]] = relationship(back_populates="university")
 

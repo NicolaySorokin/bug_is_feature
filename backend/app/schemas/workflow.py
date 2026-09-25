@@ -44,6 +44,9 @@ class VersionRead(ORMModel):
     template_id: uuid.UUID
     version_number: int
     published_at: datetime | None
+    created_at: datetime | None = None
+    # Сколько процессов идёт по версии: такую версию уже не удалить.
+    instances_count: int = 0
 
 
 class VersionGraph(VersionRead):
@@ -170,6 +173,18 @@ class VersionCreate(BaseModel):
 
     from_version_id: uuid.UUID | None = None
     copy_graph: bool = True
+
+
+class StageRename(BaseModel):
+    """Корректировка названия статуса (этапа).
+
+    Название и описание на ход процесса не влияют, поэтому их можно
+    поправить и в опубликованной версии - изменение сразу видно во всех
+    процессах этой версии и в их истории.
+    """
+
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
 
 
 class StageLayout(BaseModel):
