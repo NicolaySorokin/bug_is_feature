@@ -228,14 +228,17 @@ bash /opt/edu-crm/current/cicd/prod/server/release.sh reset-data --confirm
 
 ### Нагрузочная проверка
 
-Пароли пользователей и вход в обход страницы Keycloak нужны только
-на время замера:
+Actions → «Нагрузочная проверка» → Run workflow (`loadtest.yml`):
+50 пользователей и 10 параллельных выгрузок на боевом стенде, итог —
+таблица времён отклика на странице запуска. Вход по паролю нужен только
+на время замера: workflow включает клиент `edu-crm-loadtest` и выключает
+его при любом исходе. То же на сервере:
 
 ```bash
 cd /opt/edu-crm/current
 R="bash cicd/prod/server/release.sh"
 $R keycloak-setup --loadtest on       # включить клиент edu-crm-loadtest
-set -a; . cicd/prod/.env; set +a      # KEYCLOAK_USER_PASSWORDS
+export KEYCLOAK_USER_PASSWORDS="$(sed -n 's/^KEYCLOAK_USER_PASSWORDS=//p' cicd/prod/.env)"
 make loadtest ENV=prod ARGS="--keycloak-url http://keycloak:8080"
 $R keycloak-setup --loadtest off      # выключить
 ```
