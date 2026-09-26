@@ -1,12 +1,15 @@
-"""Контроль проблемных процессов.
+"""Контроль проблемных взаимодействий.
 
-Раздел 7 концепции: на главной выделяются договоры, по которым требуется
-действие. Каждое правило отвечает на три вопроса - что не так, кто за это
-отвечает и сколько времени ситуация не меняется.
+Раздел 7 концепции: на главной выделяются взаимодействия, по которым
+требуется действие. Каждое правило отвечает на три вопроса - что не так,
+кто за это отвечает и сколько времени ситуация не меняется.
 
-Правила намеренно собраны в одном месте и работают по уже загруженной
-выборке договоров: так их легко читать, проверять и дополнять, а база
+Правила собраны в одном месте и работают по уже загруженной выборке
+взаимодействий: так их легко читать, проверять и дополнять, а база
 опрашивается один раз, а не по разу на правило.
+
+Технические поводы (сбой обмена, записи на сопоставлении, вузы на
+проверке) видят только те, кто может их разобрать.
 """
 
 from __future__ import annotations
@@ -24,17 +27,25 @@ from app.enums import (
     AlertKind,
     AlertSeverity,
     ContractStatus,
-    ImplementationStatus,
+    DocumentType,
     IntegrationRunStatus,
+    InteractionStatus,
     LicenseStatus,
-    WorkflowInstanceStatus,
+    MappingStatus,
+    ProgramImplementationStatus,
+    UniversityStatus,
 )
 from app.models.content import Attachment
-from app.models.contract import Contract, ContractProduct, License
-from app.models.integration import IntegrationRun, IntegrationSource
+from app.models.contract import License
+from app.models.integration import IntegrationMapping, IntegrationRun, IntegrationSource
+from app.models.interaction import InteractionProduct
+from app.models.university import University
 from app.models.user import User
+from app.models.workflow import WorkflowInstance
 from app.schemas.report import ReportFilters
-from app.services import app_settings, cache, reports
+from app.services import access, app_settings, cache, licenses, reports
+from app.services.access import Action
+from app.services.labels import DOCUMENT_TYPE_LABELS, label
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,12 +61,15 @@ class Alert:
     kind: AlertKind
     severity: AlertSeverity
     message: str
-    contract_id: uuid.UUID | None = None
+    interaction_id: uuid.UUID | None = None
+    interaction_title: str = ""
     contract_number: str = ""
     university_name: str = ""
+    university_full_name: str = ""
     manager_id: uuid.UUID | None = None
     manager_name: str = ""
     days: int | None = None  # сколько времени ситуация не меняется
+    link: str | None = None
 
 
 def _severity_by_days(days: int | None, limit: int) -> AlertSeverity:
@@ -67,45 +81,52 @@ def _severity_by_days(days: int | None, limit: int) -> AlertSeverity:
     return AlertSeverity.WARNING
 
 
-def _base(contract: Contract) -> dict:
+def _base(instance: WorkflowInstance) -> dict:
+    university = instance.university
     return {
-        "contract_id": contract.id,
-        "contract_number": contract.number,
-        "university_name": contract.university.name if contract.university else "",
-        "manager_id": contract.manager_id,
-        "manager_name": contract.manager.full_name if contract.manager else "",
+        "interaction_id": instance.id,
+        "interaction_title": instance.title or "",
+        "contract_number": instance.contract.number if instance.contract else "",
+        "university_name": (university.short_name or university.name) if university else "",
+        "university_full_name": university.name if university else "",
+        "manager_id": instance.manager_id,
+        "manager_name": instance.manager.full_name if instance.manager else "",
     }
 
 
-def _process_alerts(contract: Contract, norms: Norms) -> list[Alert]:
-    instance = reports.active_instance(contract)
-    if instance is None:
-        if contract.status in {ContractStatus.DRAFT, ContractStatus.ACTIVE}:
-            return [
-                Alert(
-                    kind=AlertKind.PROCESS_NOT_STARTED,
-                    severity=AlertSeverity.INFO,
-                    message="По договору не запущен рабочий процесс",
-                    **_base(contract),
-                )
-            ]
-        return []
+def _days_since(moment: datetime | None) -> int | None:
+    return None if moment is None else (datetime.now(UTC) - moment).days
 
-    if instance.status == WorkflowInstanceStatus.BLOCKED:
+
+def _process_alerts(instance: WorkflowInstance, norms: Norms) -> list[Alert]:
+    if instance.status == InteractionStatus.DRAFT:
+        days = _days_since(instance.created_at)
+        return [
+            Alert(
+                kind=AlertKind.PROCESS_NOT_STARTED,
+                severity=AlertSeverity.INFO,
+                message="Взаимодействие в черновике: процесс не запущен",
+                days=days,
+                **_base(instance),
+            )
+        ]
+
+    if instance.status == InteractionStatus.BLOCKED:
+        reason = f": {instance.blocked_reason}" if instance.blocked_reason else ""
         return [
             Alert(
                 kind=AlertKind.PROCESS_BLOCKED,
                 severity=AlertSeverity.CRITICAL,
-                message=f"Процесс заблокирован на этапе «{_stage_name(instance)}»",
-                days=_days_on_stage(instance),
-                **_base(contract),
+                message=f"Заблокировано на этапе «{_stage_name(instance)}»{reason}",
+                days=_days_since(instance.blocked_at or instance.current_stage_started_at),
+                **_base(instance),
             )
         ]
 
-    if instance.status != WorkflowInstanceStatus.IN_PROGRESS:
+    if instance.status != InteractionStatus.IN_PROGRESS:
         return []
 
-    days = _days_on_stage(instance)
+    days = _days_since(instance.current_stage_started_at)
     stage = instance.current_stage
     limit = stage.sla_days if stage and stage.sla_days else norms.default_sla_days
     if days is not None and days > limit:
@@ -114,40 +135,40 @@ def _process_alerts(contract: Contract, norms: Norms) -> list[Alert]:
                 kind=AlertKind.STAGE_STALE,
                 severity=_severity_by_days(days - limit, limit),
                 message=(
-                    f"Этап «{_stage_name(instance)}» не менялся {days} дн. "
-                    f"при норме {limit} дн."
+                    f"Этап «{_stage_name(instance)}»: {days} дн. при норме {limit} дн. - "
+                    f"просрочено на {days - limit} дн."
                 ),
                 days=days,
-                **_base(contract),
+                **_base(instance),
             )
         ]
     return []
 
 
-def _stage_name(instance) -> str:  # noqa: ANN001 - модель SQLAlchemy
+def _stage_name(instance: WorkflowInstance) -> str:
     return instance.current_stage.name if instance.current_stage else "без этапа"
 
 
-def _days_on_stage(instance) -> int | None:  # noqa: ANN001 - модель SQLAlchemy
-    if instance.current_stage_started_at is None:
-        return None
-    return (datetime.now(UTC) - instance.current_stage_started_at).days
-
-
-def _contract_alerts(contract: Contract, today: date, norms: Norms) -> list[Alert]:
+def _interaction_alerts(instance: WorkflowInstance, today: date, norms: Norms) -> list[Alert]:
     found: list[Alert] = []
-
-    if contract.manager_id is None:
+    open_ = instance.status in (
+        InteractionStatus.DRAFT,
+        InteractionStatus.IN_PROGRESS,
+        InteractionStatus.BLOCKED,
+    )
+    if open_ and instance.manager_id is None:
         found.append(
             Alert(
                 kind=AlertKind.NO_MANAGER,
                 severity=AlertSeverity.WARNING,
-                message="По договору не назначен ответственный",
-                **_base(contract),
+                message="Не назначен ответственный",
+                days=_days_since(instance.created_at),
+                **_base(instance),
             )
         )
 
-    if contract.status == ContractStatus.ACTIVE and contract.valid_to is not None:
+    contract = instance.contract
+    if contract is not None and contract.status == ContractStatus.ACTIVE and contract.valid_to:
         left = (contract.valid_to - today).days
         if left <= norms.expiring_days:
             found.append(
@@ -160,60 +181,59 @@ def _contract_alerts(contract: Contract, today: date, norms: Norms) -> list[Aler
                         else f"Срок договора заканчивается через {left} дн."
                     ),
                     days=left,
-                    **_base(contract),
+                    **_base(instance),
                 )
             )
 
-    if contract.status == ContractStatus.ACTIVE and contract.programs:
-        stalled = [
-            link
-            for link in contract.programs
-            if link.implementation_status == ImplementationStatus.NOT_STARTED
-        ]
-        if len(stalled) == len(contract.programs):
-            found.append(
-                Alert(
-                    kind=AlertKind.IMPLEMENTATION_NOT_STARTED,
-                    severity=AlertSeverity.INFO,
-                    message=f"Не начато внедрение ни по одной из {len(stalled)} программ",
-                    **_base(contract),
-                )
+    if (
+        contract is not None
+        and contract.status == ContractStatus.ACTIVE
+        and instance.programs
+        and all(
+            link.implementation_status == ProgramImplementationStatus.NOT_STARTED
+            for link in instance.programs
+        )
+    ):
+        found.append(
+            Alert(
+                kind=AlertKind.IMPLEMENTATION_NOT_STARTED,
+                severity=AlertSeverity.INFO,
+                message=(
+                    f"Договор действует, а внедрение не начато ни по одной "
+                    f"из {len(instance.programs)} программ"
+                ),
+                **_base(instance),
             )
-
+        )
     return found
 
 
 async def _license_alerts(
-    session: AsyncSession, contracts: dict[uuid.UUID, Contract], today: date, norms: Norms
+    session: AsyncSession, by_id: dict[uuid.UUID, WorkflowInstance], today: date, norms: Norms
 ) -> list[Alert]:
-    """Сроки лицензий - только по действующим договорам.
-
-    Лицензия закрытого или приостановленного договора, как и отозванная
-    лицензия, действия не требует: иначе давно закрытый договор вечно
-    висел бы критичной тревогой.
-    """
+    """Сроки лицензий - только по действующим договорам: лицензия закрытого
+    договора или отозванная действия не требует."""
     active = [
-        contract_id
-        for contract_id, contract in contracts.items()
-        if contract.status == ContractStatus.ACTIVE
+        interaction_id
+        for interaction_id, instance in by_id.items()
+        if instance.contract is not None and instance.contract.status == ContractStatus.ACTIVE
     ]
     if not active:
         return []
     statement = (
-        select(License, ContractProduct.contract_id)
-        .join(ContractProduct, ContractProduct.id == License.contract_product_id)
+        select(License, InteractionProduct.workflow_instance_id)
+        .join(InteractionProduct, InteractionProduct.id == License.interaction_product_id)
         .where(
-            ContractProduct.contract_id.in_(active),
+            InteractionProduct.workflow_instance_id.in_(active),
             License.valid_to.is_not(None),
             License.status != LicenseStatus.REVOKED,
         )
     )
     found: list[Alert] = []
-    for license_, contract_id in (await session.execute(statement)).all():
+    for license_, interaction_id in (await session.execute(statement)).all():
         left = (license_.valid_to - today).days
         if left > norms.expiring_days:
             continue
-        contract = contracts[contract_id]
         found.append(
             Alert(
                 kind=AlertKind.LICENSE_EXPIRING,
@@ -224,47 +244,100 @@ async def _license_alerts(
                     else f"Срок лицензии заканчивается через {left} дн."
                 ),
                 days=left,
-                **_base(contract),
+                **_base(by_id[interaction_id]),
             )
         )
     return found
 
 
 async def _document_alerts(
-    session: AsyncSession, contracts: dict[uuid.UUID, Contract]
+    session: AsyncSession, by_id: dict[uuid.UUID, WorkflowInstance]
 ) -> list[Alert]:
-    """Действующий договор без единого приложенного документа."""
-    active = {
-        contract_id: contract
-        for contract_id, contract in contracts.items()
-        if contract.status == ContractStatus.ACTIVE
-    }
-    if not active:
-        return []
+    """Обязательный документ не загружен.
 
-    with_files = set(
-        (
-            await session.execute(
-                select(Attachment.contract_id)
-                .where(Attachment.contract_id.in_(active))
-                .group_by(Attachment.contract_id)
+    * На текущем этапе заданы обязательные документы, а их нет - с этапа
+      не уйти вперёд.
+    * Договор действует, а скана договора во вложениях нет.
+    """
+    if not by_id:
+        return []
+    present: dict[uuid.UUID, set[str]] = {}
+    rows = await session.execute(
+        select(Attachment.workflow_instance_id, Attachment.document_type)
+        .where(Attachment.workflow_instance_id.in_(by_id))
+        .group_by(Attachment.workflow_instance_id, Attachment.document_type)
+    )
+    for interaction_id, kind in rows.all():
+        present.setdefault(interaction_id, set()).add(kind)
+
+    found: list[Alert] = []
+    for interaction_id, instance in by_id.items():
+        stage = instance.current_stage
+        have = present.get(interaction_id, set())
+        if instance.status == InteractionStatus.IN_PROGRESS and stage is not None:
+            missing = [item for item in stage.required_documents or [] if item not in have]
+            if missing:
+                names = ", ".join(label(DOCUMENT_TYPE_LABELS, item) for item in missing)
+                found.append(
+                    Alert(
+                        kind=AlertKind.NO_DOCUMENTS,
+                        severity=AlertSeverity.WARNING,
+                        message=f"Этап «{stage.name}»: не загружены {names}",
+                        days=_days_since(instance.current_stage_started_at),
+                        **_base(instance),
+                    )
+                )
+                continue
+        contract = instance.contract
+        if (
+            contract is not None
+            and contract.status == ContractStatus.ACTIVE
+            and DocumentType.CONTRACT not in have
+        ):
+            found.append(
+                Alert(
+                    kind=AlertKind.NO_DOCUMENTS,
+                    severity=AlertSeverity.INFO,
+                    message="Договор действует, а его скан не приложен",
+                    **_base(instance),
+                )
             )
-        ).scalars()
+    return found
+
+
+async def _composition_alerts(
+    session: AsyncSession, by_id: dict[uuid.UUID, WorkflowInstance]
+) -> list[Alert]:
+    """Продукт без связи с программой - данные, которые нужно поправить."""
+    open_ids = [
+        interaction_id
+        for interaction_id, instance in by_id.items()
+        if instance.status
+        in (InteractionStatus.DRAFT, InteractionStatus.IN_PROGRESS, InteractionStatus.BLOCKED)
+    ]
+    if not open_ids:
+        return []
+    rows = await session.execute(
+        select(InteractionProduct.workflow_instance_id, func.count())
+        .where(
+            InteractionProduct.workflow_instance_id.in_(open_ids),
+            ~InteractionProduct.program_links.any(),
+        )
+        .group_by(InteractionProduct.workflow_instance_id)
     )
     return [
         Alert(
-            kind=AlertKind.NO_DOCUMENTS,
-            severity=AlertSeverity.INFO,
-            message="К действующему договору не приложено ни одного документа",
-            **_base(contract),
+            kind=AlertKind.PRODUCT_WITHOUT_PROGRAM,
+            severity=AlertSeverity.WARNING,
+            message=f"Продуктов без программы: {count} - свяжите их с программами",
+            **_base(by_id[interaction_id]),
         )
-        for contract_id, contract in active.items()
-        if contract_id not in with_files
+        for interaction_id, count in rows.all()
     ]
 
 
 async def _integration_alerts(session: AsyncSession) -> list[Alert]:
-    """Последний запуск обмена завершился ошибкой."""
+    """Последний запуск обмена завершился ошибкой или загрузил не всё."""
     last_run = (
         select(
             IntegrationRun.source_id,
@@ -281,17 +354,70 @@ async def _integration_alerts(session: AsyncSession) -> list[Alert]:
             & (IntegrationRun.started_at == last_run.c.started_at),
         )
         .join(IntegrationSource, IntegrationSource.id == IntegrationRun.source_id)
-        .where(IntegrationRun.status == IntegrationRunStatus.FAILED)
-    )
-    return [
-        Alert(
-            kind=AlertKind.INTEGRATION_FAILED,
-            severity=AlertSeverity.WARNING,
-            message=f"Последняя синхронизация «{name}» не удалась: {run.error_message}",
-            days=(datetime.now(UTC) - run.started_at).days if run.started_at else None,
+        .where(
+            IntegrationRun.status.in_(
+                [IntegrationRunStatus.FAILED, IntegrationRunStatus.PARTIAL]
+            )
         )
-        for run, name in (await session.execute(statement)).all()
-    ]
+    )
+    found: list[Alert] = []
+    for run, name in (await session.execute(statement)).all():
+        failed = run.status == IntegrationRunStatus.FAILED
+        found.append(
+            Alert(
+                kind=AlertKind.INTEGRATION_FAILED,
+                severity=AlertSeverity.WARNING,
+                message=(
+                    f"Последняя синхронизация «{name}» не удалась: {run.error_message}"
+                    if failed
+                    else f"Синхронизация «{name}» загрузила не всё: "
+                    f"ошибок по записям - {run.records_failed}"
+                ),
+                days=_days_since(run.started_at),
+                link="/integrations",
+            )
+        )
+    return found
+
+
+async def _queue_alerts(
+    session: AsyncSession, principal: Principal, user: User
+) -> list[Alert]:
+    found: list[Alert] = []
+    if access.can(principal, user, Action.RESOLVE_MAPPINGS):
+        pending = await session.scalar(
+            select(func.count())
+            .select_from(IntegrationMapping)
+            .where(IntegrationMapping.status == MappingStatus.PENDING)
+        )
+        if pending:
+            found.append(
+                Alert(
+                    kind=AlertKind.MAPPING_PENDING,
+                    severity=AlertSeverity.WARNING,
+                    message=f"Записей LMS и сайта ждут сопоставления: {pending}",
+                    link="/integrations?tab=mappings",
+                )
+            )
+    if access.can(principal, user, Action.MANAGE_UNIVERSITIES):
+        pending = await session.scalar(
+            select(func.count())
+            .select_from(University)
+            .where(University.status == UniversityStatus.PENDING)
+        )
+        if pending:
+            found.append(
+                Alert(
+                    kind=AlertKind.UNIVERSITY_PENDING,
+                    severity=AlertSeverity.INFO,
+                    message=(
+                        f"Вузов на проверке: {pending} - подтвердите "
+                        "или объедините с существующими"
+                    ),
+                    link="/universities?status=pending",
+                )
+            )
+    return found
 
 
 SEVERITY_ORDER = {
@@ -312,16 +438,19 @@ async def load_norms(session: AsyncSession) -> Norms:
 async def _collect_all(session: AsyncSession, principal: Principal, user: User) -> list[Alert]:
     today = date.today()
     norms = await load_norms(session)
-    contracts = await reports.fetch_contracts(session, ReportFilters(), principal, user)
-    by_id = {contract.id: contract for contract in contracts}
+    interactions = await reports.fetch_interactions(session, ReportFilters(), principal, user)
+    by_id = {instance.id: instance for instance in interactions}
 
     found: list[Alert] = []
-    for contract in contracts:
-        found.extend(_process_alerts(contract, norms))
-        found.extend(_contract_alerts(contract, today, norms))
+    for instance in interactions:
+        found.extend(_process_alerts(instance, norms))
+        found.extend(_interaction_alerts(instance, today, norms))
     found.extend(await _license_alerts(session, by_id, today, norms))
     found.extend(await _document_alerts(session, by_id))
-    found.extend(await _integration_alerts(session))
+    found.extend(await _composition_alerts(session, by_id))
+    if access.can(principal, user, Action.VIEW_INTEGRATION_LOG):
+        found.extend(await _integration_alerts(session))
+    found.extend(await _queue_alerts(session, principal, user))
 
     found.sort(
         key=lambda alert: (
@@ -333,9 +462,15 @@ async def _collect_all(session: AsyncSession, principal: Principal, user: User) 
 
 
 async def collect_all(session: AsyncSession, principal: Principal, user: User) -> list[Alert]:
-    """Все поводы вмешаться по договорам, видимым пользователю, - через кэш."""
+    """Все поводы вмешаться по видимым взаимодействиям - через кэш."""
+    await licenses.expire_overdue(session)
     key = cache.make_key(
-        "alerts", str(user.id), sorted(principal.roles), user.data_scope, date.today()
+        "alerts",
+        str(user.id),
+        sorted(principal.roles),
+        sorted(user.permissions or []),
+        access.effective_scope(principal, user).value,
+        date.today(),
     )
     return await cache.cached(session, key, lambda: _collect_all(session, principal, user))
 

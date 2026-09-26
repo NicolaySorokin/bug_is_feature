@@ -7,11 +7,11 @@ from app.api.v1.endpoints import (
     audit,
     catalog,
     content,
-    contracts,
     dashboard,
     health,
     imports,
     integrations,
+    interactions,
     licenses,
     reports,
     settings,
@@ -35,15 +35,13 @@ authenticated.include_router(users.router)
 authenticated.include_router(dashboard.router)
 authenticated.include_router(universities.router)
 authenticated.include_router(catalog.router)
-authenticated.include_router(contracts.router)
-authenticated.include_router(workflow.contract_router)
+authenticated.include_router(interactions.router)
 authenticated.include_router(workflow.router)
 # Редактор шаблонов идёт после чтения: у него тот же префикс, но свои права.
 authenticated.include_router(workflow_admin.router)
 authenticated.include_router(workflow_admin.presentation_router)
 authenticated.include_router(content.router)
 authenticated.include_router(content.files_router)
-authenticated.include_router(licenses.contract_router)
 authenticated.include_router(licenses.router)
 authenticated.include_router(reports.router)
 authenticated.include_router(statistics.router)

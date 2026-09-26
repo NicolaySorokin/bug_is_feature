@@ -33,12 +33,14 @@ async def test_openapi_describes_errors_for_every_method(client: AsyncClient) ->
     schema = (await client.get("/api/v1/openapi.json")).json()
 
     assert len(schema["paths"]) > 40
-    assert {"reports", "workflow", "imports"} <= {tag["name"] for tag in schema["tags"]}
+    tags = {tag["name"] for tag in schema["tags"]}
+    assert {"interactions", "reports", "workflow", "imports"} <= tags
+    assert "contracts" not in tags  # договор - блок взаимодействия, не свой раздел
 
     # Формат отказа описан у обычного метода, а не только в тексте README.
-    contract = schema["paths"]["/api/v1/contracts/{contract_id}"]["get"]["responses"]
-    assert {"401", "403", "404", "422"} <= set(contract)
-    example = contract["403"]["content"]["application/json"]["example"]
+    card = schema["paths"]["/api/v1/interactions/{interaction_id}"]["get"]["responses"]
+    assert {"401", "403", "404", "422"} <= set(card)
+    example = card["403"]["content"]["application/json"]["example"]
     assert example["code"] == "forbidden"
 
 

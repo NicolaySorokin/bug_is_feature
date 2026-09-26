@@ -5,9 +5,19 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.enums import StageState, WorkflowEventType, WorkflowInstanceStatus
+from app.enums import (
+    ClosureReason,
+    DocumentType,
+    InteractionOutcome,
+    InteractionStatus,
+    ProductTransferStatus,
+    ProgramImplementationStatus,
+    StageState,
+    WorkflowEventType,
+    WorkflowVersionStatus,
+)
 from app.schemas.common import ORMModel
-from app.schemas.user import UserRead
+from app.schemas.user import UserBrief
 
 
 class StageRead(ORMModel):
@@ -16,9 +26,17 @@ class StageRead(ORMModel):
     name: str
     description: str | None
     sort_order: int
+    is_initial: bool
     is_optional: bool
     is_final: bool
+    # Результат, который даёт финальный этап.
+    outcome: InteractionOutcome | None = None
     sla_days: int | None
+    # Без этих документов с этапа нельзя уйти вперёд.
+    required_documents: list[DocumentType] = []
+    # Какие статусы этап ставит программам и продуктам при входе.
+    program_status_on_enter: ProgramImplementationStatus | None = None
+    product_status_on_enter: ProductTransferStatus | None = None
     layout_x: int | None
     layout_y: int | None
 
@@ -36,17 +54,25 @@ class TemplateRead(ORMModel):
     id: uuid.UUID
     name: str
     description: str | None
+    # Активен (enabled) или отключён (disabled): по отключённому новые
+    # взаимодействия не заводятся.
     is_active: bool
+    active_version_id: uuid.UUID | None = None
+    active_version_number: int | None = None
 
 
 class VersionRead(ORMModel):
     id: uuid.UUID
     template_id: uuid.UUID
     version_number: int
+    status: WorkflowVersionStatus
     published_at: datetime | None
+    deprecated_at: datetime | None = None
+    retired_at: datetime | None = None
     created_at: datetime | None = None
-    # Сколько процессов идёт по версии: такую версию уже не удалить.
+    # Сколько взаимодействий идёт по версии и сколько из них ещё открыты.
     instances_count: int = 0
+    open_instances_count: int = 0
 
 
 class VersionGraph(VersionRead):
@@ -68,7 +94,7 @@ class EventRead(ORMModel):
     from_stage_id: uuid.UUID | None
     to_stage_id: uuid.UUID | None
     user_id: uuid.UUID | None
-    user: UserRead | None = None
+    user: UserBrief | None = None
     event_type: WorkflowEventType
     comment: str | None
     created_at: datetime
@@ -76,17 +102,21 @@ class EventRead(ORMModel):
 
 class InstanceRead(ORMModel):
     id: uuid.UUID
-    contract_id: uuid.UUID
+    university_id: uuid.UUID
+    manager_id: uuid.UUID | None
     workflow_version_id: uuid.UUID
     current_stage_id: uuid.UUID | None
-    status: WorkflowInstanceStatus
+    status: InteractionStatus
+    outcome: InteractionOutcome | None = None
+    closure_reason: ClosureReason | None = None
+    blocked_reason: str | None = None
     current_stage_started_at: datetime | None
     started_at: datetime | None
-    completed_at: datetime | None
+    closed_at: datetime | None
 
 
 class InstanceView(InstanceRead):
-    """Полное представление процесса для карточки договора.
+    """Полное представление процесса для вкладки «Процесс» взаимодействия.
 
     Схема берётся из зафиксированной версии шаблона, состояния этапов
     вычисляются из истории переходов.
@@ -103,10 +133,13 @@ class TransitionRequest(BaseModel):
 
     to_stage_id: uuid.UUID
     comment: str | None = None
+    # Если переход ведёт на финальный этап без успеха (например, «Отказ»).
+    closure_reason: ClosureReason | None = None
 
 
 class SkipRequest(BaseModel):
-    """Пропуск необязательного этапа обязательно требует причину."""
+    """Пропуск этапа обязательно требует причину. Обязательный этап
+    пропускает только руководитель - как исключение с записью в истории."""
 
     to_stage_id: uuid.UUID
     reason: str = Field(min_length=1)
@@ -114,11 +147,6 @@ class SkipRequest(BaseModel):
 
 class BlockRequest(BaseModel):
     reason: str = Field(min_length=1)
-
-
-class StartRequest(BaseModel):
-    template_id: uuid.UUID
-    version_id: uuid.UUID | None = None
 
 
 # --- Редактирование шаблонов --------------------------------------------------
@@ -133,9 +161,14 @@ class StageWrite(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
     sort_order: int | None = None
+    is_initial: bool = False
     is_optional: bool = False
     is_final: bool = False
+    outcome: InteractionOutcome | None = None
     sla_days: int | None = Field(default=None, ge=1)
+    required_documents: list[DocumentType] = Field(default_factory=list)
+    program_status_on_enter: ProgramImplementationStatus | None = None
+    product_status_on_enter: ProductTransferStatus | None = None
     layout_x: int | None = None
     layout_y: int | None = None
 
@@ -180,7 +213,7 @@ class StageRename(BaseModel):
 
     Название и описание на ход процесса не влияют, поэтому их можно
     поправить и в опубликованной версии - изменение сразу видно во всех
-    процессах этой версии и в их истории.
+    взаимодействиях этой версии и в их истории.
     """
 
     name: str | None = Field(default=None, min_length=1, max_length=255)

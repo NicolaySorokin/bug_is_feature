@@ -3,7 +3,7 @@
 Сотрудник - это и пользователь системы, и учётная запись в реалме Keycloak
 (deploy/keycloak/realm-export.json). Идентификатор пользователя в Keycloak
 не случайный, а выводится из логина: сид знает его заранее и привязывает
-договоры к тому, кто войдёт через Keycloak. Совпадение с реалмом проверяет
+взаимодействия к тому, кто войдёт через Keycloak. Совпадение с реалмом проверяет
 tests/test_demo_data.py, а свежий список для реалма печатает
 ``python -m scripts.demo.people``. Паролей в выгрузке нет: начальные
 пароли и управление ими - см. scripts/keycloak_setup.py.
@@ -25,9 +25,14 @@ from app.enums import Role
 # Поменяете - придётся заново выгрузить пользователей в реалм.
 KEYCLOAK_NAMESPACE = uuid.UUID("3d4a8f0e-6c1b-4b7e-9a52-1f0e8c2d7b64")
 
+# Роли не наследуются (раздел 12 «Решений по бизнес-модели»): у каждого
+# сотрудника ровно те роли, по которым он работает. Орлова руководит командой
+# и сама ведёт ключевые вузы - у неё две роли явно; администратор бизнес-данных
+# не видит, пока ему не выдали область данных.
 KAM = (Role.MANAGER,)
-HEAD = (Role.MANAGER, Role.HEAD)
-ADMIN = (Role.MANAGER, Role.HEAD, Role.ADMIN)
+HEAD = (Role.HEAD,)
+PLAYING_HEAD = (Role.MANAGER, Role.HEAD)
+ADMIN = (Role.ADMIN,)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,12 +80,19 @@ EMPLOYEES: tuple[Employee, ...] = (
     Employee("zakharova", "Захарова Светлана Юрьевна", KAM),
     Employee("zaitsev", "Зайцев Артём Денисович", KAM),
     Employee("belova", "Белова Ксения Александровна", KAM),
-    Employee("orlova", "Орлова Ольга Дмитриевна", HEAD),
+    Employee("orlova", "Орлова Ольга Дмитриевна", PLAYING_HEAD),
     Employee("fedorov", "Фёдоров Виктор Геннадьевич", HEAD),
     Employee("admin", "Григорьев Олег Вадимович", ADMIN),
 )
 
 EMPLOYEE_BY_USERNAME = {employee.username: employee for employee in EMPLOYEES}
+
+# Команды руководителей: по ним строится область данных «команда».
+TEAMS: dict[str, tuple[str, ...]] = {
+    "orlova": tuple(employee.username for employee in EMPLOYEES[:10]),
+    "fedorov": tuple(employee.username for employee in EMPLOYEES[10:20]),
+}
+HEAD_OF = {member: head for head, members in TEAMS.items() for member in members}
 
 
 def realm_users() -> list[dict]:
@@ -112,7 +124,7 @@ class ContactInfo:
 
 
 # Фамилии в мужской и женской форме. Фамилий сотрудников ИТ Школы здесь нет,
-# чтобы в карточке договора не путать своих с представителями вуза.
+# чтобы в карточке взаимодействия не путать своих с представителями вуза.
 _SURNAMES = (
     ("Гусев", "Гусева"),
     ("Тарасов", "Тарасова"),

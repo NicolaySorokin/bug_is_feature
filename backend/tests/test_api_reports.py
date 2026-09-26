@@ -1,8 +1,19 @@
-"""Отчёты, выгрузки и диаграммы."""
+"""Отчёты, выгрузки и диаграммы по взаимодействиям.
+
+Строка отчёта - взаимодействие в разрезе ИТ-программы; договор - одна из
+колонок, а не основа выборки.
+"""
 
 from httpx import AsyncClient
 
-from tests.conftest import ADMIN, HEAD, MANAGER, OTHER_MANAGER, make_contract
+from tests.conftest import (
+    ADMIN,
+    HEAD,
+    MANAGER,
+    OTHER_MANAGER,
+    make_contract,
+    make_interaction,
+)
 
 
 async def _catalog(client: AsyncClient) -> tuple[str, str]:
@@ -25,15 +36,14 @@ async def test_report_rows_and_charts_match_selection(
     client: AsyncClient, university: dict
 ) -> None:
     _, program_id = await _catalog(client)
-    await make_contract(
-        client, university["id"], MANAGER, program_ids=[program_id], status="active"
-    )
-    await make_contract(client, university["id"], MANAGER, status="draft")
+    await make_interaction(client, university["id"], MANAGER, program_ids=[program_id])
+    await make_interaction(client, university["id"], MANAGER, start=False)
 
     report = (await client.post("/api/v1/reports/preview", json={}, headers=MANAGER)).json()
 
-    assert report["totals"]["contracts"] == 2
-    assert report["totals"]["rows"] == 2  # один договор с программой, один без
+    assert report["totals"]["interactions"] == 2
+    assert report["totals"]["contracts"] == 0
+    assert report["totals"]["rows"] == 2  # одно взаимодействие с программой, одно без
     statuses = next(c for c in report["charts"] if c["key"] == "by_status")
     assert sum(item["value"] for item in statuses["items"]) == 2
 
@@ -41,11 +51,12 @@ async def test_report_rows_and_charts_match_selection(
     filtered = (
         await client.post(
             "/api/v1/reports/preview",
-            json={"filters": {"statuses": ["active"]}},
+            json={"filters": {"statuses": ["in_progress"]}},
             headers=MANAGER,
         )
     ).json()
-    assert filtered["totals"]["contracts"] == 1
+    assert filtered["totals"]["interactions"] == 1
+    assert filtered["rows"][0]["program"] == "Python-разработчик"
     statuses = next(c for c in filtered["charts"] if c["key"] == "by_status")
     assert sum(item["value"] for item in statuses["items"]) == 1
 
@@ -53,36 +64,83 @@ async def test_report_rows_and_charts_match_selection(
 async def test_report_respects_record_level_rights(
     client: AsyncClient, university: dict
 ) -> None:
-    await make_contract(client, university["id"], MANAGER)
-    await make_contract(client, university["id"], OTHER_MANAGER)
+    await make_interaction(client, university["id"], MANAGER)
+    await make_interaction(client, university["id"], OTHER_MANAGER)
 
     mine = (await client.post("/api/v1/reports/preview", json={}, headers=MANAGER)).json()
-    all_rows = (await client.post("/api/v1/reports/preview", json={}, headers=HEAD)).json()
+    team = (await client.post("/api/v1/reports/preview", json={}, headers=HEAD)).json()
 
-    assert mine["totals"]["contracts"] == 1
-    assert all_rows["totals"]["contracts"] == 2
+    assert mine["totals"]["interactions"] == 1
+    assert team["totals"]["interactions"] == 2
+    # Администратору без бизнес-роли отчёты не положены.
+    denied = await client.post("/api/v1/reports/preview", json={}, headers=ADMIN)
+    assert denied.status_code == 403
 
 
-async def test_period_filter_uses_signing_date(client: AsyncClient, university: dict) -> None:
+async def test_report_filters_by_outcome(client: AsyncClient, university: dict) -> None:
+    cancelled = await make_interaction(client, university["id"], MANAGER)
+    await make_interaction(client, university["id"], MANAGER)
+    await client.post(
+        f"/api/v1/interactions/{cancelled['id']}/cancel",
+        json={"reason": "university_refused"},
+        headers=MANAGER,
+    )
+    report = (
+        await client.post(
+            "/api/v1/reports/preview",
+            json={
+                "filters": {"outcomes": ["unsuccessful"]},
+                "columns": ["university", "outcome", "closure_reason"],
+            },
+            headers=MANAGER,
+        )
+    ).json()
+    assert report["totals"]["interactions"] == 1
+    assert report["rows"][0]["closure_reason_label"] == "Отказ вуза"
+
+
+async def test_period_by_signing_date_excludes_unsigned(
+    client: AsyncClient, university: dict
+) -> None:
     await make_contract(
-        client, university["id"], MANAGER, signed_at="2026-03-01", number="ДГ-МАРТ"
+        client,
+        university["id"],
+        MANAGER,
+        signed_at="2026-03-01",
+        valid_from="2026-03-01",
+        number="ДГ-МАРТ",
     )
     await make_contract(
-        client, university["id"], MANAGER, signed_at="2026-09-01", number="ДГ-СЕНТЯБРЬ"
+        client,
+        university["id"],
+        MANAGER,
+        signed_at="2026-09-01",
+        valid_from="2026-09-01",
+        number="ДГ-СЕНТЯБРЬ",
     )
+    await make_interaction(client, university["id"], MANAGER)  # без договора
 
     report = (
         await client.post(
             "/api/v1/reports/preview",
-            json={"filters": {"date_from": "2026-01-01", "date_to": "2026-06-30"}},
+            json={
+                "filters": {
+                    "date_from": "2026-01-01",
+                    "date_to": "2026-06-30",
+                    "period_basis": "signed",
+                }
+            },
             headers=MANAGER,
         )
     ).json()
     assert report["totals"]["contracts"] == 1
+    assert report["rows"][0]["contract_number"] == "ДГ-МАРТ"
+    # Неподписанное взаимодействие не потеряно молча - о нём сказано отдельно.
+    assert report["totals"]["unsigned_excluded"] == 1
 
 
 async def test_exports_return_files(client: AsyncClient, university: dict) -> None:
-    await make_contract(client, university["id"], MANAGER)
+    await make_interaction(client, university["id"], MANAGER)
 
     xlsx = await client.post("/api/v1/reports/export?format=xlsx", json={}, headers=MANAGER)
     assert xlsx.status_code == 200
@@ -102,11 +160,11 @@ async def test_exports_return_files(client: AsyncClient, university: dict) -> No
     result_json = await client.post(
         "/api/v1/reports/export?format=json", json={}, headers=MANAGER
     )
-    assert result_json.json()["totals"]["contracts"] == 1
+    assert result_json.json()["totals"]["interactions"] == 1
 
 
 async def test_charts_render_in_png_and_pdf(client: AsyncClient, university: dict) -> None:
-    await make_contract(client, university["id"], MANAGER)
+    await make_interaction(client, university["id"], MANAGER)
 
     png = await client.post(
         "/api/v1/reports/chart?key=by_status&format=png", json={}, headers=MANAGER
@@ -121,7 +179,7 @@ async def test_charts_render_in_png_and_pdf(client: AsyncClient, university: dic
 
 
 async def test_columns_can_be_chosen(client: AsyncClient, university: dict) -> None:
-    await make_contract(client, university["id"], MANAGER)
+    await make_interaction(client, university["id"], MANAGER)
 
     report = (
         await client.post(

@@ -1,130 +1,76 @@
-"""Схемы договоров, их состава и лицензий."""
+"""Схемы договора взаимодействия.
+
+Договор необязателен: до подписания его может не быть или он черновик
+внутри взаимодействия. Вуз и ответственный в договоре не дублируются -
+они берутся из взаимодействия.
+"""
 
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from app.enums import (
-    ContractStatus,
-    ImplementationStatus,
-    WorkflowInstanceStatus,
-)
-from app.schemas.catalog import ItProductRead, ItProgramRead
+from app.enums import ContractClosureReason, ContractStatus
 from app.schemas.common import ORMModel
-from app.schemas.license import LicenseRead
-from app.schemas.university import UniversityContactRead, UniversityRead
-from app.schemas.user import UserRead
 
 
-class ContractProgramCreate(BaseModel):
-    program_id: uuid.UUID
-    implementation_status: ImplementationStatus = ImplementationStatus.NOT_STARTED
+class ContractWrite(BaseModel):
+    """Создание и правка договора. Проверки дат и статусов - здесь и в базе."""
 
-
-class ContractProgramRead(ORMModel):
-    id: uuid.UUID
-    program_id: uuid.UUID
-    implementation_status: ImplementationStatus
-    program: ItProgramRead | None = None
-
-
-class ContractProgramUpdate(BaseModel):
-    implementation_status: ImplementationStatus
-
-
-class ContractProductCreate(BaseModel):
-    product_id: uuid.UUID
-    transfer_status: ImplementationStatus = ImplementationStatus.NOT_STARTED
-
-
-class ContractProductUpdate(BaseModel):
-    transfer_status: ImplementationStatus
-
-
-class ContractProductRead(ORMModel):
-    id: uuid.UUID
-    product_id: uuid.UUID
-    transfer_status: ImplementationStatus
-    product: ItProductRead | None = None
-    licenses: list[LicenseRead] = []
-
-
-class ContractContactCreate(BaseModel):
-    contact_id: uuid.UUID
-    role: str | None = Field(default=None, max_length=255)
-    is_primary: bool = False
-
-
-class ContractContactRead(ORMModel):
-    """Ответственный от вуза по конкретному договору."""
-
-    contact_id: uuid.UUID
-    role: str | None
-    is_primary: bool
-    contact: UniversityContactRead
-
-
-class ContractCreate(BaseModel):
-    university_id: uuid.UUID
     number: str = Field(min_length=1, max_length=100)
     title: str | None = Field(default=None, max_length=500)
-    manager_id: uuid.UUID | None = None
     signed_at: date | None = None
     valid_from: date | None = None
     valid_to: date | None = None
     status: ContractStatus = ContractStatus.DRAFT
+    closure_reason: ContractClosureReason | None = None
     comment: str | None = None
-    program_ids: list[uuid.UUID] = []
-    product_ids: list[uuid.UUID] = []
-    # Если задано, по договору сразу запускается процесс по этому шаблону.
-    workflow_template_id: uuid.UUID | None = None
 
-
-class ContractUpdate(BaseModel):
-    number: str | None = Field(default=None, min_length=1, max_length=100)
-    title: str | None = Field(default=None, max_length=500)
-    manager_id: uuid.UUID | None = None
-    signed_at: date | None = None
-    valid_from: date | None = None
-    valid_to: date | None = None
-    status: ContractStatus | None = None
-    comment: str | None = None
+    @model_validator(mode="after")
+    def _rules(self) -> "ContractWrite":
+        if self.valid_from and self.valid_to and self.valid_from > self.valid_to:
+            raise ValueError("Срок действия начинается позже, чем заканчивается")
+        if self.signed_at and self.valid_to and self.signed_at > self.valid_to:
+            raise ValueError("Дата подписания позже окончания срока действия")
+        signed_statuses = (
+            ContractStatus.ACTIVE,
+            ContractStatus.SUSPENDED,
+            ContractStatus.CLOSED,
+        )
+        if self.status in signed_statuses and self.signed_at is None:
+            raise ValueError("Действующий договор должен быть подписан: укажите дату")
+        if self.status == ContractStatus.CLOSED and self.closure_reason is None:
+            raise ValueError(
+                "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
+            )
+        if self.status != ContractStatus.CLOSED:
+            self.closure_reason = None
+        if self.status == ContractStatus.CANCELLED and self.signed_at is not None:
+            raise ValueError("Подписанный договор не отменяют, а закрывают (расторгнут)")
+        return self
 
 
 class ContractRead(ORMModel):
     id: uuid.UUID
-    university_id: uuid.UUID
-    manager_id: uuid.UUID | None
-    manager: UserRead | None = None
+    workflow_instance_id: uuid.UUID
     number: str
     title: str | None
     signed_at: date | None
     valid_from: date | None
     valid_to: date | None
     status: ContractStatus
+    closure_reason: ContractClosureReason | None
     comment: str | None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
-class ProcessSummary(BaseModel):
-    """Где сейчас процесс по договору - для строки реестра."""
+class ContractBrief(BaseModel):
+    """Краткое состояние договора - для реестра и обзора взаимодействия."""
 
-    instance_id: uuid.UUID
-    status: WorkflowInstanceStatus
-    stage_id: uuid.UUID | None = None
-    stage_name: str | None = None
-    days_on_stage: int | None = None
-    sla_days: int | None = None
-
-
-class ContractListItem(ContractRead):
-    university: UniversityRead | None = None
-    process: ProcessSummary | None = None
-
-
-class ContractDetail(ContractListItem):
-    programs: list[ContractProgramRead] = []
-    products: list[ContractProductRead] = []
-    contacts: list[ContractContactRead] = []
+    id: uuid.UUID
+    number: str
+    status: ContractStatus
+    signed_at: date | None = None
+    valid_to: date | None = None
+    days_left: int | None = None

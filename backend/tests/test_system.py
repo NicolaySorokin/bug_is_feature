@@ -6,16 +6,12 @@ from httpx import AsyncClient
 
 from app.core.config import settings
 from app.services import cache
-from tests.conftest import ADMIN, HEAD, MANAGER, make_contract
+from tests.conftest import ADMIN, HEAD, MANAGER, make_contract, make_interaction
 
 
 async def test_settings_change_alert_norms(client: AsyncClient, university: dict) -> None:
     await make_contract(
-        client,
-        university["id"],
-        MANAGER,
-        status="active",
-        valid_to=str(date.today() + timedelta(days=90)),
+        client, university["id"], MANAGER, valid_to=str(date.today() + timedelta(days=90))
     )
 
     def expiring(alerts: list[dict]) -> bool:
@@ -46,7 +42,7 @@ async def test_settings_change_alert_norms(client: AsyncClient, university: dict
 async def test_cache_is_invalidated_by_changes(client: AsyncClient, university: dict) -> None:
     settings.cache_ttl_seconds = 60
     try:
-        await make_contract(client, university["id"], MANAGER, status="active")
+        await make_interaction(client, university["id"], MANAGER)
         first = (await client.get("/api/v1/dashboard", headers=MANAGER)).json()
         again = (await client.get("/api/v1/dashboard", headers=MANAGER)).json()
         # Второй ответ - из кэша: то же время построения.
@@ -54,36 +50,33 @@ async def test_cache_is_invalidated_by_changes(client: AsyncClient, university: 
         assert cache.stats()["hits"] >= 1
 
         # Любое сохранение увеличивает версию данных - кэш больше не совпадает.
-        await make_contract(client, university["id"], MANAGER, status="active")
+        await make_interaction(client, university["id"], MANAGER)
         fresh = (await client.get("/api/v1/dashboard", headers=MANAGER)).json()
-        assert fresh["counters"]["contracts"] == 2
+        assert fresh["counters"]["open"] == 2
     finally:
         settings.cache_ttl_seconds = 0
 
 
 async def test_alert_counter_is_not_capped(client: AsyncClient, university: dict) -> None:
-    # 25 действующих договоров без процесса и документов - 50 тревог.
+    # 25 действующих договоров без скана - 25 тревог.
     for _ in range(25):
-        await make_contract(client, university["id"], MANAGER, status="active")
-    dashboard = (await client.get("/api/v1/dashboard", headers=MANAGER)).json()
+        await make_contract(client, university["id"], HEAD)
+    dashboard = (await client.get("/api/v1/dashboard", headers=HEAD)).json()
     assert len(dashboard["alerts"]) == 20  # список на главной ограничен
-    assert dashboard["counters"]["alerts"] == 50  # а счётчик - нет
-    assert dashboard["alerts_summary"]["process_not_started"] == 25
+    assert dashboard["counters"]["alerts"] == 25  # а счётчик - нет
+    assert dashboard["alerts_summary"]["no_documents"] == 25
 
 
-async def test_next_actions_for_manager(
+async def test_next_steps_for_manager(
     client: AsyncClient, university: dict, workflow_version: dict
 ) -> None:
-    await make_contract(
-        client,
-        university["id"],
-        MANAGER,
-        workflow_template_id=workflow_version["template_id"],
+    await make_interaction(
+        client, university["id"], MANAGER, template_id=workflow_version["template_id"]
     )
     dashboard = (await client.get("/api/v1/dashboard", headers=MANAGER)).json()
-    action = dashboard["next_actions"][0]
-    assert action["stage_name"] == "Контакт"
-    assert action["actions"] == ["Встреча"]  # у перехода нет названия - берётся этап
+    step = dashboard["next_steps"][0]
+    assert step["stage_name"] == "Контакт"
+    assert step["next_actions"] == ["Встреча"]  # у перехода нет названия - берётся этап
     assert dashboard["admin"] is None
 
 
@@ -103,7 +96,7 @@ async def test_meta_auth_in_dev_mode(client: AsyncClient) -> None:
 
 
 async def test_validation_errors_have_code(client: AsyncClient) -> None:
-    response = await client.post("/api/v1/contracts", json={}, headers=MANAGER)
+    response = await client.post("/api/v1/interactions", json={}, headers=MANAGER)
     assert response.status_code == 422
     body = response.json()
     assert body["code"] == "validation_error"

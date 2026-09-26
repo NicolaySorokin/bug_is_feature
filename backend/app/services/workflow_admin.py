@@ -1,15 +1,26 @@
 """Редактирование шаблонов рабочих процессов.
 
 Ключевое правило раздела 3.1 концепции: изменение шаблона не меняет уже
-запущенные процессы. Отсюда весь порядок работы:
+запущенные процессы. Жизненный цикл версии (раздел 3 «Решений по
+бизнес-модели»)::
 
-* этапы и переходы правятся только в черновике - версии без ``published_at``;
-* публикация фиксирует версию, и после неё схема неизменна;
-* новый договор получает последнюю опубликованную версию, а запущенный
-  процесс продолжает идти по своей.
+    draft -> active -> deprecated -> retired
 
-Исключение одно - координаты узлов: их можно двигать и в опубликованной
-версии, потому что расположение схемы на экране ничего не решает.
+* этапы и переходы правятся только в черновике; опубликованную версию
+  структурно не изменить и не удалить (это держит и база, триггером);
+* действующая версия у шаблона одна: публикация черновика переводит
+  прежнюю действующую в устаревшие, а если по ней не осталось открытых
+  взаимодействий - сразу в выведенные из использования;
+* новое взаимодействие получает действующую версию, начатое - идёт по своей;
+* отката «назад» нет: новая версия создаётся копией старой.
+
+Перед публикацией граф проверяется целиком (пункт 19 перечня исправлений):
+один стартовый этап, все этапы достижимы, нет тупиков, циклы - только через
+переходы-возвраты, из финальных этапов ничего не выходит, у финального
+этапа задан результат.
+
+Исключение одно - названия и координаты: их можно менять и в опубликованной
+версии, потому что на ход процесса они не влияют.
 """
 
 from __future__ import annotations
@@ -22,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import ConflictError, NotFoundError
+from app.enums import InteractionOutcome, WorkflowVersionStatus
 from app.models.workflow import (
     WorkflowInstance,
     WorkflowStage,
@@ -58,10 +70,10 @@ async def get_version(session: AsyncSession, version_id: uuid.UUID) -> WorkflowV
 
 
 def ensure_draft(version: WorkflowVersion) -> None:
-    if version.is_published:
+    if not version.is_draft:
         raise ConflictError(
-            "Опубликованную версию менять нельзя: по ней идут запущенные процессы. "
-            "Создайте новую версию шаблона."
+            "Опубликованную версию менять нельзя: по ней идут взаимодействия. "
+            "Создайте новую версию шаблона - копию этой."
         )
 
 
@@ -138,9 +150,14 @@ async def _copy_graph(
             name=stage.name,
             description=stage.description,
             sort_order=stage.sort_order,
+            is_initial=stage.is_initial,
             is_optional=stage.is_optional,
             is_final=stage.is_final,
+            outcome=stage.outcome,
             sla_days=stage.sla_days,
+            required_documents=list(stage.required_documents or []),
+            program_status_on_enter=stage.program_status_on_enter,
+            product_status_on_enter=stage.product_status_on_enter,
             layout_x=stage.layout_x,
             layout_y=stage.layout_y,
         )
@@ -167,7 +184,8 @@ async def _copy_graph(
     await session.flush()
 
 
-def _check_graph(graph: GraphWrite) -> None:
+def _check_references(graph: GraphWrite) -> None:
+    """Проверки, без которых схему не сохранить даже черновиком."""
     codes = [stage.code for stage in graph.stages]
     duplicates = {code for code in codes if codes.count(code) > 1}
     if duplicates:
@@ -188,10 +206,105 @@ def _check_graph(graph: GraphWrite) -> None:
     if repeated:
         raise ConflictError("Один и тот же переход задан дважды")
 
-    if not any(stage.is_final for stage in graph.stages):
-        raise ConflictError(
-            "В схеме нет завершающего этапа: процесс по ней невозможно закончить"
+
+def validate_graph(
+    stages: list[tuple[str, str, bool, bool, str | None]],
+    transitions: list[tuple[str, str, bool]],
+) -> list[str]:
+    """Проверка графа перед публикацией. Возвращает список проблем.
+
+    ``stages`` - (код, название, стартовый, финальный, результат);
+    ``transitions`` - (откуда, куда, возврат назад).
+    """
+    problems: list[str] = []
+    names = {code: name for code, name, *_ in stages}
+    initial = [code for code, _, is_initial, _, _ in stages if is_initial]
+    finals = {code for code, _, _, is_final, _ in stages if is_final}
+
+    if len(initial) != 1:
+        problems.append(
+            "Стартовый этап должен быть ровно один"
+            + (f" (сейчас: {len(initial)})" if initial else " - отметьте его")
         )
+    if not finals:
+        problems.append("Нет финального этапа: процесс по схеме невозможно закончить")
+    for _code, name, _, is_final, outcome in stages:
+        if is_final and outcome is None:
+            problems.append(f"У финального этапа «{name}» не задан результат")
+        if not is_final and outcome is not None:
+            problems.append(
+                f"Результат задаётся только финальному этапу, а «{name}» не финальный"
+            )
+
+    outgoing: dict[str, list[tuple[str, bool]]] = {code: [] for code in names}
+    for source, target, backward in transitions:
+        outgoing.setdefault(source, []).append((target, backward))
+
+    for code in finals:
+        if outgoing.get(code):
+            problems.append(f"Из финального этапа «{names[code]}» не должно быть переходов")
+    for code in names:
+        if code not in finals and not any(True for _ in outgoing.get(code, [])):
+            problems.append(f"Этап «{names[code]}» - тупик: из него нет переходов")
+        forward_less = all(backward for _, backward in outgoing.get(code, []))
+        if code not in finals and outgoing.get(code) and forward_less:
+            problems.append(
+                f"Из этапа «{names[code]}» можно только вернуться назад - нет пути вперёд"
+            )
+
+    if len(initial) == 1:
+        seen = {initial[0]}
+        queue = [initial[0]]
+        while queue:
+            current = queue.pop()
+            for target, _ in outgoing.get(current, []):
+                if target not in seen:
+                    seen.add(target)
+                    queue.append(target)
+        unreachable = [names[code] for code in names if code not in seen]
+        if unreachable:
+            problems.append("Недостижимые этапы: " + ", ".join(sorted(unreachable)))
+        if not seen & finals:
+            problems.append("Из стартового этапа не дойти ни до одного финального")
+
+    # Циклы допустимы только через переходы-возвраты: прямой ход - без петель.
+    forward: dict[str, list[str]] = {code: [] for code in names}
+    for source, target, backward in transitions:
+        if not backward:
+            forward.setdefault(source, []).append(target)
+    state: dict[str, int] = {}
+
+    def has_cycle(node: str) -> bool:
+        state[node] = 1
+        for target in forward.get(node, []):
+            if state.get(target) == 1:
+                return True
+            if state.get(target) is None and has_cycle(target):
+                return True
+        state[node] = 2
+        return False
+
+    if any(state.get(code) is None and has_cycle(code) for code in names):
+        problems.append(
+            "В схеме есть цикл из переходов вперёд: повтор этапов оформляется "
+            "переходом-возвратом"
+        )
+    return problems
+
+
+def _graph_problems_of_version(version: WorkflowVersion) -> list[str]:
+    code_by_id = {stage.id: stage.code for stage in version.stages}
+    return validate_graph(
+        [
+            (stage.code, stage.name, stage.is_initial, stage.is_final, stage.outcome)
+            for stage in version.stages
+        ],
+        [
+            (code_by_id[t.from_stage_id], code_by_id[t.to_stage_id], t.is_backward)
+            for t in version.transitions
+            if t.from_stage_id in code_by_id and t.to_stage_id in code_by_id
+        ],
+    )
 
 
 async def replace_graph(
@@ -199,7 +312,7 @@ async def replace_graph(
 ) -> WorkflowVersion:
     """Заменяет схему черновика целиком - так её сохраняет редактор."""
     ensure_draft(version)
-    _check_graph(graph)
+    _check_references(graph)
 
     # Версия могла быть только что создана: связи подгружаем явно, иначе
     # обращение к ним попытается сходить в базу в неподходящий момент.
@@ -218,9 +331,14 @@ async def replace_graph(
             name=item.name,
             description=item.description,
             sort_order=item.sort_order if item.sort_order is not None else (index + 1) * 10,
+            is_initial=item.is_initial,
             is_optional=item.is_optional,
             is_final=item.is_final,
+            outcome=(item.outcome or InteractionOutcome.SUCCESSFUL) if item.is_final else None,
             sla_days=item.sla_days,
+            required_documents=[str(value) for value in item.required_documents],
+            program_status_on_enter=item.program_status_on_enter,
+            product_status_on_enter=item.product_status_on_enter,
             # Без координат этап раскладывает клиент - по порядку этапов.
             layout_x=item.layout_x,
             layout_y=item.layout_y,
@@ -260,15 +378,44 @@ async def save_layout(
 
 
 async def publish(session: AsyncSession, version: WorkflowVersion) -> WorkflowVersion:
-    if version.is_published:
+    """Черновик становится действующей версией шаблона.
+
+    Прежняя действующая версия - устаревшая: новые взаимодействия по ней не
+    заводятся, начатые продолжаются. Если открытых взаимодействий по ней нет,
+    она сразу выводится из использования.
+    """
+    if not version.is_draft:
         raise ConflictError("Версия уже опубликована")
     if not version.stages:
         raise ConflictError("В версии нет этапов")
-    if not any(stage.is_final for stage in version.stages):
-        raise ConflictError("В версии нет завершающего этапа")
+    problems = _graph_problems_of_version(version)
+    if problems:
+        raise ConflictError(
+            "Схему нельзя опубликовать: " + "; ".join(problems),
+            details={"problems": problems},
+        )
 
-    version.published_at = datetime.now(UTC)
+    now = datetime.now(UTC)
+    previous = await session.scalar(
+        select(WorkflowVersion).where(
+            WorkflowVersion.template_id == version.template_id,
+            WorkflowVersion.status == WorkflowVersionStatus.ACTIVE,
+        )
+    )
+    if previous is not None:
+        previous.status = WorkflowVersionStatus.DEPRECATED
+        previous.deprecated_at = now
+        # Индекс «одна действующая версия» проверяется сразу - сначала
+        # снимаем статус с прежней.
+        await session.flush()
+    version.status = WorkflowVersionStatus.ACTIVE
+    version.published_at = now
     await session.flush()
+    if previous is not None:
+        # Импорт здесь: сервис процесса сам зависит от этого модуля не должен.
+        from app.services.workflow import maybe_retire
+
+        await maybe_retire(session, previous.id)
     return version
 
 

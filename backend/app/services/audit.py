@@ -25,19 +25,20 @@ from app.enums import AuditAction
 from app.models.access import UserUniversityAccess
 from app.models.audit import AuditLog
 from app.models.catalog import ItDirection, ItProduct, ItProgram, Vendor, VendorContact
-from app.models.contract import (
-    Contract,
-    ContractContact,
-    ContractProduct,
-    ContractProgram,
-    License,
+from app.models.contract import Contract, License
+from app.models.integration import IntegrationMapping, IntegrationSource
+from app.models.interaction import (
+    InteractionContact,
+    InteractionProduct,
+    InteractionProgram,
+    InteractionProgramProduct,
 )
-from app.models.integration import IntegrationSource
-from app.models.learning import Learner, LearningApplication
+from app.models.learning import Enrollment, Learner, LearningApplication, LearningStream
 from app.models.system import AppSetting
 from app.models.university import University, UniversityContact
 from app.models.user import User
 from app.models.workflow import (
+    WorkflowInstance,
     WorkflowStage,
     WorkflowTemplate,
     WorkflowTransition,
@@ -49,10 +50,13 @@ current_actor_id: ContextVar[uuid.UUID | None] = ContextVar("current_actor_id", 
 # Что попадает в журнал. История рабочего процесса, комментарии и файлы
 # сами по себе являются записями о событиях, поэтому не дублируются здесь.
 AUDITED_MODELS: tuple[type, ...] = (
+    # Взаимодействие - центральная сущность: его сведения, состав и договор.
+    WorkflowInstance,
+    InteractionProgram,
+    InteractionProduct,
+    InteractionProgramProduct,
+    InteractionContact,
     Contract,
-    ContractProgram,
-    ContractProduct,
-    ContractContact,
     License,
     University,
     UniversityContact,
@@ -66,6 +70,7 @@ AUDITED_MODELS: tuple[type, ...] = (
     WorkflowStage,
     WorkflowTransition,
     IntegrationSource,
+    IntegrationMapping,
     # Права и доступ сотрудников: кто, кому и когда их менял.
     User,
     UserUniversityAccess,
@@ -73,6 +78,8 @@ AUDITED_MODELS: tuple[type, ...] = (
     # Персональные данные заявителей и обучающихся - с маскированием.
     LearningApplication,
     Learner,
+    LearningStream,
+    Enrollment,
 )
 
 # Поля, которые не несут смысла в журнале.
@@ -179,7 +186,7 @@ def _write_audit_log(session: Session, _flush_context: Any, _instances: Any) -> 
             continue
         # Первичный ключ по умолчанию проставляется при сохранении, а журналу
         # идентификатор нужен уже сейчас - задаём его сами. У таблиц-связок
-        # (contract_contacts) отдельного id нет, там проставлять нечего.
+        # (interaction_contacts) отдельного id нет, там проставлять нечего.
         if "id" in inspect(type(obj)).columns and getattr(obj, "id", None) is None:
             obj.id = uuid.uuid4()  # type: ignore[attr-defined]
         _record(session, obj, AuditAction.CREATE, None, _column_values(obj))

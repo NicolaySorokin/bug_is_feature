@@ -1,4 +1,9 @@
-"""Комментарии и вложения.
+"""Комментарии и вложения взаимодействия.
+
+Рабочие материалы принадлежат взаимодействию, а не договору: переписка,
+протоколы встреч и пакет документов появляются задолго до подписания.
+Связь с конкретным событием процесса необязательна - по ней комментарий
+или файл виден в карточке этапа.
 
 Содержимое файлов лежит на диске сервера, в PostgreSQL хранятся только
 сведения о файле и путь к нему (раздел 9.2).
@@ -10,15 +15,15 @@ from sqlalchemy import BigInteger, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, CreatedAtMixin, UUIDPrimaryKeyMixin
-from app.models.contract import Contract
 from app.models.user import User
+from app.models.workflow import WorkflowInstance
 
 
 class Comment(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     __tablename__ = "comments"
 
-    contract_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("contracts.id", ondelete="CASCADE"), index=True
+    workflow_instance_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_instances.id", ondelete="CASCADE"), index=True
     )
     workflow_event_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("workflow_events.id", ondelete="SET NULL"), nullable=True, index=True
@@ -28,15 +33,15 @@ class Comment(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     )
     text: Mapped[str] = mapped_column(Text)
 
-    contract: Mapped[Contract] = relationship()
+    interaction: Mapped[WorkflowInstance] = relationship()
     author: Mapped[User | None] = relationship()
 
 
 class Attachment(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     __tablename__ = "attachments"
 
-    contract_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("contracts.id", ondelete="CASCADE"), index=True
+    workflow_instance_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_instances.id", ondelete="CASCADE"), index=True
     )
     workflow_event_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("workflow_events.id", ondelete="SET NULL"), nullable=True, index=True
@@ -44,10 +49,12 @@ class Attachment(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # Тип документа (DocumentType): по нему проверяется комплектность этапа.
+    document_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     original_name: Mapped[str] = mapped_column(String(500))
     storage_path: Mapped[str] = mapped_column(String(1000))
     mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
-    contract: Mapped[Contract] = relationship()
+    interaction: Mapped[WorkflowInstance] = relationship()
     uploader: Mapped[User | None] = relationship()

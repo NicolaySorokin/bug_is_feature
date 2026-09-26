@@ -5,7 +5,7 @@ from io import BytesIO
 from httpx import AsyncClient
 from openpyxl import Workbook, load_workbook
 
-from tests.conftest import ADMIN, MANAGER
+from tests.conftest import ADMIN, HEAD, MANAGER, create_template
 
 XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -169,7 +169,7 @@ async def test_contacts_import_needs_known_university(
     assert "нет в справочнике" in result["errors"][0]["message"]
 
     detail = (
-        await client.get(f"/api/v1/universities/{university['id']}", headers=MANAGER)
+        await client.get(f"/api/v1/universities/{university['id']}", headers=HEAD)
     ).json()
     assert detail["contacts"][0]["position"] == "Проректор"
 
@@ -183,6 +183,7 @@ CATALOG_HEADERS = [
 
 async def test_bad_row_leaves_nothing_behind(client: AsyncClient) -> None:
     """Строка с битой датой отклоняется целиком: ни вуза, ни договора от неё."""
+    await create_template(client)
     result = await run(
         client,
         [
@@ -204,15 +205,23 @@ async def test_bad_row_leaves_nothing_behind(client: AsyncClient) -> None:
         "catalog",
     )
     assert (result["run"]["rows_created"], result["run"]["rows_failed"]) == (1, 1)
-    assert result["errors"][0]["row_number"] == 3  # номер строки в файле
+    rejected = {
+        error["row_number"]
+        for error in result["errors"]
+        if not error["message"].startswith("Предупреждение")
+    }
+    assert rejected == {3}  # номер строки в файле
 
     universities = (await client.get("/api/v1/universities", headers=ADMIN)).json()
     assert [item["name"] for item in universities["items"]] == ["Хороший вуз"]
 
-    # Ответственный от вуза назначен на договор, а не просто заведён у вуза.
-    contracts = (await client.get("/api/v1/contracts", headers=ADMIN)).json()
+    # Ответственный от вуза назначен во взаимодействии, а не просто заведён у вуза.
+    interactions = (await client.get("/api/v1/interactions", headers=HEAD)).json()
+    assert interactions["items"][0]["contract"]["number"] == "ДГ-1"
     detail = (
-        await client.get(f"/api/v1/contracts/{contracts['items'][0]['id']}", headers=ADMIN)
+        await client.get(
+            f"/api/v1/interactions/{interactions['items'][0]['id']}", headers=HEAD
+        )
     ).json()
     assert detail["contacts"][0]["contact"]["full_name"] == "Гусева Анна"
     assert detail["contacts"][0]["role"] == "Ответственный от вуза"

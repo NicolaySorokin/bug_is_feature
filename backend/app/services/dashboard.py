@@ -1,9 +1,13 @@
 """Главная страница.
 
-Раздел 2.1 концепции: у каждой роли свой взгляд на одни и те же данные.
-Менеджер видит свои договоры, ближайшие действия и последние изменения,
-руководитель - картину по команде и нагрузку менеджеров, администратор -
-вдобавок состояние интеграций, импортов, пользователей и настроек.
+Раздел 2.1 концепции и пункты 32-35 перечня исправлений: у каждой роли свой
+взгляд на одни и те же данные.
+
+* Менеджер - «Следующие шаги» по своим взаимодействиям.
+* Руководитель - состояние команды и очередь решений (без ответственного,
+  заблокированные, просроченные), нагрузка менеджеров; личные шаги - только
+  если он сам ведёт взаимодействия.
+* Администратор - интеграции, загрузки, пользователи, очереди проверки.
 
 Выборка берётся ровно та же, что у отчётов, поэтому числа на главной
 и в отчёте за тот же период совпадают. Результат кэшируется
@@ -21,25 +25,40 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.security import Principal
-from app.enums import ContractStatus, Role, WorkflowEventType, WorkflowInstanceStatus
-from app.models.contract import Contract
+from app.enums import (
+    AlertKind,
+    DataScope,
+    InteractionOutcome,
+    InteractionStatus,
+    MappingStatus,
+    Role,
+    UniversityStatus,
+    WorkflowEventType,
+)
+from app.models.access import UserUniversityAccess
 from app.models.importing import ImportRun
-from app.models.integration import IntegrationRun, IntegrationSource
+from app.models.integration import IntegrationMapping, IntegrationRun, IntegrationSource
+from app.models.university import University
 from app.models.user import User
-from app.models.workflow import WorkflowEvent, WorkflowInstance, WorkflowTransition
+from app.models.workflow import WorkflowEvent, WorkflowInstance
 from app.schemas.dashboard import (
     AdminSummary,
     AlertRead,
+    ControlItem,
     DashboardCounters,
     DashboardResponse,
     ImportSummary,
     IntegrationStatus,
     ManagerLoad,
-    NextAction,
+    NextStep,
     RecentChange,
 )
+from app.schemas.interaction import SlaState
 from app.schemas.report import ReportFilters
-from app.services import access, alerts, app_settings, cache, reports
+from app.schemas.university import UniversityBrief
+from app.schemas.user import UserBrief
+from app.services import access, alerts, app_settings, cache, interactions, reports
+from app.services.access import Action
 from app.services.labels import (
     ALERT_KIND_LABELS,
     ALERT_SEVERITY_LABELS,
@@ -49,15 +68,33 @@ from app.services.labels import (
 
 RECENT_LIMIT = 15
 ALERTS_LIMIT = 20
-NEXT_ACTIONS_LIMIT = 8
+STEPS_LIMIT = 10
+QUEUE_LIMIT = 15
+
+SCOPE_LABELS = {
+    DataScope.OWN: "по вашим взаимодействиям",
+    DataScope.TEAM: "по данным команды",
+    DataScope.ALL: "по всем взаимодействиям",
+    DataScope.NONE: "бизнес-данные недоступны",
+}
+
+CONTROL_REASONS = {
+    "unassigned": "Без ответственного",
+    "blocked": "Заблокировано",
+    "overdue": "Просрочен срок этапа",
+    "draft": "Процесс не запущен",
+}
+
+OPEN = (InteractionStatus.DRAFT, InteractionStatus.IN_PROGRESS, InteractionStatus.BLOCKED)
 
 
 def _role(principal: Principal) -> str:
-    if principal.has_role(Role.ADMIN):
-        return Role.ADMIN
+    """Главная роль - от неё зависит вид главной."""
     if principal.has_role(Role.HEAD):
         return Role.HEAD
-    return Role.MANAGER
+    if principal.has_role(Role.MANAGER):
+        return Role.MANAGER
+    return Role.ADMIN
 
 
 def to_alert_read(alert: alerts.Alert) -> AlertRead:
@@ -67,65 +104,110 @@ def to_alert_read(alert: alerts.Alert) -> AlertRead:
         severity=alert.severity,
         severity_label=label(ALERT_SEVERITY_LABELS, alert.severity),
         message=alert.message,
-        contract_id=alert.contract_id,
+        interaction_id=alert.interaction_id,
+        interaction_title=alert.interaction_title,
         contract_number=alert.contract_number,
         university_name=alert.university_name,
+        university_full_name=alert.university_full_name,
         manager_id=alert.manager_id,
         manager_name=alert.manager_name,
         days=alert.days,
+        link=alert.link,
     )
 
 
-def _counters(contracts: list[Contract], user: User, problem_count: int) -> DashboardCounters:
-    instances = [reports.active_instance(contract) for contract in contracts]
-    statuses = Counter(instance.status for instance in instances if instance is not None)
-    contract_statuses = Counter(contract.status for contract in contracts)
-
-    return DashboardCounters(
-        contracts=len(contracts),
-        contracts_active=contract_statuses.get(ContractStatus.ACTIVE, 0),
-        contracts_draft=contract_statuses.get(ContractStatus.DRAFT, 0),
-        universities=len({contract.university_id for contract in contracts}),
-        my_contracts=sum(1 for c in contracts if c.manager_id == user.id),
-        processes_in_progress=statuses.get(WorkflowInstanceStatus.IN_PROGRESS, 0),
-        processes_blocked=statuses.get(WorkflowInstanceStatus.BLOCKED, 0),
-        processes_completed=statuses.get(WorkflowInstanceStatus.COMPLETED, 0),
-        alerts=problem_count,
+def _step(
+    instance: WorkflowInstance, actions: dict[uuid.UUID, list[str]], default_sla: int
+) -> NextStep:
+    summary = interactions.stage_summary(instance, actions, default_sla)
+    return NextStep(
+        interaction_id=instance.id,
+        title=instance.title,
+        university=UniversityBrief.of(instance.university),
+        manager=UserBrief.model_validate(instance.manager) if instance.manager else None,
+        status=instance.status,
+        blocked_reason=instance.blocked_reason,
+        stage_name=summary.stage_name if summary else "",
+        next_actions=summary.next_actions if summary else [],
+        sla=summary.sla if summary else None,
+        contract=interactions.contract_brief(instance.contract),
     )
+
+
+_SLA_ORDER = {SlaState.OVERDUE: 0, SlaState.WARNING: 1, SlaState.OK: 2}
+
+
+def _step_order(step: NextStep) -> tuple:
+    """Сначала заблокированные, затем просроченные, приближающиеся к сроку,
+    остальные; внутри - по доле израсходованного срока."""
+    blocked = step.status == InteractionStatus.BLOCKED
+    sla_rank = _SLA_ORDER[step.sla.state] if step.sla else 3
+    used = step.sla.used_percent if step.sla else 0
+    return (not blocked, sla_rank, -used)
+
+
+def _counters(
+    items: list[WorkflowInstance], user: User, found: list[alerts.Alert], default_sla: int
+) -> DashboardCounters:
+    counters = DashboardCounters(alerts=len(found))
+    statuses = Counter(instance.status for instance in items)
+    outcomes = Counter(instance.outcome for instance in items if instance.outcome)
+    counters.drafts = statuses.get(InteractionStatus.DRAFT, 0)
+    counters.in_progress = statuses.get(InteractionStatus.IN_PROGRESS, 0)
+    counters.blocked = statuses.get(InteractionStatus.BLOCKED, 0)
+    counters.completed = statuses.get(InteractionStatus.COMPLETED, 0)
+    counters.cancelled = statuses.get(InteractionStatus.CANCELLED, 0)
+    counters.open = counters.drafts + counters.in_progress + counters.blocked
+    counters.successful = outcomes.get(InteractionOutcome.SUCCESSFUL, 0)
+    counters.partial = outcomes.get(InteractionOutcome.PARTIAL, 0)
+    counters.unsuccessful = outcomes.get(InteractionOutcome.UNSUCCESSFUL, 0)
+    counters.universities = len({instance.university_id for instance in items})
+    for instance in items:
+        if instance.status not in OPEN:
+            continue
+        if instance.manager_id is None:
+            counters.unassigned += 1
+        if instance.manager_id == user.id:
+            counters.mine_open += 1
+        if instance.status == InteractionStatus.IN_PROGRESS and instance.current_stage:
+            sla = interactions.stage_sla(
+                instance.current_stage_started_at, instance.current_stage.sla_days, default_sla
+            )
+            if sla and sla.state == SlaState.OVERDUE:
+                counters.overdue += 1
+            elif sla and sla.state == SlaState.WARNING:
+                counters.near_deadline += 1
+    return counters
 
 
 async def _recent(
     session: AsyncSession, principal: Principal, user: User
 ) -> list[RecentChange]:
-    """Последние движения по процессам, видимым пользователю."""
+    """Последние движения по взаимодействиям, видимым пользователю."""
     statement = (
         select(WorkflowEvent)
         .join(WorkflowInstance, WorkflowInstance.id == WorkflowEvent.workflow_instance_id)
-        .join(Contract, Contract.id == WorkflowInstance.contract_id)
         .options(
             selectinload(WorkflowEvent.user),
             selectinload(WorkflowEvent.to_stage),
-            selectinload(WorkflowEvent.instance)
-            .selectinload(WorkflowInstance.contract)
-            .selectinload(Contract.university),
+            selectinload(WorkflowEvent.instance).selectinload(WorkflowInstance.university),
         )
         .order_by(WorkflowEvent.created_at.desc())
         .limit(RECENT_LIMIT)
     )
-    statement = access.apply_contract_scope(statement, principal, user)
-
+    statement = access.apply_interaction_scope(statement, principal, user)
     changes: list[RecentChange] = []
     for event in (await session.execute(statement)).scalars():
-        contract = event.instance.contract
+        instance = event.instance
         changes.append(
             RecentChange(
-                contract_id=contract.id,
-                contract_number=contract.number,
-                university_name=contract.university.name if contract.university else "",
+                interaction_id=instance.id,
+                title=instance.title,
+                university=UniversityBrief.of(instance.university),
                 event_type=WorkflowEventType(event.event_type),
                 event_type_label=label(EVENT_TYPE_LABELS, WorkflowEventType(event.event_type)),
                 stage=event.to_stage.name if event.to_stage else "",
-                user_name=event.user.full_name if event.user else "",
+                user_name=event.user.full_name if event.user else "Система",
                 comment=event.comment,
                 created_at=event.created_at,
             )
@@ -133,108 +215,89 @@ async def _recent(
     return changes
 
 
-def _manager_load(contracts: list[Contract], found: list[alerts.Alert]) -> list[ManagerLoad]:
-    """Нагрузка менеджеров: сколько договоров, сколько в работе и сколько проблемных."""
+def _team_load(
+    items: list[WorkflowInstance], found: list[alerts.Alert], default_sla: int
+) -> list[ManagerLoad]:
+    """Нагрузка менеджеров: активные взаимодействия, просрочки, блокировки, проблемы."""
     problems: Counter[uuid.UUID | None] = Counter()
     seen: set[tuple[uuid.UUID | None, uuid.UUID]] = set()
     for alert in found:
-        # Договор с тремя тревогами - это одна проблема менеджера, а не три.
-        if alert.contract_id is not None and (alert.manager_id, alert.contract_id) not in seen:
-            seen.add((alert.manager_id, alert.contract_id))
+        # Взаимодействие с тремя тревогами - одна проблема менеджера, а не три.
+        if (
+            alert.interaction_id is not None
+            and (alert.manager_id, alert.interaction_id) not in seen
+        ):
+            seen.add((alert.manager_id, alert.interaction_id))
             problems[alert.manager_id] += 1
 
-    names: dict[uuid.UUID | None, str] = {}
-    total: Counter[uuid.UUID | None] = Counter()
-    active: Counter[uuid.UUID | None] = Counter()
-    blocked: Counter[uuid.UUID | None] = Counter()
-    for contract in contracts:
-        manager_id = contract.manager_id
-        names[manager_id] = (
-            contract.manager.full_name if contract.manager else "Без ответственного"
-        )
-        total[manager_id] += 1
-        instance = reports.active_instance(contract)
-        if instance is not None and instance.status == WorkflowInstanceStatus.IN_PROGRESS:
-            active[manager_id] += 1
-        if instance is not None and instance.status == WorkflowInstanceStatus.BLOCKED:
-            blocked[manager_id] += 1
-
-    load = [
-        ManagerLoad(
-            manager_id=manager_id,
-            manager_name=names[manager_id],
-            contracts=count,
-            problems=problems.get(manager_id, 0),
-            active=active.get(manager_id, 0),
-            blocked=blocked.get(manager_id, 0),
-        )
-        for manager_id, count in total.items()
-    ]
-    load.sort(key=lambda item: (-item.problems, -item.contracts, item.manager_name))
-    return load
-
-
-async def _next_actions(
-    session: AsyncSession, contracts: list[Contract], user: User, default_sla: int
-) -> list[NextAction]:
-    """Свои договоры с идущим процессом: где пора действовать, первыми."""
-    candidates: list[tuple[Contract, WorkflowInstance]] = []
-    for contract in contracts:
-        if contract.manager_id != user.id:
+    load: dict[uuid.UUID | None, ManagerLoad] = {}
+    for instance in items:
+        if instance.status not in OPEN:
             continue
-        instance = reports.active_instance(contract)
-        if instance is None or instance.status not in {
-            WorkflowInstanceStatus.IN_PROGRESS,
-            WorkflowInstanceStatus.BLOCKED,
-        }:
-            continue
-        candidates.append((contract, instance))
-    if not candidates:
-        return []
-
-    stage_ids = {instance.current_stage_id for _, instance in candidates}
-    transitions: dict[uuid.UUID, list[str]] = {}
-    rows = await session.execute(
-        select(WorkflowTransition)
-        .where(WorkflowTransition.from_stage_id.in_(stage_ids))
-        .options(selectinload(WorkflowTransition.to_stage))
+        key = instance.manager_id
+        row = load.setdefault(
+            key,
+            ManagerLoad(
+                manager_id=key,
+                manager_name=instance.manager.full_name
+                if instance.manager
+                else "Без ответственного",
+            ),
+        )
+        row.open += 1
+        if instance.status == InteractionStatus.IN_PROGRESS:
+            row.in_progress += 1
+            if instance.current_stage is not None:
+                sla = interactions.stage_sla(
+                    instance.current_stage_started_at,
+                    instance.current_stage.sla_days,
+                    default_sla,
+                )
+                if sla and sla.state == SlaState.OVERDUE:
+                    row.overdue += 1
+        if instance.status == InteractionStatus.BLOCKED:
+            row.blocked += 1
+    for key, row in load.items():
+        row.problems = problems.get(key, 0)
+    result = list(load.values())
+    result.sort(
+        key=lambda item: (
+            -item.problems,
+            -item.blocked,
+            -item.overdue,
+            -item.open,
+            item.manager_name,
+        )
     )
-    for transition in rows.scalars():
-        transitions.setdefault(transition.from_stage_id, []).append(
-            transition.name or transition.to_stage.name
-        )
+    return result
 
-    now = datetime.now(UTC)
-    actions: list[NextAction] = []
-    for contract, instance in candidates:
-        stage = instance.current_stage
-        days = (
-            (now - instance.current_stage_started_at).days
-            if instance.current_stage_started_at
-            else None
-        )
-        sla = stage.sla_days if stage and stage.sla_days else default_sla
-        actions.append(
-            NextAction(
-                contract_id=contract.id,
-                contract_number=contract.number,
-                university_name=contract.university.name if contract.university else "",
-                stage_name=stage.name if stage else "",
-                process_status=instance.status,
-                days_on_stage=days,
-                sla_days=sla,
-                overdue=days is not None and days > sla,
-                actions=transitions.get(instance.current_stage_id, []),
+
+def _control_queue(
+    items: list[WorkflowInstance], actions: dict[uuid.UUID, list[str]], default_sla: int
+) -> list[ControlItem]:
+    """Что требует решения руководителя: без ответственного, блокировки, просрочки."""
+    queue: list[ControlItem] = []
+    for instance in items:
+        if instance.status not in OPEN:
+            continue
+        step = _step(instance, actions, default_sla)
+        reason = None
+        if instance.manager_id is None:
+            reason = "unassigned"
+        elif instance.status == InteractionStatus.BLOCKED:
+            reason = "blocked"
+        elif step.sla is not None and step.sla.state == SlaState.OVERDUE:
+            reason = "overdue"
+        if reason is None:
+            continue
+        queue.append(
+            ControlItem(
+                **step.model_dump(), reason=reason, reason_label=CONTROL_REASONS[reason]
             )
         )
-    # Сначала заблокированные, потом по доле израсходованного срока этапа.
-    actions.sort(
-        key=lambda item: (
-            item.process_status != WorkflowInstanceStatus.BLOCKED,
-            -((item.days_on_stage or 0) / max(item.sla_days or 1, 1)),
-        )
-    )
-    return actions[:NEXT_ACTIONS_LIMIT]
+    rank = {"blocked": 0, "unassigned": 1, "overdue": 2}
+    queue.sort(key=lambda item: (rank[item.reason], *_step_order(item)))
+    return queue[:QUEUE_LIMIT]
 
 
 async def _admin_summary(session: AsyncSession) -> AdminSummary:
@@ -259,7 +322,7 @@ async def _admin_summary(session: AsyncSession) -> AdminSummary:
         )
         .order_by(IntegrationSource.code)
     )
-    integrations = [
+    integrations_status = [
         IntegrationStatus(
             code=source.code,
             name=source.name,
@@ -274,6 +337,24 @@ async def _admin_summary(session: AsyncSession) -> AdminSummary:
     imports = await session.execute(
         select(ImportRun).order_by(ImportRun.created_at.desc()).limit(5)
     )
+    now = datetime.now(UTC)
+    temporary = sum(
+        1
+        for item in users
+        if item.data_scope_expires_at is not None and item.data_scope_expires_at > now
+    )
+    temporary += (
+        await session.scalar(
+            select(func.count())
+            .select_from(UserUniversityAccess)
+            .where(
+                UserUniversityAccess.revoked_at.is_(None),
+                UserUniversityAccess.expires_at.is_not(None),
+                UserUniversityAccess.expires_at > now,
+            )
+        )
+        or 0
+    )
     return AdminSummary(
         users_total=len(users),
         users_active=sum(1 for item in users if item.is_active),
@@ -281,7 +362,7 @@ async def _admin_summary(session: AsyncSession) -> AdminSummary:
             1 for item in users if item.last_seen_at and item.last_seen_at >= recently
         ),
         users_by_role=dict(by_role),
-        integrations=integrations,
+        integrations=integrations_status,
         imports=[
             ImportSummary(
                 id=run.id,
@@ -296,32 +377,88 @@ async def _admin_summary(session: AsyncSession) -> AdminSummary:
             for run in imports.scalars()
         ],
         settings=await app_settings.load(session),
+        mappings_pending=await session.scalar(
+            select(func.count())
+            .select_from(IntegrationMapping)
+            .where(IntegrationMapping.status == MappingStatus.PENDING)
+        )
+        or 0,
+        universities_pending=await session.scalar(
+            select(func.count())
+            .select_from(University)
+            .where(University.status == UniversityStatus.PENDING)
+        )
+        or 0,
+        temporary_access=temporary,
     )
 
 
+# В шагах и в очереди контроля уже видны блокировки, просрочки, черновики
+# и отсутствие ответственного - в «Требует внимания» они не повторяются.
+SHOWN_IN_STEPS = {
+    AlertKind.PROCESS_BLOCKED,
+    AlertKind.STAGE_STALE,
+    AlertKind.NO_MANAGER,
+}
+
+
 async def _build(session: AsyncSession, principal: Principal, user: User) -> DashboardResponse:
-    contracts = await reports.fetch_contracts(session, ReportFilters(), principal, user)
-    rows = reports.build_rows(contracts)
+    scope = access.effective_scope(principal, user)
+    role = _role(principal)
+    items = await reports.fetch_interactions(session, ReportFilters(), principal, user)
     found = await alerts.collect_all(session, principal, user)
     norms = await alerts.load_norms(session)
-    role = _role(principal)
+    default_sla = norms.default_sla_days
+    actions = await interactions.transitions_by_stage(
+        session,
+        {
+            instance.current_stage_id
+            for instance in items
+            if instance.current_stage_id and instance.status in OPEN
+        },
+    )
 
+    head = access.can(principal, user, Action.ASSIGN_RESPONSIBLE)
+    works = principal.has_role(Role.MANAGER)
+    own = [
+        instance
+        for instance in items
+        if instance.manager_id == user.id and instance.status in OPEN
+    ]
+    steps = sorted(
+        (_step(instance, actions, default_sla) for instance in own), key=_step_order
+    )
+
+    rows = reports.build_rows(items)
     return DashboardResponse(
         role=role,
+        scope=scope,
+        scope_label=SCOPE_LABELS.get(scope, ""),
         generated_at=datetime.now(UTC),
-        counters=_counters(contracts, user, len(found)),
+        counters=_counters(items, user, found, default_sla),
         alerts_summary=alerts.summarize(found),
-        alerts=[to_alert_read(alert) for alert in found[:ALERTS_LIMIT]],
-        recent=await _recent(session, principal, user),
-        charts=reports.build_charts(contracts, rows),
-        next_actions=await _next_actions(session, contracts, user, norms.default_sla_days),
-        manager_load=(
-            _manager_load(contracts, found) if role in {Role.HEAD, Role.ADMIN} else []
-        ),
-        admin=await _admin_summary(session) if role == Role.ADMIN else None,
+        alerts=[
+            to_alert_read(alert)
+            for alert in found
+            if alert.kind not in SHOWN_IN_STEPS or alert.interaction_id is None
+        ][:ALERTS_LIMIT],
+        recent=await _recent(session, principal, user) if scope is not DataScope.NONE else [],
+        charts=reports.build_charts(rows, with_managers=head) if items else [],
+        next_steps=steps[:STEPS_LIMIT] if works else [],
+        control_queue=_control_queue(items, actions, default_sla) if head else [],
+        team_load=_team_load(items, found, default_sla) if head else [],
+        admin=await _admin_summary(session)
+        if access.can(principal, user, Action.MANAGE_USERS)
+        else None,
     )
 
 
 async def build(session: AsyncSession, principal: Principal, user: User) -> DashboardResponse:
-    key = cache.make_key("dashboard", str(user.id), sorted(principal.roles), user.data_scope)
+    key = cache.make_key(
+        "dashboard",
+        str(user.id),
+        sorted(principal.roles),
+        sorted(user.permissions or []),
+        access.effective_scope(principal, user).value,
+    )
     return await cache.cached(session, key, lambda: _build(session, principal, user))

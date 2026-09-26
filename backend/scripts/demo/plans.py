@@ -1,12 +1,18 @@
-"""Какие договоры заводить: сюжеты для показа и генератор остальных.
+"""Какие взаимодействия заводить: сюжеты для показа и генератор остальных.
 
-Сюжетные договоры собраны вручную так, чтобы на главной была ровно одна
+Взаимодействие с вузом - центральная сущность: у него свой ответственный,
+состав программ и продуктов и ход по процессу. Договор появляется только
+на этапе обмена документами (``Взаимодействие 0 -> 1 Договор``), поэтому
+у ранних взаимодействий его нет.
+
+Сюжетные взаимодействия собраны вручную так, чтобы на главной была
 тревога каждого вида из раздела 7 концепции и понятная история за ней.
 У Петрова (``petrov``) - основного героя показа - есть почти всё: договор,
 который пора продлевать, застрявшая встреча, заблокированный процесс,
-пропущенный этап и договор без документов.
+пропущенный этап и договор без документов. Есть и закрытые без успеха:
+отказ вуза и досрочная отмена - с причиной.
 
-Остальные договоры генерируются «здоровыми»: сроки с запасом, этап
+Остальные взаимодействия генерируются «здоровыми»: сроки с запасом, этап
 в пределах нормы, документы на месте. Они дают объём для реестра, отчётов
 и диаграмм и не засоряют список проблем.
 
@@ -19,7 +25,12 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
-from app.enums import ContractStatus, ImplementationStatus
+from app.enums import (
+    ClosureReason,
+    ContractStatus,
+    InteractionSource,
+    ProgramImplementationStatus,
+)
 from scripts.demo.catalog import PROGRAM_BY_NAME, UNIVERSITIES, UniversityInfo
 from scripts.demo.processes import MAIN, SHORT
 
@@ -36,27 +47,56 @@ class Move:
 Route = tuple[str | Move, ...]
 
 
+# С какого этапа у взаимодействия появляется договор (черновик).
+CONTRACT_FROM = "documents"
+
+
 @dataclass(frozen=True, slots=True)
-class ContractPlan:
+class InteractionPlan:
     university: str  # код вуза из catalog
     manager: str | None  # логин ответственного
     programs: tuple[str, ...]
     products: tuple[str, ...]
-    number: str | None = None  # None - номер выдаст загрузчик по дате заведения
+    number: str | None = None  # номер договора; None - выдаст загрузчик по дате
     title: str | None = None
-    template: str | None = MAIN.key  # None - процесс не запущен
+    template: str | None = MAIN.key  # None - черновик: процесс не запущен
     route: Route = ()  # этапы после стартового, по порядку
     days_on_stage: int = 3  # сколько дней назад был последний переход
     blocked: str | None = None  # причина блокировки
-    status: ContractStatus | None = None  # иначе выводится из этапа
+    # Закрытие без успеха: причина для отказа (финальный этап) или отмены.
+    closure: ClosureReason | None = None
+    cancelled: str | None = None  # взаимодействие отменено досрочно - комментарий
+    contract_status: ContractStatus | None = None  # иначе выводится из этапа
     valid_days_left: int | None = None  # иначе - с запасом от даты подписания
     license_days_left: int | None = None  # иначе - до конца договора
     licenses: bool = True
-    implementation: ImplementationStatus | None = None  # иначе - по этапу
+    implementation: ProgramImplementationStatus | None = None  # иначе - по этапам
+    unlinked: tuple[str, ...] = ()  # продукты без связи с программой - на исправление
     documents: bool = True
     notes: tuple[str, ...] = ()
-    request: str | None = None  # заявка с сайта, из которой появился договор
-    light: bool = False  # договор для нагрузки: без файлов и заметок
+    request: str | None = None  # заявка вуза с сайта, из которой появилось взаимодействие
+    light: bool = False  # взаимодействие для нагрузки: без файлов и заметок
+
+    @property
+    def source(self) -> InteractionSource:
+        return InteractionSource.SITE if self.request else InteractionSource.MANUAL
+
+    @property
+    def stages(self) -> list[str]:
+        return [step.stage if isinstance(step, Move) else step for step in self.route]
+
+    @property
+    def has_contract(self) -> bool:
+        """Договор есть, если дошли до обмена документами или его статус задан явно."""
+        return self.contract_status is not None or CONTRACT_FROM in self.stages
+
+    @property
+    def label(self) -> str:
+        return self.number or self.title or self.university
+
+
+# Прежнее имя: план сюжета раньше описывал договор.
+ContractPlan = InteractionPlan
 
 
 # Полный проход основного шаблона без правок и возвратов.
@@ -80,9 +120,9 @@ def _until(stage: str) -> Route:
     return FULL_MAIN[: FULL_MAIN.index(stage) + 1]
 
 
-STORIES: tuple[ContractPlan, ...] = (
+STORIES: tuple[InteractionPlan, ...] = (
     # --- Петров: главный герой показа -------------------------------------------
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2025-017",
         title="Основной договор о сотрудничестве",
         university="mtuci",
@@ -95,7 +135,7 @@ STORIES: tuple[ContractPlan, ...] = (
         license_days_left=38,
         notes=("Вуз хочет продлить сотрудничество на следующий учебный год",),
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2026-014",
         title="Расширение: аналитика и инженерия данных",
         university="mtuci",
@@ -106,7 +146,7 @@ STORIES: tuple[ContractPlan, ...] = (
         days_on_stage=21,  # встреча не назначена три недели при норме 14 дней
         notes=("Проректор в отпуске, встречу обещали назначить после его возвращения",),
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2026-047",
         title="Подготовка инженеров по тестированию",
         university="sut",
@@ -128,7 +168,7 @@ STORIES: tuple[ContractPlan, ...] = (
         days_on_stage=9,
         notes=("Вуз попросил добавить второй поток по автоматизации тестирования",),
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДС-2026-011",
         title="Дополнительное соглашение: DevOps для магистратуры",
         university="sut",
@@ -139,7 +179,7 @@ STORIES: tuple[ContractPlan, ...] = (
         route=("meeting", "documents", "approval"),
         days_on_stage=5,
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2026-062",
         title="Кибербезопасность для бакалавриата",
         university="mirea",
@@ -153,7 +193,7 @@ STORIES: tuple[ContractPlan, ...] = (
             "ждём приказ о нагрузке"
         ),
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2026-071",
         title="Инженер DevOps: пилотный поток",
         university="mirea",
@@ -164,7 +204,7 @@ STORIES: tuple[ContractPlan, ...] = (
         route=("programs", "meeting", "documents", "corrections", Move("signing", skip=True)),
         days_on_stage=4,
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2025-005",
         title="Сетевые технологии: учебная лаборатория",
         university="sut",
@@ -178,7 +218,7 @@ STORIES: tuple[ContractPlan, ...] = (
         notes=("Договор перенесён из таблицы учёта, сканы в систему не загружены",),
     ),
     # --- Остальные тревоги - у других менеджеров --------------------------------
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2026-003",
         title="DevOps и облачная инфраструктура",
         university="kai",
@@ -189,7 +229,7 @@ STORIES: tuple[ContractPlan, ...] = (
         days_on_stage=34,  # втрое дольше нормы - критично
         notes=("Юристы вуза не отвечают, напомнили письмом",),
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2026-058",
         title="Аналитика данных для инженерных специальностей",
         university="nstu",
@@ -199,8 +239,8 @@ STORIES: tuple[ContractPlan, ...] = (
         route=_until("rollout"),
         days_on_stage=12,
     ),
-    # Пример из концепции: два договора одного вуза с разным составом программ.
-    ContractPlan(
+    # Пример из концепции: два взаимодействия одного вуза с разным составом программ.
+    InteractionPlan(
         number="ДГ-2026-012",
         title="Сотрудничество по четырём программам",
         university="urfu",
@@ -216,7 +256,7 @@ STORIES: tuple[ContractPlan, ...] = (
         days_on_stage=30,
         license_days_left=-5,  # лицензия уже истекла
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2026-029",
         title="Расширение сотрудничества: ещё три программы",
         university="urfu",
@@ -225,8 +265,12 @@ STORIES: tuple[ContractPlan, ...] = (
         products=("Solar appScreener", "Postgres Pro Enterprise"),
         route=_until("signing"),
         days_on_stage=6,
+        # Продукт добавили по письму вуза, а к программе не привязали - тревога
+        # «продукт без программы» подсказывает, что данные нужно поправить.
+        unlinked=("Postgres Pro Enterprise",),
+        notes=("Postgres Pro вуз попросил письмом - уточняем, для какой программы",),
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2026-040",
         title="Пилот по инженерии данных",
         university="ncfu",
@@ -235,17 +279,17 @@ STORIES: tuple[ContractPlan, ...] = (
         products=("Postgres Pro Enterprise",),
         days_on_stage=2,
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2026-077",
         title="Java-разработчик для магистратуры",
         university="sfedu",
         manager="orlova",
         programs=("Java-разработчик",),
         products=(),
-        template=None,  # процесс ещё не запущен
-        notes=("Договор заведён по звонку из вуза, процесс запустим после встречи",),
+        template=None,  # взаимодействие-черновик: процесс ещё не запущен
+        notes=("Вуз позвонил сам, процесс запустим после первой встречи",),
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДС-2026-005",
         title="Дополнительное соглашение: сетевые технологии",
         university="dvfu",
@@ -255,9 +299,9 @@ STORIES: tuple[ContractPlan, ...] = (
         template=SHORT.key,
         route=("meeting", "documents", "approval", "signing"),
         days_on_stage=25,
-        implementation=ImplementationStatus.NOT_STARTED,  # подписали, но не начали
+        implementation=ProgramImplementationStatus.NOT_STARTED,  # подписали, но не начали
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2026-033",
         title="Разработка на Java для бакалавриата",
         university="tusur",
@@ -267,10 +311,10 @@ STORIES: tuple[ContractPlan, ...] = (
         route=_until("classes"),
         days_on_stage=50,
         blocked="Набор на программу не состоялся, занятия перенесены на весенний семестр",
-        status=ContractStatus.SUSPENDED,
-        implementation=ImplementationStatus.SUSPENDED,
+        contract_status=ContractStatus.SUSPENDED,
+        implementation=ProgramImplementationStatus.SUSPENDED,
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2024-008",
         title="Пилотная программа по тестированию",
         university="psuti",
@@ -279,11 +323,11 @@ STORIES: tuple[ContractPlan, ...] = (
         products=("Платформа онлайн-обучения",),
         route=FULL_MAIN,
         days_on_stage=470,
-        status=ContractStatus.CLOSED,  # сотрудничество завершено
+        contract_status=ContractStatus.CLOSED,  # сотрудничество завершено
         valid_days_left=-60,
         licenses=False,
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2025-031",
         title="Сетевые технологии и связь",
         university="sibsutis",
@@ -295,7 +339,7 @@ STORIES: tuple[ContractPlan, ...] = (
         valid_days_left=-12,  # срок вышел, а договор всё ещё числится действующим
         license_days_left=-12,
     ),
-    ContractPlan(
+    InteractionPlan(
         number="ДГ-2026-052",
         title="Администрирование Linux и СУБД",
         university="istu",
@@ -306,9 +350,8 @@ STORIES: tuple[ContractPlan, ...] = (
         days_on_stage=29,
     ),
     # Заявки с сайта, разобранные прошлыми синхронизациями.
-    ContractPlan(
-        number="ЗАЯВКА-req-2026-014",
-        title="Заявка с сайта ИТ Школы",
+    InteractionPlan(
+        title="Заявка вуза с сайта ИТ Школы",
         university="unn",
         manager="novikov",
         programs=("Python-разработчик", "Аналитик данных"),
@@ -317,9 +360,8 @@ STORIES: tuple[ContractPlan, ...] = (
         days_on_stage=3,
         request="req-2026-014",
     ),
-    ContractPlan(
-        number="ЗАЯВКА-req-2026-019",
-        title="Заявка с сайта ИТ Школы",
+    InteractionPlan(
+        title="Заявка вуза с сайта ИТ Школы",
         university="ssau",
         manager="morozova",
         programs=("Инженер по тестированию",),
@@ -328,12 +370,42 @@ STORIES: tuple[ContractPlan, ...] = (
         days_on_stage=6,
         request="req-2026-019",
     ),
+    # --- Закрытые без успеха: результат хранится отдельно от статуса -----------
+    InteractionPlan(
+        title="Кибербезопасность для магистратуры",
+        university="vsu",
+        manager="stepanova",
+        programs=("Специалист по защите информации",),
+        products=("Стенд киберполигона",),
+        route=(
+            "programs",
+            "meeting",
+            "documents",
+            Move(
+                "refusal",
+                comment="Вуз выбрал программу другого партнёра, к вопросу вернутся через год",
+            ),
+        ),
+        closure=ClosureReason.UNIVERSITY_REFUSED,
+        days_on_stage=40,
+    ),
+    InteractionPlan(
+        title="Сетевые технологии для колледжа при вузе",
+        university="mpei",
+        manager="sokolov",
+        programs=("Сетевой инженер",),
+        products=("Симулятор сетевой инфраструктуры",),
+        route=("programs",),
+        days_on_stage=18,
+        closure=ClosureReason.LOST_RELEVANCE,
+        cancelled="Колледж вошёл в состав вуза, программу обсуждаем в основном взаимодействии",
+    ),
 )
 
 
 # --- Генератор ----------------------------------------------------------------
 
-# Докуда дошёл процесс: вес этапа основного шаблона. Больше всего договоров
+# Докуда дошёл процесс: вес этапа основного шаблона. Больше всего взаимодействий
 # в работе после подписания, у заметной части цикл уже закрыт.
 _MAIN_TARGETS = {
     "contacts": 4,
@@ -440,22 +512,22 @@ def _title(programs: tuple[str, ...], template: str) -> str:
 
 
 def _days_on_stage(template: str, target: str, rng: random.Random) -> int:
-    """Сколько договор стоит на этапе - всегда в пределах нормы."""
+    """Сколько взаимодействие стоит на этапе - всегда в пределах нормы."""
     spec = MAIN if template == MAIN.key else SHORT
-    final = next(stage for stage in spec.latest.stages if stage.final)
+    final = next(stage for stage in spec.latest.stages if stage.successful_final)
     if target == final.code:
         return rng.randint(7, 420)  # цикл закрыт давно или недавно
     sla = spec.min_sla(target) or 14
     return rng.randint(0, max(1, int(sla * 0.8)))
 
 
-def generate(count: int, rng: random.Random, *, light: bool = False) -> list[ContractPlan]:
-    """Здоровые договоры: у каждого вуза с менеджером хотя бы один."""
+def generate(count: int, rng: random.Random, *, light: bool = False) -> list[InteractionPlan]:
+    """Здоровые взаимодействия: у каждого вуза с менеджером хотя бы одно."""
     universities = [university for university in UNIVERSITIES if university.manager]
     picks = list(universities) if count >= len(universities) else []
     picks += rng.choices(universities, k=count - len(picks))
 
-    plans: list[ContractPlan] = []
+    plans: list[InteractionPlan] = []
     for university in picks:
         template = SHORT.key if rng.random() < 0.1 else MAIN.key
         targets = _MAIN_TARGETS if template == MAIN.key else _SHORT_TARGETS
@@ -463,7 +535,7 @@ def generate(count: int, rng: random.Random, *, light: bool = False) -> list[Con
         route = _main_route(target, rng) if template == MAIN.key else _short_route(target, rng)
         programs = _programs_for(university, rng)
         plans.append(
-            ContractPlan(
+            InteractionPlan(
                 university=university.key,
                 manager=university.manager,
                 programs=programs,

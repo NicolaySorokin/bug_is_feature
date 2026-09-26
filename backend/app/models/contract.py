@@ -1,32 +1,45 @@
-"""Договоры: состав программ и продуктов, ответственные, лицензии."""
+"""Договор и лицензии.
+
+Договор - самостоятельная юридическая сущность, которая появляется в ходе
+взаимодействия с вузом (раздел 5 «Решений по бизнес-модели»). У одного
+взаимодействия в MVP не больше одного договора - это держит уникальный
+ключ ``workflow_instance_id``. Вуз и ответственный в договоре не
+дублируются: они берутся из взаимодействия.
+
+Лицензия относится к конкретному продукту взаимодействия и оформляется
+по договору.
+"""
 
 import uuid
 from datetime import date
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, Date, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, CreatedAtMixin, TimestampMixin, UUIDPrimaryKeyMixin
-from app.enums import ContractStatus, ImplementationStatus, LicenseStatus
-from app.models.catalog import ItProduct, ItProgram
-from app.models.university import University, UniversityContact
-from app.models.user import User
+from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.enums import ContractStatus, LicenseStatus
 
 if TYPE_CHECKING:
+    from app.models.interaction import InteractionProduct
     from app.models.workflow import WorkflowInstance
 
 
 class Contract(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Основной объект работы. У одного вуза может быть несколько договоров."""
-
     __tablename__ = "contracts"
-
-    university_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("universities.id", ondelete="RESTRICT"), index=True
+    __table_args__ = (
+        CheckConstraint(
+            "valid_from IS NULL OR valid_to IS NULL OR valid_from <= valid_to",
+            name="valid_period",
+        ),
+        CheckConstraint(
+            "signed_at IS NULL OR valid_to IS NULL OR signed_at <= valid_to",
+            name="signed_before_end",
+        ),
     )
-    manager_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+
+    workflow_instance_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_instances.id", ondelete="RESTRICT"), unique=True
     )
     number: Mapped[str] = mapped_column(String(100), index=True)
     title: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -36,96 +49,32 @@ class Contract(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(
         String(32), default=ContractStatus.DRAFT, server_default=ContractStatus.DRAFT
     )
+    # Для закрытого договора: исполнен, истёк срок или расторгнут.
+    closure_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    university: Mapped[University] = relationship(back_populates="contracts")
-    manager: Mapped[User | None] = relationship()
-    programs: Mapped[list["ContractProgram"]] = relationship(
-        back_populates="contract", cascade="all, delete-orphan"
-    )
-    products: Mapped[list["ContractProduct"]] = relationship(
-        back_populates="contract", cascade="all, delete-orphan"
-    )
-    contacts: Mapped[list["ContractContact"]] = relationship(
-        back_populates="contract", cascade="all, delete-orphan"
-    )
-    workflow_instances: Mapped[list["WorkflowInstance"]] = relationship(
-        back_populates="contract", cascade="all, delete-orphan"
-    )
-
-
-class ContractContact(Base):
-    """Ответственные от вуза по конкретному договору."""
-
-    __tablename__ = "contract_contacts"
-
-    contract_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("contracts.id", ondelete="CASCADE"), primary_key=True
-    )
-    contact_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("university_contacts.id", ondelete="CASCADE"), primary_key=True
-    )
-    role: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    is_primary: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
-
-    contract: Mapped[Contract] = relationship(back_populates="contacts")
-    contact: Mapped[UniversityContact] = relationship()
-
-
-class ContractProgram(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
-    """Программа в составе договора со своим статусом внедрения."""
-
-    __tablename__ = "contract_programs"
-    __table_args__ = (UniqueConstraint("contract_id", "program_id"),)
-
-    contract_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("contracts.id", ondelete="CASCADE"), index=True
-    )
-    program_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("it_programs.id", ondelete="RESTRICT"), index=True
-    )
-    implementation_status: Mapped[str] = mapped_column(
-        String(32),
-        default=ImplementationStatus.NOT_STARTED,
-        server_default=ImplementationStatus.NOT_STARTED,
-    )
-
-    contract: Mapped[Contract] = relationship(back_populates="programs")
-    program: Mapped[ItProgram] = relationship()
-
-
-class ContractProduct(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
-    """ИТ-продукт в составе договора со своим статусом передачи."""
-
-    __tablename__ = "contract_products"
-    __table_args__ = (UniqueConstraint("contract_id", "product_id"),)
-
-    contract_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("contracts.id", ondelete="CASCADE"), index=True
-    )
-    product_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("it_products.id", ondelete="RESTRICT"), index=True
-    )
-    transfer_status: Mapped[str] = mapped_column(
-        String(32),
-        default=ImplementationStatus.NOT_STARTED,
-        server_default=ImplementationStatus.NOT_STARTED,
-    )
-
-    contract: Mapped[Contract] = relationship(back_populates="products")
-    product: Mapped[ItProduct] = relationship()
+    interaction: Mapped["WorkflowInstance"] = relationship(back_populates="contract")
     licenses: Mapped[list["License"]] = relationship(
-        back_populates="contract_product", cascade="all, delete-orphan"
+        back_populates="contract", cascade="all, delete-orphan"
     )
 
 
 class License(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Лицензия относится к конкретному продукту в конкретном договоре."""
+    """Лицензия на продукт взаимодействия, оформленная по договору."""
 
     __tablename__ = "licenses"
+    __table_args__ = (
+        CheckConstraint(
+            "valid_from IS NULL OR valid_to IS NULL OR valid_from <= valid_to",
+            name="valid_period",
+        ),
+    )
 
-    contract_product_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("contract_products.id", ondelete="CASCADE"), index=True
+    contract_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("contracts.id", ondelete="CASCADE"), index=True
+    )
+    interaction_product_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("interaction_products.id", ondelete="CASCADE"), index=True
     )
     number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     seats: Mapped[int | None] = mapped_column(nullable=True)
@@ -136,4 +85,5 @@ class License(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         String(32), default=LicenseStatus.ACTIVE, server_default=LicenseStatus.ACTIVE
     )
 
-    contract_product: Mapped[ContractProduct] = relationship(back_populates="licenses")
+    contract: Mapped[Contract] = relationship(back_populates="licenses")
+    interaction_product: Mapped["InteractionProduct"] = relationship(back_populates="licenses")

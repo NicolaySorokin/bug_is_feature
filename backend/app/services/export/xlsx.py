@@ -39,7 +39,7 @@ def _write_meta(sheet: Worksheet, report: ReportResponse) -> int:
     sheet["A2"].font = MUTED_FONT
     sheet["A3"] = (
         f"Построен: {report.generated_at.strftime('%d.%m.%Y %H:%M')} · "
-        f"договоров: {report.totals.contracts} · строк: {report.totals.rows}"
+        f"взаимодействий: {report.totals.interactions} · строк: {report.totals.rows}"
     )
     sheet["A3"].font = MUTED_FONT
     return 5  # первая строка таблицы

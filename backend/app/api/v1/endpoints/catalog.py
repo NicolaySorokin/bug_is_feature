@@ -1,20 +1,24 @@
 """Справочники: ИТ-направления, ИТ-программы, вендоры, ИТ-продукты.
 
-Чтение доступно всем авторизованным, изменение - администратору.
-Записи, на которые ссылаются договоры, не удаляются, а выключаются
-(is_active): история договоров должна оставаться читаемой.
+Чтение доступно всем авторизованным, изменение - администратору. Записи,
+на которые ссылаются взаимодействия, не удаляются, а переводятся в архив
+(is_active): история должна оставаться читаемой, а для нового выбора
+архивные записи недоступны.
+
+Соответствие программ и продуктов - бизнес-связь: какие продукты нужны
+для реализации программы. Её ведёт руководитель, а не администратор
+(раздел 13 «Решений по бизнес-модели»).
 """
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import CurrentUserDep, SessionDep, require_roles
+from app.api.deps import CurrentUserDep, SessionDep, require_action
 from app.core.errors import ConflictError, NotFoundError
 from app.db.session import mark_changed
-from app.enums import Role
 from app.models.catalog import (
     ItDirection,
     ItProduct,
@@ -40,9 +44,15 @@ from app.schemas.catalog import (
     VendorContactUpdate,
     VendorRead,
 )
+from app.services.access import Action
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
-admin_only = [Depends(require_roles(Role.ADMIN))]
+admin_only = [require_action(Action.EDIT_CATALOG, "Справочники ведёт администратор")]
+head_only = [
+    require_action(
+        Action.EDIT_PROGRAM_PRODUCTS, "Соответствие программ и продуктов ведёт руководитель"
+    )
+]
 
 
 async def _get(session: SessionDep, model, item_id: uuid.UUID, title: str):  # noqa: ANN001
@@ -149,6 +159,19 @@ async def list_products(session: SessionDep, _: CurrentUserDep) -> list[ItProduc
     return [ItProductRead.model_validate(row) for row in result.scalars()]
 
 
+async def _check_product_contact(
+    session: SessionDep, vendor_id: uuid.UUID | None, contact_id: uuid.UUID | None
+) -> None:
+    """Ответственный за продукт - контакт того же вендора, что выпускает продукт."""
+    if contact_id is None:
+        return
+    contact = await _get(session, VendorContact, contact_id, "Контакт вендора")
+    if vendor_id is None or contact.vendor_id != vendor_id:
+        raise ConflictError("Контакт должен принадлежать вендору этого продукта")
+    if not contact.is_active:
+        raise ConflictError("Контакт вендора в архиве")
+
+
 @router.post(
     "/products",
     response_model=ItProductRead,
@@ -158,6 +181,9 @@ async def list_products(session: SessionDep, _: CurrentUserDep) -> list[ItProduc
 )
 async def create_product(payload: ItProductCreate, session: SessionDep) -> ItProductRead:
     await _check_unique_name(session, ItProduct, payload.name)
+    if payload.vendor_id is not None:
+        await _get(session, Vendor, payload.vendor_id, "Вендор")
+    await _check_product_contact(session, payload.vendor_id, payload.contact_id)
     product = ItProduct(**payload.model_dump())
     session.add(product)
     await session.flush()
@@ -226,8 +252,15 @@ async def update_product(
     data = payload.model_dump(exclude_unset=True)
     if data.get("vendor_id") is not None:
         await _get(session, Vendor, data["vendor_id"], "Вендор")
-    if data.get("contact_id") is not None:
-        await _get(session, VendorContact, data["contact_id"], "Контакт вендора")
+    vendor_id = data.get("vendor_id", item.vendor_id)
+    contact_id = data.get("contact_id", item.contact_id)
+    if "vendor_id" in data and "contact_id" not in data and contact_id is not None:
+        # Сменили вендора - прежний контакт другой компании больше не подходит.
+        contact = await session.get(VendorContact, contact_id)
+        if contact is not None and contact.vendor_id != vendor_id:
+            data["contact_id"] = None
+            contact_id = None
+    await _check_product_contact(session, vendor_id, contact_id)
     await _update(session, item, data)
     return ItProductRead.model_validate(item)
 
@@ -253,8 +286,12 @@ async def list_program_products(
 @router.put(
     "/programs/{item_id}/products",
     response_model=list[ProgramProductLink],
-    dependencies=admin_only,
+    dependencies=head_only,
     summary="Задать ИТ-продукты программы",
+    description=(
+        "Справочное соответствие: по нему интерфейс предлагает продукты при "
+        "добавлении программы во взаимодействие. Ведёт руководитель."
+    ),
 )
 async def set_program_products(
     item_id: uuid.UUID, payload: ProgramProductsWrite, session: SessionDep
