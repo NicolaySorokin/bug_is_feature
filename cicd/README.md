@@ -31,11 +31,11 @@ make up ENV=prod
 а в `preprod` и `prod` ещё и Keycloak (`/realms`, `/resources`).
 Конфигурация Nginx своя у каждой среды — `cicd/<среда>/nginx.conf`.
 
-Для `preprod` адрес стенда нужно добавить в Valid redirect URIs и Web
-origins клиента `edu-crm-web` (Keycloak → реалм `edu-crm` → Clients) или
-сразу в `deploy/keycloak/realm-export.json`: там перечислены только
-`localhost` и боевой стенд, с другого адреса Keycloak не пустит
-в систему («Неверный параметр: redirect_uri»).
+Адреса, куда Keycloak возвращает после входа, у клиента `edu-crm-web`
+ставит настройка реалма (`make keycloak-setup`, её же запускает
+`make up`) — это адреса интерфейса из `CORS_ORIGINS` среды. Для
+`preprod` достаточно указать там адрес стенда. `preprod` работает
+по HTTP, поэтому в его `.env` задано `KEYCLOAK_SSL_REQUIRED=none`.
 
 ## Секреты
 
@@ -51,7 +51,11 @@ make up ENV=prod
 
 Пароли `POSTGRES_PASSWORD` и `KEYCLOAK_ADMIN_PASSWORD` в боевой среде
 обязательны: значения по умолчанию из корневого compose годятся только
-для разработки.
+для разработки. Так же обязательна `KEYCLOAK_USER_PASSWORDS` — пароли
+пользователей реалма, пары `логин:пароль` через запятую, по паре на
+каждого пользователя из `deploy/keycloak/realm-export.json`. Новые
+пароли генерирует `python -m scripts.keycloak_setup --generate-passwords`
+(см. README, раздел «Keycloak»). В репозитории паролей нет.
 
 ## Боевой стенд: автоматический деплой
 
@@ -68,29 +72,40 @@ pull request в `main` запускает **CI** (стиль, тесты, миг
 ### Что делает деплой
 
 1. Собирает образы на раннере GitHub: API `edu-crm-api:<коммит>` и Nginx
-   с клиентской частью `edu-crm-web:<коммит>`.
-2. Проверяет секрет `PROD_ENV`: без паролей базы и Keycloak не выкладывает.
+   с клиентской частью `edu-crm-web:<коммит>`. Образ Keycloak
+   `edu-crm-keycloak:<тег>` помечен по содержимому
+   `deploy/keycloak/image` и собирается, только если такого ещё нет
+   на сервере.
+2. Проверяет секрет `PROD_ENV`: без паролей базы и Keycloak и без пароля
+   для каждого пользователя реалма (`KEYCLOAK_USER_PASSWORDS`)
+   не выкладывает. В журнал попадают только логины.
 3. Подключается по SSH. Ключ хоста сверяется с `SSH_KNOWN_HOSTS`, чужой
    сервер не пройдёт.
 4. Готовит сервер — `cicd/prod/server/bootstrap.sh`. Скрипт идемпотентный:
    что уже стоит, не трогает. Ставит Docker Engine и compose plugin из
    репозитория Docker, добавляет пользователя в группу `docker`, ставит
    certbot и `make`, заводит swap 2 ГБ, включает ротацию логов контейнеров
-   (3 файла по 20 МБ), создаёт `/opt/edu-crm`.
+   (3 файла по 20 МБ), создаёт `/opt/edu-crm`, включает ежедневную
+   резервную копию (таймер `edu-crm-backup.timer`).
 5. Кладёт код коммита в новый каталог релиза, привозит образы с раннера
    (уже привезённые не передаются — сервер ничего не собирает и не ходит
    в реестры), записывает `PROD_ENV` в `/opt/edu-crm/shared/prod.env`.
 6. Если сертификата ещё нет — выпускает его (`certificate.sh issue`).
 7. Поднимает стенд — `release.sh activate`: переключает `current` на новый
-   релиз, `docker compose up --wait` ждёт healthcheck API (значит, миграции
-   прошли), в пустую базу грузит демоданные, удаляет старые релизы.
+   релиз, заводит базу Keycloak, если её ещё нет, `docker compose up --wait`
+   ждёт healthcheck API (значит, миграции прошли) и Keycloak, настраивает
+   реалм по выгрузке и ставит пароли из секрета (`keycloak-setup`),
+   в пустую базу грузит демоданные, удаляет старые релизы.
    **Не поднялся — сам возвращает прежний релиз**, деплой краснеет.
 8. Один раз переводит продление сертификата на webroot (`certificate.sh webroot`).
-9. Проверяет стенд снаружи: `/api/v1/health`; что по адресу стенда
-   открывается сама система, а не Swagger; что адрес страницы
-   (`/contracts`) открывается напрямую; кэширование файлов интерфейса
-   и заголовок Content-Security-Policy; сайт по HTTPS с проверкой
-   сертификата, редирект с HTTP, Keycloak, отдачу файлов для продления.
+9. Проверяет стенд снаружи: `/api/v1/health` (и что в нём нет ничего,
+   кроме статуса); что по адресу стенда открывается сама система, а не
+   Swagger; что адрес страницы (`/contracts`) открывается напрямую;
+   кэширование файлов интерфейса и заголовок Content-Security-Policy;
+   что версия Nginx скрыта; сайт по HTTPS с проверкой сертификата,
+   редирект с HTTP; Keycloak: реалм, страница входа в теме системы,
+   запрет входа по паролю в обход страницы, закрытый реалм `master`;
+   отдачу файлов для продления.
 
 Деплои не идут параллельно: следующий ждёт окончания текущего.
 
@@ -102,7 +117,7 @@ pull request в `main` запускает **CI** (стиль, тесты, миг
 | `SSH_USER` | пользователь деплоя (`deployer`, sudo без пароля) |
 | `SSH_PRIVATE_KEY` | закрытый ключ этого пользователя |
 | `SSH_KNOWN_HOSTS` | ключ хоста: `ssh-keyscan <SSH_HOST>`, адрес в строке тот же, что в `SSH_HOST` |
-| `PROD_ENV` | содержимое `.env` боевой среды, образец — `cicd/prod/.env.example` |
+| `PROD_ENV` | содержимое `.env` боевой среды, образец — `cicd/prod/.env.example`; в том числе пароли пользователей `KEYCLOAK_USER_PASSWORDS` |
 
 Секреты можно вставлять из Windows: `\r` деплой вычищает. Поменяли
 `PROD_ENV` — изменения вступят в силу со следующим деплоем. Доступ к серверу
@@ -115,6 +130,7 @@ pull request в `main` запускает **CI** (стиль, тесты, миг
   releases/20260925-143000-ee2f121662d5/   код коммита; REVISION — коммит, ветка, запуск Actions
   current -> releases/...                   текущий релиз, compose работает отсюда
   shared/prod.env                           секрет PROD_ENV
+  backups/                                  резервные копии, 14 дней
 /etc/letsencrypt/                           сертификаты
 /var/www/certbot/                           webroot для продления
 ```
@@ -127,11 +143,14 @@ pull request в `main` запускает **CI** (стиль, тесты, миг
 
 Nginx пересоздаётся с каждым релизом — в его образе клиентская часть
 этого коммита; это секунды. Keycloak пересоздаётся, только когда меняется
-`deploy/keycloak/realm-export.json`. Keycloak хранит данные внутри
-контейнера, так что при пересоздании реалм загружается из выгрузки заново:
-пользователи, заведённые руками в консоли Keycloak, и сменённые пароли
-при этом пропадают. Для настоящей эксплуатации Keycloak переводят
-на базу PostgreSQL (`KC_DB=postgres`).
+его образ (тема страницы входа, `deploy/keycloak/image`). Данные Keycloak —
+пользователи, пароли, сессии, журнал входов — хранятся в базе `keycloak`
+того же PostgreSQL (том `edu-crm_pgdata`) и пересоздание переживают.
+Правки `realm-export.json` переносит в работающий реалм настройка реалма
+при каждом деплое; вручную — `release.sh keycloak-setup`.
+
+Релизы, выложенные до перевода Keycloak на PostgreSQL, запускают его
+по-старому, с паролями из выгрузки. Откатываться на них не стоит.
 
 ### HTTPS
 
@@ -163,6 +182,65 @@ bash cicd/prod/server/release.sh compose ps
 `make shell ENV=prod`), если запускать из `/opt/edu-crm/current`.
 Лог выпуска и продления сертификата — `/var/log/letsencrypt/letsencrypt.log`,
 таймер — `systemctl list-timers certbot.timer`.
+
+### Резервные копии
+
+Каждую ночь (03:30 по времени сервера) таймер `edu-crm-backup.timer`
+выполняет `release.sh backup`: в `/opt/edu-crm/backups` ложатся копия базы
+системы (`*-edu_crm.dump`), базы Keycloak (`*-keycloak.dump`) и файлов
+вложений (`*-storage.tgz`). Хранятся 14 дней. В копиях персональные
+данные: каталог доступен только пользователю деплоя. Копии стоит
+регулярно забирать за пределы сервера.
+
+```bash
+cd /opt/edu-crm/current
+bash cicd/prod/server/release.sh backup     # копия сейчас
+systemctl list-timers edu-crm-backup.timer   # когда следующая
+```
+
+Восстановление (подставьте дату копии):
+
+```bash
+cd /opt/edu-crm/current
+R="bash cicd/prod/server/release.sh"
+$R compose stop api keycloak nginx
+$R compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner' \
+  < ../../backups/ДАТА-edu_crm.dump
+$R compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d keycloak --clean --if-exists --no-owner' \
+  < ../../backups/ДАТА-keycloak.dump
+$R compose up -d --wait --no-build
+$R compose exec -T api sh -c 'rm -rf /app/storage/* && tar xzf - -C /app/storage' \
+  < ../../backups/ДАТА-storage.tgz
+```
+
+### Сброс к демоданным
+
+Actions → «Деплой» → Run workflow, «Данные стенда» — «Сбросить
+к демоданным». Деплой выкладывает коммит как обычно, затем
+`release.sh reset-data --confirm`: снимает резервную копию, удаляет тома
+базы и файлов и поднимает стенд заново — миграции, реалм из выгрузки,
+пароли из секрета, чистые демоданные. Так стенд возвращают в исходное
+состояние после ручных проверок. На сервере то же самое:
+
+```bash
+bash /opt/edu-crm/current/cicd/prod/server/release.sh reset-data --confirm
+```
+
+### Нагрузочная проверка
+
+Пароли пользователей и вход в обход страницы Keycloak нужны только
+на время замера:
+
+```bash
+cd /opt/edu-crm/current
+R="bash cicd/prod/server/release.sh"
+$R keycloak-setup --loadtest on       # включить клиент edu-crm-loadtest
+set -a; . cicd/prod/.env; set +a      # KEYCLOAK_USER_PASSWORDS
+make loadtest ENV=prod ARGS="--keycloak-url http://keycloak:8080"
+$R keycloak-setup --loadtest off      # выключить
+```
+
+Не запускайте во время показа: нагрузка настоящая.
 
 ### Откат
 

@@ -178,9 +178,19 @@ jobs:
       - name: Сборка образа клиентской части (Nginx)
         run: docker build -t edu-crm-web:ci ./frontend
 
+      # Keycloak с темой страницы входа и сборкой под PostgreSQL.
+      - name: Сборка образа Keycloak
+        run: docker build -t edu-crm-keycloak:ci ./deploy/keycloak/image
+
       - name: Проверка конфигураций сред
         run: |
           for env in dev preprod prod; do
-            docker compose -f docker-compose.yml -f "cicd/$env/docker-compose.yml" config --quiet
+            docker compose -f docker-compose.yml -f "cicd/$env/docker-compose.yml" \
+              --profile keycloak --profile setup config --quiet
             echo "$env: конфигурация корректна"
           done
+
+      # Скрипты сервера выполняются при каждом деплое: ошибка в них
+      # всплыла бы только на боевом стенде.
+      - name: Скрипты сервера (shellcheck)
+        run: shellcheck cicd/prod/server/*.sh deploy/postgres/*.sh deploy/keycloak/image/*.sh

@@ -25,9 +25,14 @@ services:
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
+  # Режим разработки Keycloak: тема страницы входа не кэшируется, правки
+  # в deploy/keycloak/image/themes видны после перезапуска контейнера.
   keycloak:
+    command: start-dev --import-realm
     ports:
       - "${KEYCLOAK_PORT:-8080}:8080"
+    volumes:
+      - ./deploy/keycloak/image/themes/edu-crm:/opt/keycloak/themes/edu-crm:ro
 
   nginx:
     ports:
