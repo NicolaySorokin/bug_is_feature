@@ -285,9 +285,7 @@ async def set_blocked(
         from_stage_id=instance.current_stage_id,
         to_stage_id=instance.current_stage_id,
         user_id=user.id,
-        event_type=(
-            WorkflowEventType.BLOCKED if blocked else WorkflowEventType.UNBLOCKED
-        ),
+        event_type=(WorkflowEventType.BLOCKED if blocked else WorkflowEventType.UNBLOCKED),
         comment=reason,
     )
     session.add(event)

@@ -2295,9 +2295,16 @@ a.list-item:hover {
 }
 
 .edge-label {
-  fill: var(--text-muted);
+  fill: var(--rt-violet);
   font-size: 11px;
+  font-weight: 700;
   font-family: Manrope, sans-serif;
+  /* Белая обводка под текстом: подпись читается поверх линий и сетки. */
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
 }
 
 .stage-panel {
@@ -2456,6 +2463,19 @@ a.list-item:hover {
   gap: 20px;
   padding: 48px;
   background: var(--surface);
+}
+
+/* Значок и текст подсказки - в одну строку, текст переносится рядом со значком. */
+.login__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.login__note svg {
+  flex: none;
+  margin-top: 2px;
 }
 
 .login__panel h2 {

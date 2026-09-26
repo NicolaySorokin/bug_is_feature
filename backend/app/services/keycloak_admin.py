@@ -17,6 +17,7 @@ Keycloak вызывается по внутреннему адресу (сеть
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -25,6 +26,8 @@ import httpx
 from app.core.config import settings
 from app.core.errors import AppError, ErrorCode
 from app.enums import Role
+
+logger = logging.getLogger(__name__)
 
 MANAGED_ROLES: tuple[str, ...] = tuple(role.value for role in Role)
 
@@ -87,10 +90,23 @@ class KeycloakAdmin:
                 code=ErrorCode.CONFLICT,
                 status_code=409,
             )
-        if response.status_code >= 400:
-            raise _error(
-                f"Keycloak ответил ошибкой {response.status_code}: {response.text[:300]}"
+        if response.status_code == 400 and "password" in response.text.lower():
+            # Пароль не прошёл политику реалма: 12 знаков, регистр, цифры, не логин.
+            raise AppError(
+                "Пароль не подходит: нужно не меньше 12 знаков, строчные и заглавные "
+                "буквы, цифры; пароль не должен совпадать с логином и недавними паролями",
+                code=ErrorCode.VALIDATION_ERROR,
+                status_code=422,
             )
+        if response.status_code >= 400:
+            logger.warning(
+                "Keycloak ответил %s на %s %s: %s",
+                response.status_code,
+                method,
+                path,
+                response.text[:500],
+            )
+            raise _error(f"Keycloak ответил ошибкой {response.status_code}")
         return response
 
     # --- Роли --------------------------------------------------------------
@@ -186,6 +202,7 @@ class KeycloakAdmin:
         return user_id
 
     async def reset_password(self, user_id: str, password: str) -> None:
+        """Временный пароль: постоянный сотрудник задаёт сам при первом входе."""
         await self._request(
             "PUT",
             f"/users/{user_id}/reset-password",

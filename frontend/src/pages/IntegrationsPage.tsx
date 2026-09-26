@@ -145,7 +145,7 @@ export default function IntegrationsPage() {
                   <p className="soft">{DESCRIPTIONS[source.code] || ""}</p>
                   <p className="muted" style={{ fontSize: 13 }}>
                     {source.uses_fixture
-                      ? "Адрес API не задан - используются тестовые данные. Ответ API можно загрузить файлом JSON."
+                      ? "Демонстрационный режим: адрес API не задан, обмен идёт на примере ответа в формате источника. Ответ настоящего API можно загрузить файлом JSON."
                       : `Адрес API: ${source.base_url}`}
                   </p>
                   {last && (

@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -23,6 +24,8 @@ import httpx
 
 from app.core.config import settings
 from app.core.errors import AppError, ErrorCode
+
+logger = logging.getLogger(__name__)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -149,7 +152,12 @@ def load_fixture(name: str) -> Any:
 
 
 async def fetch_json(url: str, token: str) -> Any:
-    """Запрос к внешнему API. Ошибки сети превращаются в понятный код."""
+    """Запрос к внешнему API. Ошибки сети превращаются в понятный код.
+
+    Текст ошибки попадает в журнал обмена, который видят сотрудники, поэтому
+    он короткий и по-русски, без адресов и внутренностей HTTP-клиента;
+    подробности - в журнале сервера.
+    """
     headers = {"Accept": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -158,10 +166,25 @@ async def fetch_json(url: str, token: str) -> Any:
             response = await client.get(url, headers=headers)
             response.raise_for_status()
             return response.json()
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        message = f"Внешняя система ответила ошибкой {status}"
+        if status in (401, 403):
+            message += ": проверьте токен доступа к API"
+        elif status == 404:
+            message += ": проверьте адрес API"
+        cause: Exception = exc
+    except httpx.TimeoutException as exc:
+        message = f"Внешняя система не ответила за {settings.integration_timeout_seconds:g} с"
+        cause = exc
     except httpx.HTTPError as exc:
-        raise AppError(
-            f"Внешняя система не ответила: {exc}", code=ErrorCode.INTEGRATION_FAILED
-        ) from exc
+        message = "Не удалось связаться с внешней системой: проверьте адрес API и сеть"
+        cause = exc
+    except ValueError as exc:
+        message = "Внешняя система прислала ответ не в формате JSON"
+        cause = exc
+    logger.warning("Обмен с %s не удался: %r", url, cause)
+    raise AppError(message, code=ErrorCode.INTEGRATION_FAILED) from cause
 
 
 def contacts_from(raw: list[dict[str, Any]] | None) -> list[ExternalContact]:

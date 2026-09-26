@@ -253,9 +253,7 @@ async def _sync_universities(
         university = (
             await session.get(University, entity_id)
             if entity_id
-            else await session.scalar(
-                select(University).where(University.name == item.name)
-            )
+            else await session.scalar(select(University).where(University.name == item.name))
         )
         if university is None:
             university = University(
@@ -368,9 +366,7 @@ async def _sync_requests(
         for external_program_id in item.program_external_ids:
             program_id = await _linked_anywhere(session, PROGRAM, external_program_id)
             if program_id is not None:
-                session.add(
-                    ContractProgram(contract_id=contract.id, program_id=program_id)
-                )
+                session.add(ContractProgram(contract_id=contract.id, program_id=program_id))
         await session.flush()
 
         if version is not None:
@@ -674,9 +670,7 @@ async def run_sync(
     """
     source = await get_source(session, code)
     if not source.is_enabled:
-        raise AppError(
-            f"Источник «{source.name}» выключен", code=ErrorCode.INTEGRATION_FAILED
-        )
+        raise AppError(f"Источник «{source.name}» выключен", code=ErrorCode.INTEGRATION_FAILED)
 
     run = IntegrationRun(
         source_id=source.id,

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
 from app.enums import Role
-from app.services import app_settings
+from app.services import app_settings, cache
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -56,3 +56,14 @@ async def update_settings(
     payload: SettingsUpdate, session: SessionDep, user: CurrentUserDep
 ) -> list[SettingRead]:
     return _read(await app_settings.save(session, payload.values, user.id))
+
+
+@router.get(
+    "/cache",
+    dependencies=[Depends(require_roles(Role.ADMIN))],
+    summary="Состояние кэша выборок",
+    include_in_schema=False,
+)
+async def cache_state(session: SessionDep) -> dict[str, object]:
+    """Версия данных и попадания в кэш рабочего процесса, ответившего на запрос."""
+    return {"version": await cache.current_version(session), **cache.stats()}

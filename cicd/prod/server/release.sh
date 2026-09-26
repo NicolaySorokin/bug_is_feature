@@ -8,21 +8,39 @@
 #   release.sh list                релизы, текущий отмечен звёздочкой
 #   release.sh compose <команда>   docker compose текущего релиза:
 #                                  compose ps, compose logs -f api ...
+#   release.sh keycloak-setup [<параметры>]
+#                                  перенести настройку из realm-export.json
+#                                  в Keycloak и поставить начальные пароли
+#                                  тем, у кого их нет (см. keycloak_setup.py)
+#   release.sh backup              резервная копия: база системы, база
+#                                  Keycloak, файлы вложений (backups/)
+#   release.sh reset-data --confirm
+#                                  копия, затем стенд с чистыми демоданными:
+#                                  база системы и файлы создаются заново,
+#                                  учётные записи Keycloak остаются
+#   release.sh keycloak-tag <каталог>
+#                                  тег образа Keycloak для кода в каталоге
 #
 # Каталог приложения (APP_DIR, по умолчанию /opt/edu-crm):
 #   releases/<дата>-<время>-<коммит>/  код коммита и файл REVISION
 #   current -> releases/...            текущий релиз, compose работает отсюда
 #   shared/prod.env                    секреты из PROD_ENV; при активации
 #                                      из него собирается cicd/prod/.env релиза
+#   backups/                           резервные копии (release.sh backup,
+#                                      таймер edu-crm-backup.timer)
 #
-# Образы релиза - edu-crm-api:<коммит> (API) и edu-crm-web:<коммит>
-# (Nginx с клиентской частью), их привозит деплой.
-# Данные (PostgreSQL, файлы) лежат в томах Docker и между релизами не меняются.
+# Образы релиза - edu-crm-api:<коммит> (API), edu-crm-web:<коммит> (Nginx
+# с клиентской частью) и edu-crm-keycloak:<тег по содержимому
+# deploy/keycloak/image>, их привозит деплой.
+# Данные (PostgreSQL - и система, и Keycloak, файлы) лежат в томах Docker
+# и между релизами не меняются.
 set -euo pipefail
 
 APP_DIR=${APP_DIR:-/opt/edu-crm}
 KEEP_RELEASES=${KEEP_RELEASES:-5}
-IMAGE_REPOS="edu-crm-api edu-crm-web"
+BACKUP_DIR=${BACKUP_DIR:-$APP_DIR/backups}
+KEEP_BACKUP_DAYS=${KEEP_BACKUP_DAYS:-14}
+IMAGE_REPOS="edu-crm-api edu-crm-web edu-crm-keycloak"
 NGINX_CONTAINER=edu_crm_nginx
 
 log() { printf '==> %s\n' "$*"; }
@@ -32,8 +50,26 @@ releases() { find "$APP_DIR/releases" -mindepth 1 -maxdepth 1 -type d -printf '%
 current_release() {
     if [ -L "$APP_DIR/current" ]; then basename "$(readlink "$APP_DIR/current")"; fi
 }
-# Имя релиза - <дата>-<время>-<коммит>, тег образа - коммит.
+# Имя релиза - <дата>-<время>-<коммит>, тег образов API и Nginx - коммит.
 image_tag() { printf '%s\n' "${1##*-}"; }
+
+# Тег образа Keycloak - по содержимому deploy/keycloak/image: пока тема
+# и Dockerfile те же, образ не собирается и не возится заново, а контейнер
+# Keycloak не пересоздаётся. Так же тег считает деплой (keycloak-tag).
+keycloak_tag() {
+    local dir=$1/deploy/keycloak/image
+    [ -d "$dir" ] || return 0
+    (cd "$dir" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum \
+        | sha256sum | cut -c1-12)
+}
+
+# Тег образа repo в релизе rel.
+release_image_tag() {
+    case $1 in
+        edu-crm-keycloak) keycloak_tag "$APP_DIR/releases/$2" ;;
+        *) image_tag "$2" ;;
+    esac
+}
 
 compose() {
     local dir="$APP_DIR/current"
@@ -56,9 +92,8 @@ write_env() {
             printf '\n# Добавлено release.sh при активации релиза.\n'
             printf 'API_IMAGE_TAG=%s\n' "$(image_tag "$(basename "$dir")")"
             printf 'WEB_IMAGE_TAG=%s\n' "$(image_tag "$(basename "$dir")")"
+            printf 'KEYCLOAK_IMAGE_TAG=%s\n' "$(keycloak_tag "$dir")"
             printf 'NGINX_CONF_SHA=%s\n' "$(sha256sum "$dir/cicd/prod/nginx.conf" | cut -c1-16)"
-            printf 'KEYCLOAK_REALM_SHA=%s\n' \
-                "$(sha256sum "$dir/deploy/keycloak/realm-export.json" | cut -c1-16)"
         } > "$env.tmp"
         mv -f "$env.tmp" "$env"
     )
@@ -72,13 +107,32 @@ switch_to() {
     mv -Tf "$APP_DIR/current.new" "$APP_DIR/current"
 }
 
+# Есть ли в текущем релизе строка $1 в compose: релизы до перевода Keycloak
+# на PostgreSQL не знают ни базы keycloak, ни сервиса keycloak-setup.
+release_has() {
+    grep -qs -- "$1" "$APP_DIR/current/docker-compose.yml" "$APP_DIR/current/cicd/prod/docker-compose.yml"
+}
+
 up() {
     log "Поднимаю стенд: релиз $(current_release)"
-    # --wait ждёт healthcheck API, то есть и окончания миграций.
+    # База Keycloak живёт в том же PostgreSQL. На новом томе её заводит
+    # скрипт инициализации, на старом - этот же скрипт здесь.
+    if release_has keycloak-db.sh; then
+        compose up -d --wait --no-build db || return 1
+        compose exec -T db sh /docker-entrypoint-initdb.d/keycloak-db.sh || return 1
+    fi
+    # --wait ждёт healthcheck API (то есть и окончания миграций) и Keycloak.
     compose up -d --wait --wait-timeout "${WAIT_TIMEOUT:-300}" --no-build --remove-orphans || return 1
     # Nginx узнаёт адреса api и keycloak при запуске. Пересозданный
     # контейнер получает новый адрес - перечитываем конфигурацию.
-    docker exec "$NGINX_CONTAINER" nginx -s reload
+    docker exec "$NGINX_CONTAINER" nginx -s reload || return 1
+    if release_has keycloak-setup; then keycloak_setup; fi
+}
+
+# Реалм Keycloak - к выгрузке релиза, пароли - из секрета PROD_ENV.
+keycloak_setup() {
+    log "Настройка реалма Keycloak"
+    compose run --rm -T keycloak-setup python -m scripts.keycloak_setup "$@"
 }
 
 show_failure() {
@@ -97,12 +151,17 @@ cleanup() {
         rm -rf "${APP_DIR:?}/releases/$rel"
     done
 
-    used=" $(releases | while read -r rel; do image_tag "$rel"; done | tr '\n' ' ') "
+    # Образы, на которые ссылается хоть один оставшийся релиз, не трогаем.
+    used=" $(releases | while read -r rel; do
+        for repo in $IMAGE_REPOS; do
+            printf '%s:%s ' "$repo" "$(release_image_tag "$repo" "$rel")"
+        done
+    done) "
     for repo in $IMAGE_REPOS; do
         while read -r tag; do
             [ -n "$tag" ] || continue
             case "$used" in
-                *" $tag "*) ;;
+                *" $repo:$tag "*) ;;
                 *)
                     log "Удаляю образ $repo:$tag"
                     docker image rm "$repo:$tag" > /dev/null || true
@@ -120,8 +179,8 @@ activate() {
         # Релизы до появления клиентской части образа edu-crm-web не знают.
         grep -qs "$repo" "$APP_DIR/releases/$target/docker-compose.yml" \
             "$APP_DIR/releases/$target/cicd/prod/docker-compose.yml" || continue
-        docker image inspect "$repo:$(image_tag "$target")" > /dev/null 2>&1 \
-            || die "нет образа $repo:$(image_tag "$target")"
+        docker image inspect "$repo:$(release_image_tag "$repo" "$target")" > /dev/null 2>&1 \
+            || die "нет образа $repo:$(release_image_tag "$repo" "$target")"
     done
     prev=$(current_release)
 
@@ -163,6 +222,62 @@ rollback() {
     activate "$target"
 }
 
+# Резервная копия: база системы, база Keycloak и файлы вложений. Файлы
+# содержат персональные данные - доступ только у пользователя деплоя.
+# Копии старше KEEP_BACKUP_DAYS дней удаляются. Восстановление - в
+# руководстве системного администратора (cicd/README.md, «Резервные копии»).
+backup() {
+    local stamp dir
+    stamp=$(date +%Y%m%d-%H%M%S)
+    dir=$BACKUP_DIR
+    install -m 700 -d "$dir"
+    (
+        umask 077
+        log "Копия базы системы: $dir/$stamp-edu_crm.dump"
+        # Переменные раскрывает оболочка внутри контейнера базы.
+        # shellcheck disable=SC2016
+        compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB"' \
+            > "$dir/$stamp-edu_crm.dump.tmp"
+        if release_has keycloak-db.sh; then
+            log "Копия базы Keycloak: $dir/$stamp-keycloak.dump"
+            # shellcheck disable=SC2016
+            compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -Fc keycloak' \
+                > "$dir/$stamp-keycloak.dump.tmp"
+        fi
+        log "Копия файлов вложений: $dir/$stamp-storage.tgz"
+        compose exec -T api tar czf - -C /app/storage . > "$dir/$stamp-storage.tgz.tmp"
+        for file in "$dir/$stamp"-*.tmp; do mv -f "$file" "${file%.tmp}"; done
+    ) || { rm -f "$dir/$stamp"-*.tmp; die "резервная копия не снята"; }
+
+    find "$dir" -maxdepth 1 -type f \( -name '*.dump' -o -name '*.tgz' \) \
+        -mtime "+$KEEP_BACKUP_DAYS" -print -delete | sed 's/^/==> Удалена старая копия /'
+    log "Копия готова: $(du -ch "$dir/$stamp"-* | tail -1 | cut -f1)"
+}
+
+# Стенд с чистыми демоданными: копия, затем база системы создаётся заново,
+# том с файлами вложений удаляется, и текущий релиз поднимается снова -
+# миграции и демоданные. База Keycloak не трогается: учётные записи,
+# пароли и роли, заданные на сайте, переживают сброс.
+reset_data() {
+    [ "${1:-}" = "--confirm" ] || die "сброс удаляет данные системы: release.sh reset-data --confirm"
+    local cur storage
+    cur=$(current_release)
+    [ -n "$cur" ] || die "нет текущего релиза"
+    backup
+    log "Удаляю данные системы: база и файлы вложений (учётные записи Keycloak остаются)"
+    # API не должен писать в базу во время сброса, а том с файлами
+    # удаляется только вместе с контейнером, который его подключает.
+    compose rm --stop --force api nginx
+    # shellcheck disable=SC2016
+    compose exec -T db sh -c \
+        'dropdb -U "$POSTGRES_USER" --force "$POSTGRES_DB" && createdb -U "$POSTGRES_USER" "$POSTGRES_DB"'
+    storage=$(docker volume ls -q --filter label=com.docker.compose.project=edu-crm \
+        --filter label=com.docker.compose.volume=api_storage)
+    [ -z "$storage" ] || docker volume rm "$storage" > /dev/null
+    activate "$cur"
+    log "Стенд работает на чистых демоданных"
+}
+
 list() {
     local cur rel mark note
     cur=$(current_release)
@@ -182,5 +297,9 @@ case "$cmd" in
     rollback) rollback "$@" ;;
     list) list ;;
     compose) compose "$@" ;;
-    *) die "использование: $0 activate <релиз> | rollback [<релиз>] | list | compose <команда>" ;;
+    keycloak-setup) keycloak_setup "$@" ;;
+    backup) backup ;;
+    reset-data) reset_data "$@" ;;
+    keycloak-tag) keycloak_tag "${1:?укажите каталог с кодом}" ;;
+    *) die "использование: $0 activate <релиз> | rollback [<релиз>] | list | compose <команда> | keycloak-setup | backup | reset-data --confirm" ;;
 esac

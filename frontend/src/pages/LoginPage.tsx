@@ -77,8 +77,9 @@ export function LoginPage({ auth, onLogin }: { auth: AuthSession; onLogin: (acco
             <Button size="l" icon={LogIn} loading={busy} onClick={() => void enter()}>
               Войти через Keycloak
             </Button>
-            <p className="muted row" style={{ fontSize: 13 }}>
-              <ShieldCheck size={16} /> Доступ выдаёт администратор системы. Забыли пароль - обратитесь к нему.
+            <p className="muted login__note">
+              <ShieldCheck size={16} aria-hidden="true" />
+              <span>Доступ выдаёт администратор системы. Забыли пароль - обратитесь к нему.</span>
             </p>
           </>
         ) : (

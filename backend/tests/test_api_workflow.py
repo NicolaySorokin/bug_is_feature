@@ -126,9 +126,7 @@ async def test_new_version_copies_graph_and_keeps_running_process(
         },
         headers=ADMIN,
     )
-    current = await client.get(
-        f"/api/v1/contracts/{contract['id']}/workflow", headers=MANAGER
-    )
+    current = await client.get(f"/api/v1/contracts/{contract['id']}/workflow", headers=MANAGER)
     assert current.json()["workflow_version_id"] == view["workflow_version_id"]
     assert len(current.json()["version"]["stages"]) == 3
 

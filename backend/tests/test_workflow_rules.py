@@ -221,9 +221,7 @@ async def test_final_stage_completes_instance(version, instance, user, manager) 
     instance.current_stage_id = stage(version, "approval").id
     session = FakeSession()
 
-    await service.move(
-        session, instance, version, stage(version, "signing").id, user, manager
-    )
+    await service.move(session, instance, version, stage(version, "signing").id, user, manager)
     assert instance.status == WorkflowInstanceStatus.COMPLETED
     assert instance.completed_at is not None
 

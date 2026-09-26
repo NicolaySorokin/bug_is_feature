@@ -113,9 +113,7 @@ async def list_attachments(
     if workflow_event_id is not None:
         statement = statement.where(Attachment.workflow_event_id == workflow_event_id)
     result = await session.execute(statement)
-    return [
-        AttachmentRead.from_model(row, settings.api_v1_prefix) for row in result.scalars()
-    ]
+    return [AttachmentRead.from_model(row, settings.api_v1_prefix) for row in result.scalars()]
 
 
 @router.post(

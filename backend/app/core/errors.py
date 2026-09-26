@@ -163,13 +163,15 @@ def register_error_handlers(app: FastAPI) -> None:
                 ErrorCode.VALIDATION_ERROR,
                 "Запрос не прошёл проверку",
                 # jsonable: в ошибках Pydantic встречаются несериализуемые объекты.
-                {"errors": [
-                    {
-                        "loc": [str(part) for part in error.get("loc", ())],
-                        "msg": error.get("msg", ""),
-                        "type": error.get("type", ""),
-                    }
-                    for error in exc.errors()
-                ]},
+                {
+                    "errors": [
+                        {
+                            "loc": [str(part) for part in error.get("loc", ())],
+                            "msg": error.get("msg", ""),
+                            "type": error.get("type", ""),
+                        }
+                        for error in exc.errors()
+                    ]
+                },
             ),
         )

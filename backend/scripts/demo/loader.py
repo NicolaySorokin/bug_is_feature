@@ -107,10 +107,7 @@ _CONTRACT_REMARKS = (
     "Интерес к расширению на магистратуру",
 )
 
-_SYNC_ERROR = (
-    "Внешняя система не ответила: Server error '502 Bad Gateway' "
-    "for url 'https://it-school.example/api/applications'"
-)
+_SYNC_ERROR = "Внешняя система ответила ошибкой 502"
 
 
 @dataclass
