@@ -8,6 +8,10 @@ from pydantic import BaseModel, Field
 from app.enums import DataScope, Role
 from app.schemas.common import ORMModel
 
+# Политика паролей реалма Keycloak (deploy/keycloak/realm-export.json):
+# короче пароль Keycloak не примет, поэтому и API сразу его не пропускает.
+PASSWORD_MIN_LENGTH = 12
+
 
 class UserRead(ORMModel):
     id: uuid.UUID
@@ -55,14 +59,14 @@ class UserCreate(BaseModel):
     full_name: str = Field(min_length=1, max_length=255)
     email: str | None = Field(default=None, max_length=255)
     # Временный пароль: Keycloak попросит сменить его при первом входе.
-    password: str | None = Field(default=None, min_length=8, max_length=128)
+    password: str | None = Field(default=None, min_length=PASSWORD_MIN_LENGTH, max_length=128)
     roles: list[Role] = Field(default_factory=lambda: [Role.MANAGER])
     data_scope: DataScope = DataScope.DEFAULT
     university_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 class PasswordReset(BaseModel):
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=128)
 
 
 class RoleSyncResult(BaseModel):

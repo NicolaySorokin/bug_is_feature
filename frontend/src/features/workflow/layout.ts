@@ -119,6 +119,9 @@ export function edgePath(from: Point, to: Point, backward: boolean): { d: string
     x: 0.125 * start.x + 0.375 * c1.x + 0.375 * c2.x + 0.125 * end.x,
     y: 0.125 * start.y + 0.375 * c1.y + 0.375 * c2.y + 0.125 * end.y,
   };
+  // Между соседними узлами одного ряда подписи мало места: она легла бы
+  // на карточки этапов. Поднимаем её над рядом, в промежуток между рядами.
+  if (horizontal && !backward) label.y = Math.min(from.y, to.y) - NODE_HEIGHT / 2;
   return { d: `M${start.x},${start.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${end.x},${end.y}`, label };
 }
 
