@@ -2465,6 +2465,19 @@ a.list-item:hover {
   background: var(--surface);
 }
 
+/* Значок и текст подсказки - в одну строку, текст переносится рядом со значком. */
+.login__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.login__note svg {
+  flex: none;
+  margin-top: 2px;
+}
+
 .login__panel h2 {
   font:
     800 24px/30px Manrope,
