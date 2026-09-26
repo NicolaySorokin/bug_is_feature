@@ -303,7 +303,7 @@ export function ProcessCanvas({
               const from = positions[transition.from_stage_id];
               const to = positions[transition.to_stage_id];
               if (!from || !to) return null;
-              const { d, label } = edgePath(from, to, transition.is_backward);
+              const { d } = edgePath(from, to, transition.is_backward);
               const className = edgeClass(transition);
               const marker = className.includes("available")
                 ? "url(#arrow-active)"
@@ -318,11 +318,6 @@ export function ProcessCanvas({
                       {transition.name ? ` (${transition.name})` : ""}
                     </title>
                   </path>
-                  {transition.name && availableTransitionIds?.has(transition.id) && (
-                    <text className="edge-label" x={label.x} y={label.y - 6} textAnchor="middle">
-                      {clip(transition.name, 22)}
-                    </text>
-                  )}
                 </g>
               );
             })}
@@ -370,6 +365,17 @@ export function ProcessCanvas({
                 </g>
               );
             })}
+            {transitions.map((transition) => {
+              const from = positions[transition.from_stage_id];
+              const to = positions[transition.to_stage_id];
+              if (!from || !to || !transition.name || !availableTransitionIds?.has(transition.id)) return null;
+              const { label } = edgePath(from, to, transition.is_backward);
+              return (
+                <text key={`label-${transition.id}`} className="edge-label" x={label.x} y={label.y - 6} textAnchor="middle">
+                  {clip(transition.name, 22)}
+                </text>
+              );
+            })}
           </g>
         </svg>
       </div>
@@ -390,6 +396,9 @@ export function ProcessCanvas({
             </span>
             <span>
               <i style={{ borderColor: "#c5cad6" }} /> впереди
+            </span>
+            <span>
+              <i style={{ borderColor: "#ff4f12" }} /> выбран
             </span>
           </div>
         ) : (

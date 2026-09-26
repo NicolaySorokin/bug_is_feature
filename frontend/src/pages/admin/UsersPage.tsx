@@ -38,6 +38,10 @@ import { formatDateTime } from "../../lib/format";
 import { usePageTitle } from "../../lib/usePageTitle";
 
 const ROLES: Role[] = ["manager", "head", "admin"];
+
+// Политика паролей реалма Keycloak: короче Keycloak пароль не примет.
+const PASSWORD_MIN_LENGTH = 12;
+const PASSWORD_HINT = "Не короче 12 знаков: строчные и заглавные буквы, цифры, не совпадает с логином";
 const ROLE_HINTS: Record<Role, string> = {
   manager: "Ведёт свои вузы и договоры",
   head: "Видит все вузы, назначает ответственных",
@@ -194,13 +198,17 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
                     type="password"
                     value={password}
                     onChange={setPassword}
-                    hint="Не короче 8 символов; при входе Keycloak попросит сменить"
+                    hint={PASSWORD_HINT + "; при входе Keycloak попросит сменить"}
                   />
                   <div className="row">
                     <Button variant="outline" onClick={() => setPassword(null)}>
                       Отмена
                     </Button>
-                    <Button loading={reset.isPending} disabled={password.length < 8} onClick={() => reset.mutate(password)}>
+                    <Button
+                      loading={reset.isPending}
+                      disabled={password.length < PASSWORD_MIN_LENGTH}
+                      onClick={() => reset.mutate(password)}
+                    >
                       Задать
                     </Button>
                   </div>
@@ -252,7 +260,7 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
     /^[a-zA-Z0-9._-]{3,}$/.test(username.trim()) &&
     fullName.trim() &&
     roles.length > 0 &&
-    (mode !== "keycloak" || password.length >= 8);
+    (mode !== "keycloak" || password.length >= PASSWORD_MIN_LENGTH);
   return (
     <Modal
       open={open}
@@ -294,7 +302,7 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
             required
             value={password}
             onChange={setPassword}
-            hint="Не короче 8 символов"
+            hint={PASSWORD_HINT}
             autoComplete="new-password"
           />
         )}
