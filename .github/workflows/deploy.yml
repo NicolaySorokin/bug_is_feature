@@ -18,8 +18,9 @@ on:
         default: ""
       reset_data:
         description: >-
-          Данные стенда. «Сбросить» - снять копию, удалить базу и файлы
-          и загрузить чистые демоданные; необратимо для текущих данных
+          Данные стенда. «Сбросить» - снять копию, создать заново базу системы
+          и файлы и загрузить чистые демоданные; учётные записи и пароли
+          остаются. Необратимо для текущих данных системы
         type: choice
         options:
           - Оставить
@@ -79,8 +80,9 @@ jobs:
       - name: Проверка PROD_ENV
         env:
           PROD_ENV: ${{ secrets.PROD_ENV }}
-          # Пароли пользователей реалма можно держать отдельным секретом:
-          # его проще заменить, не переписывая PROD_ENV целиком.
+          # Начальные пароли пользователей реалма - по желанию, отдельным
+          # секретом. Нужны только при создании реалма на пустой базе
+          # Keycloak: дальше учётными записями управляют на сайте.
           KEYCLOAK_USER_PASSWORDS: ${{ secrets.KEYCLOAK_USER_PASSWORDS }}
         run: |
           set -euo pipefail
@@ -99,25 +101,25 @@ jobs:
           echo "Переменные в PROD_ENV: $keys"
 
           # Без паролей compose подставил бы значения по умолчанию для разработки.
-          for key in POSTGRES_PASSWORD KEYCLOAK_ADMIN_PASSWORD KEYCLOAK_USER_PASSWORDS; do
-            if [ -z "$(value "$key")" ]; then
-              where="В PROD_ENV"
-              [ "$key" != KEYCLOAK_USER_PASSWORDS ] || where="Ни в PROD_ENV, ни отдельным секретом"
-              echo "::error::$where не задан $key"
-              exit 1
-            fi
+          for key in POSTGRES_PASSWORD KEYCLOAK_ADMIN_PASSWORD; do
+            [ -n "$(value "$key")" ] || { echo "::error::В PROD_ENV не задан $key"; exit 1; }
           done
 
-          # Пароль нужен каждому пользователю реалма, иначе под ним не войти.
-          # Сравниваются только логины, сами пароли в журнал не попадают.
-          users=$(jq -r '.users[].username' deploy/keycloak/realm-export.json | sort)
-          given=$(value KEYCLOAK_USER_PASSWORDS | tr ', ' '\n\n' | sed -n 's/^\([^:]\{1,\}\):.\{1,\}$/\1/p' | sort -u)
-          missing=$(comm -23 <(echo "$users") <(echo "$given") | tr '\n' ' ')
-          if [ -n "$missing" ]; then
-            echo "::error::В KEYCLOAK_USER_PASSWORDS нет паролей для: $missing"
-            exit 1
+          # Начальные пароли ставятся только тем, у кого пароля ещё нет, то есть
+          # после создания реалма; без них первый вход администратора - паролем
+          # консоли Keycloak (см. backend/scripts/keycloak_setup.py). Проверяется
+          # только вид записей, сами пароли в журнал не попадают.
+          pairs=$(value KEYCLOAK_USER_PASSWORDS | tr ', ' '\n\n' | sed '/^$/d')
+          if [ -n "$pairs" ]; then
+            bad=$(grep -cv '^[^:]\{1,\}:.\{1,\}$' <<< "$pairs" || true)
+            if [ "$bad" != 0 ]; then
+              echo "::error::KEYCLOAK_USER_PASSWORDS: записей не в виде логин:пароль - $bad"
+              exit 1
+            fi
+            echo "Начальные пароли заданы для $(wc -l <<< "$pairs") пользователей"
+          else
+            echo "Начальные пароли не заданы: пароли пользователей задаёт администратор на сайте"
           fi
-          echo "Пароли заданы для всех $(echo "$users" | wc -l) пользователей реалма"
           if [ "$(value KEYCLOAK_BASE_URL)" != "https://$DOMAIN" ]; then
             echo "::warning::KEYCLOAK_BASE_URL в PROD_ENV не https://$DOMAIN - токены Keycloak не пройдут проверку издателя"
           fi
@@ -186,7 +188,8 @@ jobs:
         run: ssh prod "APP_DIR=$APP_DIR bash $APP_DIR/releases/$RELEASE/cicd/prod/server/release.sh activate $RELEASE"
 
       # Только при ручном запуске с «Сбросить к демоданным»: копия данных
-      # в /opt/edu-crm/backups, удаление томов, запуск с чистыми демоданными.
+      # в /opt/edu-crm/backups, база системы и файлы заново, чистые демоданные.
+      # Учётные записи Keycloak не трогаются.
       - name: Сброс данных к демоданным
         if: github.event_name == 'workflow_dispatch' && inputs.reset_data == 'Сбросить к демоданным'
         run: ssh prod "APP_DIR=$APP_DIR bash $APP_DIR/current/cicd/prod/server/release.sh reset-data --confirm"

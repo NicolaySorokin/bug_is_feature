@@ -17,7 +17,8 @@
 edu-crm-loadtest: у клиента веб-интерфейса вход в обход страницы Keycloak
 выключен. Клиент нагрузки тоже выключен, его включают на время замера
 (python -m scripts.keycloak_setup --loadtest on, после - off). Пароли -
-из переменной KEYCLOAK_USER_PASSWORDS, в том же виде, что в секрете среды.
+из переменной KEYCLOAK_USER_PASSWORDS (логин:пароль через запятую); хватит
+одного менеджера и одного руководителя, нагрузка пойдёт от их имени.
 Порядок целиком - cicd/README.md, «Нагрузочная проверка».
 Не запускайте на стенде во время показа: нагрузка настоящая.
 """
@@ -208,16 +209,21 @@ def _fork(rng: random.Random) -> random.Random:
 
 async def main(args: argparse.Namespace) -> bool:
     rng = random.Random(args.seed)
+    people = [employee for employee in EMPLOYEES if employee.username != "admin"]
+    heads = [employee for employee in EMPLOYEES if "head" in employee.roles]
     args.passwords = {}
     if args.keycloak_url:
         try:
             args.passwords = parse_passwords(os.environ.get("KEYCLOAK_USER_PASSWORDS", ""))
         except SetupError as exc:
             raise SystemExit(str(exc)) from exc
-        missing = [e.username for e in EMPLOYEES if e.username not in args.passwords]
-        if missing:
+        # Пароли могли задать на сайте не всем: нагрузка идёт от тех, кто есть.
+        people = [e for e in people if e.username in args.passwords]
+        heads = [e for e in heads if e.username in args.passwords]
+        if not people or not heads:
             raise SystemExit(
-                "Нет паролей в KEYCLOAK_USER_PASSWORDS для: " + ", ".join(missing)
+                "Для входа нужны пароли в KEYCLOAK_USER_PASSWORDS хотя бы одного "
+                "менеджера и одного руководителя"
             )
     stats = Stats()
     limits = httpx.Limits(max_connections=args.users + args.reports + 10)
@@ -225,9 +231,8 @@ async def main(args: argparse.Namespace) -> bool:
         base_url=args.base_url.rstrip("/"), timeout=120, limits=limits
     ) as client:
         # Токены - по одному на сотрудника; «пользователи» ходят под ними по кругу.
-        people = [employee for employee in EMPLOYEES if employee.username != "admin"]
         identities = [await _headers(client, args, employee) for employee in people]
-        analysts = [await _headers(client, args, e) for e in EMPLOYEES if "head" in e.roles]
+        analysts = [await _headers(client, args, employee) for employee in heads]
 
         deadline = time.monotonic() + args.duration
         tasks = [

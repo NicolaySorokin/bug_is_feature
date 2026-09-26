@@ -67,6 +67,9 @@ class UserCreate(BaseModel):
 
 class PasswordReset(BaseModel):
     password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=128)
+    # Временный пароль Keycloak попросит сменить при первом входе. Постоянный -
+    # например, общая учётная запись для показа, которую нельзя «угнать» сменой.
+    temporary: bool = True
 
 
 class RoleSyncResult(BaseModel):

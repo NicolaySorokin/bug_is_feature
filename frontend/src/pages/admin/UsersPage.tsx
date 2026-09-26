@@ -87,6 +87,7 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
   const [grants, setGrants] = useState<string[]>([]);
   const [active, setActive] = useState(true);
   const [password, setPassword] = useState<string | null>(null);
+  const [temporary, setTemporary] = useState(true);
 
   useEffect(() => {
     if (!user.data) return;
@@ -116,9 +117,12 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
       },
     },
   );
-  const reset = useApiMutation((value: string) => resetPassword(userId!, value), {
-    success: "Временный пароль задан: пользователь сменит его при входе",
-    onSuccess: () => setPassword(null),
+  const reset = useApiMutation((value: string) => resetPassword(userId!, value, temporary), {
+    success: temporary ? "Пароль задан: пользователь сменит его при первом входе" : "Пароль задан",
+    onSuccess: () => {
+      setPassword(null);
+      setTemporary(true);
+    },
   });
 
   const self = userId === me.id;
@@ -189,17 +193,19 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
             <Card title="Пароль">
               {password === null ? (
                 <Button variant="outline" icon={KeyRound} onClick={() => setPassword("")}>
-                  Задать временный пароль
+                  Задать пароль
                 </Button>
               ) : (
                 <div className="stack-s">
                   <TextField
-                    label="Временный пароль"
+                    label="Новый пароль"
                     type="password"
                     value={password}
                     onChange={setPassword}
-                    hint={PASSWORD_HINT + "; при входе Keycloak попросит сменить"}
+                    hint={PASSWORD_HINT}
+                    autoComplete="new-password"
                   />
+                  <Checkbox label="Попросить сменить пароль при первом входе" checked={temporary} onChange={setTemporary} />
                   <div className="row">
                     <Button variant="outline" onClick={() => setPassword(null)}>
                       Отмена

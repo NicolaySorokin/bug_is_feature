@@ -1,30 +1,39 @@
 """Настройка реалма Keycloak по deploy/keycloak/realm-export.json.
 
-Keycloak хранит данные в PostgreSQL, поэтому выгрузка реалма импортируется
-только при самом первом запуске (``--import-realm`` пропускает уже
-существующий реалм). Правки выгрузки в работающий реалм переносит этот
-скрипт; деплой запускает его после каждого подъёма стенда:
+Выгрузка разделяется на настройку и данные.
 
-* настройки реалма (политика паролей, сроки токенов, защита от подбора,
-  тема страницы входа) приводятся к выгрузке;
-* клиенты приводятся к выгрузке; адреса возврата клиентской части
-  берутся из ``CORS_ORIGINS`` - это адреса веб-интерфейса именно этой среды;
-* недостающие роли, клиенты и пользователи заводятся, существующие роли
-  и пользователи не трогаются: их роли и профиль меняют администраторы
-  из интерфейса CRM;
-* пароли пользователей задаются секретом ``KEYCLOAK_USER_PASSWORDS``
-  (пары ``логин:пароль`` через запятую) и ставятся тем, у кого пароля
-  ещё нет. С ``--reset-passwords`` - всем перечисленным, так меняют
-  пароли на новые из секрета.
+Настройка - параметры реалма (политика паролей, сроки токенов, защита
+от подбора, тема страницы входа), роли и клиенты - переносится в работающий
+Keycloak при каждом подъёме стенда: деплой запускает этот скрипт. Адреса
+возврата клиентской части берутся из ``CORS_ORIGINS`` - это адреса
+веб-интерфейса именно этой среды.
 
-В репозитории паролей нет. На боевой среде (``ENVIRONMENT=prod``)
-пользователь выгрузки без пароля - ошибка: в систему под ним не войти.
-В разработке недостающие пароли генерируются и печатаются в консоль.
+Данные - учётные записи - берутся из выгрузки только при создании реалма
+(первый запуск Keycloak на пустой базе). Дальше ими управляют на сайте:
+администратор в разделе «Пользователи и права» заводит и отключает
+сотрудников, меняет роли и задаёт пароли, сотрудник сам меняет пароль
+в «Учётная запись и пароль». Деплой этих изменений не трогает и удалённых
+пользователей не возвращает.
+
+Начальные пароли. У пользователей из выгрузки пароля нет (репозиторий
+публичный). Пароль ставится только тому, у кого его ещё нет:
+
+* из ``KEYCLOAK_USER_PASSWORDS`` (пары ``логин:пароль`` через запятую),
+  если переменная задана. Она нужна только при создании реалма, дальше
+  её можно не задавать;
+* если ни у одного администратора нет пароля, первому администратору
+  выгрузки ставится временный пароль, равный паролю консоли Keycloak
+  (``KEYCLOAK_ADMIN_PASSWORD``): Keycloak попросит сменить его при
+  первом входе, а пароли остальным администратор задаст на сайте;
+* в разработке недостающие пароли генерируются и печатаются в консоль.
+
+С ``--reset-passwords`` пароли из переменной ставятся всем перечисленным,
+даже если пароль уже есть.
 
     python -m scripts.keycloak_setup                    # обычный запуск
-    python -m scripts.keycloak_setup --reset-passwords  # сменить пароли на секрет
+    python -m scripts.keycloak_setup --reset-passwords  # сменить пароли на заданные
     python -m scripts.keycloak_setup --loadtest on      # включить клиент нагрузки
-    python -m scripts.keycloak_setup --generate-passwords  # новые пароли для секрета
+    python -m scripts.keycloak_setup --generate-passwords  # сгенерировать пароли
 
 Вызовы идут от администратора Keycloak (реалм master, ``KEYCLOAK_ADMIN``
 и ``KEYCLOAK_ADMIN_PASSWORD``) по внутреннему адресу ``KEYCLOAK_INTERNAL_URL``.
@@ -48,6 +57,7 @@ import httpx
 REALM_FILE = Path(os.environ.get("KEYCLOAK_REALM_FILE", "/realm/realm-export.json"))
 WEB_CLIENT_ID = os.environ.get("KEYCLOAK_WEB_CLIENT_ID", "edu-crm-web")
 LOADTEST_CLIENT_ID = "edu-crm-loadtest"
+ADMIN_ROLE = "admin"
 
 # Разделы выгрузки, которые не являются настройками реалма: их переносят
 # отдельные шаги, а PUT реалма с ними заменил бы роли и клиентов целиком.
@@ -177,15 +187,22 @@ class Keycloak:
         ).json()
         return found[0] if found else None
 
+    def role_members(self, role: str) -> list[dict[str, Any]]:
+        """Пользователи, которым роль реалма назначена напрямую."""
+        response = self.request(
+            "GET", self.realm_path(f"/roles/{role}/users"), params={"max": 1000}
+        )
+        return response.json() if response.status_code == 200 else []
+
     def has_password(self, user_id: str) -> bool:
         credentials = self.request("GET", self.realm_path(f"/users/{user_id}/credentials"))
         return any(item.get("type") == "password" for item in credentials.json())
 
-    def set_password(self, user_id: str, password: str) -> None:
+    def set_password(self, user_id: str, password: str, *, temporary: bool = False) -> None:
         self.request(
             "PUT",
             self.realm_path(f"/users/{user_id}/reset-password"),
-            json_body={"type": "password", "value": password, "temporary": False},
+            json_body={"type": "password", "value": password, "temporary": temporary},
         )
 
 
@@ -197,7 +214,7 @@ def load_realm() -> dict[str, Any]:
         if user.get("credentials"):
             raise SetupError(
                 f"В выгрузке реалма есть пароль пользователя {user['username']}: "
-                "пароли задаются только секретом KEYCLOAK_USER_PASSWORDS"
+                "в публичный репозиторий пароли не кладутся"
             )
     return realm
 
@@ -223,8 +240,9 @@ def apply_realm(kc: Keycloak, realm: dict[str, Any], origins: list[str]) -> None
         kc.request("POST", "", json_body={**realm, "clients": clients})
         return
 
-    # Недостающее - одним частичным импортом: он сохраняет id пользователей
-    # из выгрузки (к ним привязаны договоры демоданных) и их роли.
+    # Недостающие роли и клиенты - частичным импортом. Пользователей здесь
+    # нет: учётные записи ведут на сайте, и удалённый там сотрудник не должен
+    # возвращаться с очередным деплоем.
     result = kc.request(
         "POST",
         kc.realm_path("/partialImport"),
@@ -232,7 +250,6 @@ def apply_realm(kc: Keycloak, realm: dict[str, Any], origins: list[str]) -> None
             "ifResourceExists": "SKIP",
             "roles": realm.get("roles", {}),
             "clients": clients,
-            "users": realm.get("users", []),
         },
     ).json()
     added = [
@@ -276,43 +293,79 @@ def apply_passwords(
     *,
     reset: bool,
     production: bool,
+    console_password: str,
 ) -> None:
+    """Начальные пароли - только тем, у кого пароля ещё нет (см. описание модуля)."""
     usernames = [user["username"] for user in realm.get("users", [])]
-    unknown = sorted(set(passwords) - set(usernames))
-    missing: list[str] = []
+    candidates = usernames + sorted(set(passwords) - set(usernames))
     generated: dict[str, str] = {}
+    without_password: list[str] = []
     changed = 0
 
-    for username in usernames + unknown:
+    for username in candidates:
         user = kc.find_user(username)
         if user is None:
-            log(f"Пароль для {username}: такого пользователя в реалме нет, пропускаю")
+            # Удалён на сайте или заведён под другим логином - это не ошибка.
+            if username in passwords:
+                log(f"{username}: такого пользователя в реалме нет, пароль пропущен")
+            continue
+        replace = reset and username in passwords
+        if not replace and kc.has_password(user["id"]):
             continue
         password = passwords.get(username)
-        if not reset and kc.has_password(user["id"]):
-            continue
         if password is None:
-            if kc.has_password(user["id"]):
-                continue
             if production:
-                missing.append(username)
+                without_password.append(username)
                 continue
             password = generated[username] = generate_password()
         kc.set_password(user["id"], password)
         changed += 1
 
-    if missing:
-        raise SetupError(
-            "Нет пароля для пользователей " + ", ".join(missing) + ": добавьте их в "
-            "KEYCLOAK_USER_PASSWORDS (секрет репозитория), иначе под ними не войти"
-        )
+    if production:
+        admin = _admin_without_access(kc, usernames)
+        if admin is not None:
+            try:
+                kc.set_password(admin["id"], console_password, temporary=True)
+            except SetupError as exc:
+                raise SetupError(
+                    "Пароль консоли Keycloak (KEYCLOAK_ADMIN_PASSWORD) не подходит под "
+                    "политику паролей реалма, а войти администратору больше нечем: "
+                    "задайте KEYCLOAK_USER_PASSWORDS хотя бы для "
+                    f"{admin['username']}"
+                ) from exc
+            changed += 1
+            if admin["username"] in without_password:
+                without_password.remove(admin["username"])
+            log(
+                f"Первый вход администратора {admin['username']} - паролем консоли "
+                "Keycloak (KEYCLOAK_ADMIN_PASSWORD); Keycloak сразу попросит сменить его"
+            )
+
     log(f"Пароли: установлено {changed}, остальные без изменений")
+    if without_password:
+        log(
+            "Без пароля, войти пока не смогут: " + ", ".join(without_password) + ". "
+            "Пароль задаёт администратор: «Пользователи и права» → пользователь → «Пароль»"
+        )
     if generated:
-        # Только в разработке: на боевой среде пароли приходят из секрета,
-        # а журнал деплоя публичного репозитория виден всем.
+        # Только в разработке: на боевой среде журнал деплоя публичного
+        # репозитория виден всем, туда пароли не печатаются.
         log("Сгенерированы пароли (среда разработки):")
         for username, password in generated.items():
             print(f"    {username}: {password}")
+
+
+def _admin_without_access(kc: Keycloak, usernames: list[str]) -> dict[str, Any] | None:
+    """Администратор, которому нужен первый пароль, - если войти не может ни один.
+
+    Без администратора пароли остальным на сайте задать некому. Берётся
+    первый администратор из выгрузки, а если их удалили - любой.
+    """
+    admins = [user for user in kc.role_members(ADMIN_ROLE) if user.get("enabled", True)]
+    if not admins or any(kc.has_password(user["id"]) for user in admins):
+        return None
+    order = {username: index for index, username in enumerate(usernames)}
+    return min(admins, key=lambda user: order.get(user["username"], len(order)))
 
 
 def toggle_loadtest(kc: Keycloak, enabled: bool) -> None:
@@ -333,7 +386,7 @@ def main() -> int:
     parser.add_argument(
         "--reset-passwords",
         action="store_true",
-        help="поставить пароли из KEYCLOAK_USER_PASSWORDS всем перечисленным",
+        help="поставить пароли из KEYCLOAK_USER_PASSWORDS перечисленным, даже если есть",
     )
     parser.add_argument(
         "--loadtest",
@@ -343,7 +396,7 @@ def main() -> int:
     parser.add_argument(
         "--generate-passwords",
         action="store_true",
-        help="напечатать новые пароли для секрета и выйти, Keycloak не нужен",
+        help="напечатать новые пароли для KEYCLOAK_USER_PASSWORDS и выйти, Keycloak не нужен",
     )
     parser.add_argument("--wait", type=float, default=300, help="сколько ждать Keycloak, с")
     args = parser.parse_args()
@@ -376,7 +429,12 @@ def main() -> int:
 
         apply_realm(kc, realm, web_origins())
         apply_passwords(
-            kc, realm, passwords, reset=args.reset_passwords, production=production
+            kc,
+            realm,
+            passwords,
+            reset=args.reset_passwords,
+            production=production,
+            console_password=admin_password,
         )
     except SetupError as exc:
         print(f"Ошибка: {exc}", file=sys.stderr)

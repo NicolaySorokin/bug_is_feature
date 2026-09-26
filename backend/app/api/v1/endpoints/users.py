@@ -304,7 +304,11 @@ async def update_user(
     "/users/{user_id}/reset-password",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=admin_only,
-    summary="Выдать временный пароль",
+    summary="Задать пароль",
+    description=(
+        "Пароль пишется в Keycloak. Временный (по умолчанию) Keycloak попросит "
+        "сменить при первом входе, постоянный остаётся как есть."
+    ),
 )
 async def reset_password(
     user_id: uuid.UUID,
@@ -315,7 +319,9 @@ async def reset_password(
     user = await _get_user(session, user_id)
     if not _keycloak_mode() or user.keycloak_id.startswith("dev:"):
         raise ConflictError("Пароли хранятся в Keycloak, а он в этом режиме не подключён")
-    await _keycloak(token).reset_password(user.keycloak_id, payload.password)
+    await _keycloak(token).reset_password(
+        user.keycloak_id, payload.password, temporary=payload.temporary
+    )
 
 
 @router.post(
