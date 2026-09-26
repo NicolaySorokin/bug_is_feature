@@ -137,7 +137,10 @@ make up ENV=prod                            # контейнеры, миграц
                 <td>
                   <code>LMS_BASE_URL</code>, <code>LMS_TOKEN</code>, <code>SITE_BASE_URL</code>, <code>SITE_TOKEN</code>
                 </td>
-                <td>API LMS и сайта. Пусто - тестовые ответы (файл JSON можно загрузить в разделе «LMS и сайт»)</td>
+                <td>
+                  API LMS и сайта. Пусто - демонстрационный режим: пример ответа в формате источника (ответ настоящего API можно
+                  загрузить файлом JSON в разделе «LMS и сайт»)
+                </td>
               </tr>
               <tr>
                 <td>

@@ -7,6 +7,8 @@
  *   BASE=http://localhost:5173 KEYCLOAK_BASE=http://localhost:8088 \
  *     node scripts/help-screenshots.cjs
  *
+ * ONLY_LOGIN=1 - только снимки входа (login.png, keycloak-login.png).
+ *
  * Playwright в зависимости проекта не входит: npx playwright install
  * chromium или глобальная установка (PLAYWRIGHT_PATH - путь к пакету).
  */
@@ -64,12 +66,22 @@ async function shot(page, name) {
   const browser = await chromium.launch();
 
   if (KEYCLOAK_BASE) {
-    const context = await browser.newContext(DESKTOP);
+    // Стенд с Keycloak бывает с самоподписанным сертификатом (preprod, проверка
+    // боевой конфигурации на своей машине).
+    const context = await browser.newContext({ ...DESKTOP, ignoreHTTPSErrors: true });
     const page = await context.newPage();
     await page.goto(KEYCLOAK_BASE + "/");
     await page.waitForSelector(".login__panel");
     await shot(page, "login.png");
+    await page.getByRole("button", { name: /Войти/ }).click();
+    await page.waitForSelector("#kc-form-login");
+    await page.waitForTimeout(500);
+    await shot(page, "keycloak-login.png");
     await context.close();
+  }
+  if (process.env.ONLY_LOGIN) {
+    await browser.close();
+    return;
   }
 
   const manager = await session(browser, "manager");

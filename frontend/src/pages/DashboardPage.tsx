@@ -280,7 +280,7 @@ function AdminBlock({ data }: { data: Dashboard }) {
               </div>
               <small className="muted">
                 {item.last_started_at ? `Последний запуск ${formatDateTime(item.last_started_at)}` : "Запусков ещё не было"}
-                {item.uses_fixture ? " · тестовые данные" : ""}
+                {item.uses_fixture ? " · демонстрационный режим" : ""}
               </small>
               {item.last_error && <small className="field__error">{item.last_error}</small>}
             </div>
