@@ -305,6 +305,11 @@ async def update_user(
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=admin_only,
     summary="Выдать временный пароль",
+    description=(
+        "Пароль пишется в Keycloak временным: при первом входе Keycloak попросит "
+        "сотрудника придумать свой. Постоянный пароль знает только сам сотрудник - "
+        "администратор его не задаёт."
+    ),
 )
 async def reset_password(
     user_id: uuid.UUID,

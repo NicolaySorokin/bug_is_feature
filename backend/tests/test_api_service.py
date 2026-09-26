@@ -2,13 +2,23 @@
 
 from httpx import AsyncClient
 
-from tests.conftest import MANAGER
+from tests.conftest import ADMIN, MANAGER
 
 
 async def test_health_reports_database(client: AsyncClient) -> None:
     response = await client.get("/api/v1/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    # Метод открыт без входа: среда и схема авторизации наружу не уходят.
+    assert response.json() == {"status": "ok"}
+
+
+async def test_cache_state_is_for_admin_only(client: AsyncClient) -> None:
+    assert (await client.get("/api/v1/meta/cache")).status_code == 404
+    denied = await client.get("/api/v1/settings/cache", headers=MANAGER)
+    assert denied.status_code == 403
+    state = await client.get("/api/v1/settings/cache", headers=ADMIN)
+    assert state.status_code == 200
+    assert {"version", "hits", "misses"} <= set(state.json())
 
 
 async def test_meta_gives_labels_and_error_codes(client: AsyncClient) -> None:

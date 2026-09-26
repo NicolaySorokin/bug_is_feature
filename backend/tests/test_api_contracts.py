@@ -5,9 +5,7 @@ from httpx import AsyncClient
 from tests.conftest import ADMIN, HEAD, MANAGER, OTHER_MANAGER, make_contract
 
 
-async def test_manager_sees_only_own_contracts(
-    client: AsyncClient, university: dict
-) -> None:
+async def test_manager_sees_only_own_contracts(client: AsyncClient, university: dict) -> None:
     mine = await make_contract(client, university["id"], MANAGER)
     await make_contract(client, university["id"], OTHER_MANAGER)
 
@@ -20,9 +18,7 @@ async def test_manager_sees_only_own_contracts(
     assert for_head["total"] == 2
 
 
-async def test_foreign_contract_is_forbidden(
-    client: AsyncClient, university: dict
-) -> None:
+async def test_foreign_contract_is_forbidden(client: AsyncClient, university: dict) -> None:
     foreign = await make_contract(client, university["id"], OTHER_MANAGER)
 
     response = await client.get(f"/api/v1/contracts/{foreign['id']}", headers=MANAGER)

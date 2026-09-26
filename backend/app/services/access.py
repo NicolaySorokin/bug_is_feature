@@ -40,9 +40,13 @@ def sees_all_contracts(principal: Principal, user: User) -> bool:
 
 def managed_universities(user: User) -> Select:
     """Вузы, за которыми закреплён пользователь или к которым ему дали доступ."""
-    return select(University.id).where(University.manager_id == user.id).union(
-        select(UserUniversityAccess.university_id).where(
-            UserUniversityAccess.user_id == user.id
+    return (
+        select(University.id)
+        .where(University.manager_id == user.id)
+        .union(
+            select(UserUniversityAccess.university_id).where(
+                UserUniversityAccess.user_id == user.id
+            )
         )
     )
 

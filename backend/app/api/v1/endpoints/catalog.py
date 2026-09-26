@@ -53,10 +53,13 @@ async def _get(session: SessionDep, model, item_id: uuid.UUID, title: str):  # n
 
 
 async def _check_unique_name(
-    session: SessionDep, model, name: str, exclude_id: uuid.UUID | None = None  # noqa: ANN001
+    session: SessionDep,
+    model,
+    name: str,
+    exclude_id: uuid.UUID | None = None,  # noqa: ANN001
 ) -> None:
-    statement = select(func.count()).select_from(model).where(
-        func.lower(model.name) == name.lower()
+    statement = (
+        select(func.count()).select_from(model).where(func.lower(model.name) == name.lower())
     )
     if exclude_id is not None:
         statement = statement.where(model.id != exclude_id)

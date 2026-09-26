@@ -3,7 +3,8 @@ name: Деплой
 # Боевой стенд https://edu-crm.nikitarodionov.ru обновляется сам после
 # зелёного CI на main: пуш или слияние pull request. Вручную
 # (Actions → Деплой → Run workflow) можно выложить ветку или коммит -
-# так же откатываются на старую версию. Как это устроено - cicd/README.md.
+# так же откатываются на старую версию - и при необходимости вернуть
+# стенд к чистым демоданным. Как это устроено - cicd/README.md.
 on:
   workflow_run:
     workflows: [CI]
@@ -15,6 +16,16 @@ on:
         description: Коммит, тег или ветка. Пусто - ветка, выбранная выше
         required: false
         default: ""
+      reset_data:
+        description: >-
+          Данные стенда. «Сбросить» - снять копию, создать заново базу системы
+          и файлы и загрузить чистые демоданные; учётные записи и пароли
+          остаются. Необратимо для текущих данных системы
+        type: choice
+        options:
+          - Оставить
+          - Сбросить к демоданным
+        default: Оставить
 
 permissions:
   contents: read
@@ -53,6 +64,9 @@ jobs:
             echo "SHA=$sha"
             echo "TAG=$tag"
             echo "RELEASE=$(date -u +%Y%m%d-%H%M%S)-$tag"
+            # Образ Keycloak помечается по содержимому deploy/keycloak/image,
+            # тем же способом, что на сервере.
+            echo "KEYCLOAK_TAG=$(bash cicd/prod/server/release.sh keycloak-tag .)"
           } >> "$GITHUB_ENV"
           git log -1 --format='%h %s (%an)'
 
@@ -66,10 +80,20 @@ jobs:
       - name: Проверка PROD_ENV
         env:
           PROD_ENV: ${{ secrets.PROD_ENV }}
+          # Начальные пароли пользователей реалма - по желанию, отдельным
+          # секретом. Нужны только при создании реалма на пустой базе
+          # Keycloak: дальше учётными записями управляют на сайте.
+          KEYCLOAK_USER_PASSWORDS: ${{ secrets.KEYCLOAK_USER_PASSWORDS }}
         run: |
           set -euo pipefail
           # Секрет вставлен из Windows: убираем \r, иначе он окажется в паролях.
           printf '%s\n' "$PROD_ENV" | tr -d '\r' > "$RUNNER_TEMP/prod.env"
+          if [ -n "$KEYCLOAK_USER_PASSWORDS" ]; then
+            # Одной строкой: пары через запятую, переводы строк и пробелы убираем.
+            passwords=$(printf '%s' "$KEYCLOAK_USER_PASSWORDS" | tr -d '\r' | tr -s ' \n\t' ',' | sed 's/^,*//; s/,*$//')
+            passwords=${passwords#KEYCLOAK_USER_PASSWORDS=}
+            printf 'KEYCLOAK_USER_PASSWORDS=%s\n' "$passwords" >> "$RUNNER_TEMP/prod.env"
+          fi
           value() { sed -n "s/^$1=//p" "$RUNNER_TEMP/prod.env" | tail -1 | tr -d "\"'"; }
 
           keys=$(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$RUNNER_TEMP/prod.env" | sort -u | tr '\n' ' ')
@@ -80,6 +104,22 @@ jobs:
           for key in POSTGRES_PASSWORD KEYCLOAK_ADMIN_PASSWORD; do
             [ -n "$(value "$key")" ] || { echo "::error::В PROD_ENV не задан $key"; exit 1; }
           done
+
+          # Начальные пароли ставятся только тем, у кого пароля ещё нет, то есть
+          # после создания реалма; без них первый вход администратора - паролем
+          # консоли Keycloak (см. backend/scripts/keycloak_setup.py). Проверяется
+          # только вид записей, сами пароли в журнал не попадают.
+          pairs=$(value KEYCLOAK_USER_PASSWORDS | tr ', ' '\n\n' | sed '/^$/d')
+          if [ -n "$pairs" ]; then
+            bad=$(grep -cv '^[^:]\{1,\}:.\{1,\}$' <<< "$pairs" || true)
+            if [ "$bad" != 0 ]; then
+              echo "::error::KEYCLOAK_USER_PASSWORDS: записей не в виде логин:пароль - $bad"
+              exit 1
+            fi
+            echo "Начальные пароли заданы для $(wc -l <<< "$pairs") пользователей"
+          else
+            echo "Начальные пароли не заданы: пароли пользователей задаёт администратор на сайте"
+          fi
           if [ "$(value KEYCLOAK_BASE_URL)" != "https://$DOMAIN" ]; then
             echo "::warning::KEYCLOAK_BASE_URL в PROD_ENV не https://$DOMAIN - токены Keycloak не пройдут проверку издателя"
           fi
@@ -118,11 +158,15 @@ jobs:
         run: |
           set -euo pipefail
           external=$(docker compose -f docker-compose.yml -f cicd/prod/docker-compose.yml \
-            --profile keycloak config --images | grep -Ev '^edu-crm-(api|web):' | sort -u)
-          for image in $external "edu-crm-api:$TAG" "edu-crm-web:$TAG"; do
+            --profile keycloak config --images | grep -Ev '^edu-crm-' | sort -u)
+          for image in $external "edu-crm-api:$TAG" "edu-crm-web:$TAG" "edu-crm-keycloak:$KEYCLOAK_TAG"; do
             if ssh prod docker image inspect "$image" > /dev/null 2>&1; then
               echo "$image: уже на сервере"
               continue
+            fi
+            # Keycloak собирается, только если такого образа на сервере ещё нет.
+            if [[ $image == edu-crm-keycloak:* ]]; then
+              docker build --label "org.opencontainers.image.revision=$SHA" -t "$image" ./deploy/keycloak/image
             fi
             [[ $image == edu-crm-* ]] || docker pull -q "$image"
             echo "$image: передаю"
@@ -142,6 +186,13 @@ jobs:
       - name: Запуск
         id: activate
         run: ssh prod "APP_DIR=$APP_DIR bash $APP_DIR/releases/$RELEASE/cicd/prod/server/release.sh activate $RELEASE"
+
+      # Только при ручном запуске с «Сбросить к демоданным»: копия данных
+      # в /opt/edu-crm/backups, база системы и файлы заново, чистые демоданные.
+      # Учётные записи Keycloak не трогаются.
+      - name: Сброс данных к демоданным
+        if: github.event_name == 'workflow_dispatch' && inputs.reset_data == 'Сбросить к демоданным'
+        run: ssh prod "APP_DIR=$APP_DIR bash $APP_DIR/current/cicd/prod/server/release.sh reset-data --confirm"
 
       # Продление идёт через webroot, пока стенд работает. Перевод делается
       # один раз, с пробным продлением на тестовом сервере Let's Encrypt.
@@ -174,6 +225,18 @@ jobs:
             ok "API здоров: /api/v1/health" "\`$(cat "$RUNNER_TEMP/health.json")\`"
           else
             fail "API здоров: /api/v1/health" "нет ответа status ok за 2 минуты"
+          fi
+          # Метод открыт без входа: ничего, кроме статуса, в нём быть не должно.
+          if [ "$(tr -d ' \n' < "$RUNNER_TEMP/health.json")" = '{"status":"ok"}' ]; then
+            ok "Служебные сведения скрыты" "/api/v1/health отдаёт только status"
+          else
+            fail "Служебные сведения скрыты" "/api/v1/health отдаёт лишнее"
+          fi
+          server=$(curl -sS --max-time 10 -o /dev/null -D - "$base/" | sed -n 's/^[Ss]erver: *//p' | tr -d '\r')
+          if [[ $server != *[0-9]* ]]; then
+            ok "Версия Nginx скрыта" "Server: $server"
+          else
+            fail "Версия Nginx скрыта" "Server: $server"
           fi
 
           read -r code url < <(curl -sS -L --max-time 20 -o "$RUNNER_TEMP/index.html" -w '%{http_code} %{url_effective}' "$base/")
@@ -215,6 +278,33 @@ jobs:
           # Keycloak после пересоздания импортирует реалм, это до пары минут.
           oidc() { curl -fsS --max-time 10 -o /dev/null "$base/realms/edu-crm/.well-known/openid-configuration"; }
           if retry 36 oidc; then ok "Keycloak: реалм edu-crm" "200"; else fail "Keycloak: реалм edu-crm" "не отвечает за 3 минуты"; fi
+
+          # Страница входа - в теме системы, а не стандартная Keycloak.
+          # PKCE у клиента обязателен: без code_challenge страницы не будет.
+          login="$base/realms/edu-crm/protocol/openid-connect/auth?client_id=edu-crm-web&response_type=code&scope=openid&code_challenge_method=S256&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&redirect_uri=$base/"
+          if curl -fsS --max-time 10 "$login" | grep -q 'login/edu-crm/css/edu-crm.css'; then
+            ok "Страница входа" "тема edu-crm"
+          else
+            fail "Страница входа" "не открывается или без темы edu-crm"
+          fi
+
+          # Вход только через страницу Keycloak: выдача токена по паролю
+          # в обход неё (Direct Access Grants) у клиента выключена.
+          grant=$(curl -sS --max-time 10 -X POST "$base/realms/edu-crm/protocol/openid-connect/token" \
+            -d client_id=edu-crm-web -d grant_type=password -d username=deploy-check -d password=deploy-check)
+          if grep -q unauthorized_client <<< "$grant"; then
+            ok "Вход по паролю в обход страницы Keycloak" "запрещён"
+          else
+            fail "Вход по паролю в обход страницы Keycloak" "не запрещён: $grant"
+          fi
+
+          # Снаружи только реалм системы: master и консоль недоступны.
+          code=$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "$base/realms/master/.well-known/openid-configuration")
+          if [ "$code" = 404 ]; then
+            ok "Реалм master снаружи" "закрыт (404)"
+          else
+            fail "Реалм master снаружи" "код $code"
+          fi
 
           cert=$(openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" < /dev/null 2> /dev/null \
             | openssl x509 -noout -enddate -issuer)

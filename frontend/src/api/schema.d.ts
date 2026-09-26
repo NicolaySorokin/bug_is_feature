@@ -562,7 +562,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Состояние сервиса */
+        /**
+         * Состояние сервиса
+         * @description Отвечает `{"status": "ok"}`, если API работает и база доступна.
+         */
         get: operations["health_api_v1_health_get"];
         put?: never;
         post?: never;
@@ -1237,7 +1240,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Выдать временный пароль */
+        /**
+         * Выдать временный пароль
+         * @description Пароль пишется в Keycloak временным: при первом входе Keycloak попросит сотрудника придумать свой. Постоянный пароль знает только сам сотрудник - администратор его не задаёт.
+         */
         post: operations["reset_password_api_v1_users__user_id__reset_password_post"];
         delete?: never;
         options?: never;

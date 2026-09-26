@@ -20,6 +20,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-edu_crm}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # На новом томе заводит базу Keycloak рядом с базой системы.
+      - ./deploy/postgres/keycloak-db.sh:/docker-entrypoint-initdb.d/keycloak-db.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-edu_crm} -d ${POSTGRES_DB:-edu_crm}"]
       interval: 5s
@@ -28,6 +30,8 @@ services:
 
   api:
     build: ./backend
+    # Имя образа общее для сред: его же запускает keycloak-setup.
+    image: edu-crm-api:${API_IMAGE_TAG:-latest}
     container_name: edu_crm_api
     restart: unless-stopped
     depends_on:
@@ -75,19 +79,65 @@ services:
       start_period: 5s
 
   # Включается отдельно: make keycloak (в средах preprod и prod - всегда).
-  # Реалм, клиенты, роли и тестовые пользователи приезжают из realm-export.json.
+  # Образ - Keycloak с темой страницы входа (deploy/keycloak/image), данные -
+  # в своей базе того же PostgreSQL. Реалм, клиенты, роли и пользователи
+  # приезжают из realm-export.json: при первом запуске - импортом, дальше -
+  # сервисом keycloak-setup.
   keycloak:
-    image: quay.io/keycloak/keycloak:26.0
+    build: ./deploy/keycloak/image
+    image: edu-crm-keycloak:${KEYCLOAK_IMAGE_TAG:-latest}
     container_name: edu_crm_keycloak
     restart: unless-stopped
     profiles: ["keycloak"]
-    command: start-dev --http-port=8080 --import-realm
+    depends_on:
+      db:
+        condition: service_healthy
+    command: start --optimized --import-realm
     environment:
+      # Администратор консоли Keycloak (реалм master). Заводится только
+      # при первом запуске на пустой базе.
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_DB_URL: jdbc:postgresql://db:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-edu_crm}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-edu_crm}
+      # Внешний адрес: он попадает в токены и ссылки страниц входа.
       KC_HOSTNAME: ${KEYCLOAK_BASE_URL:-http://localhost:8080}
+      # TLS снимает Nginx, сам Keycloak слушает HTTP внутри сети контейнеров.
+      KC_HTTP_ENABLED: "true"
     volumes:
-      - ./deploy/keycloak:/opt/keycloak/data/import:ro
+      - ./deploy/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    healthcheck:
+      test: ["CMD", "/opt/keycloak/bin/healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  # Разовая задача: переносит realm-export.json в работающий Keycloak
+  # и ставит пароли пользователей из KEYCLOAK_USER_PASSWORDS. Запускается
+  # после подъёма стенда (make up, release.sh):
+  #   docker compose ... run --rm keycloak-setup
+  # Подробности - backend/scripts/keycloak_setup.py.
+  keycloak-setup:
+    image: edu-crm-api:${API_IMAGE_TAG:-latest}
+    profiles: ["setup"]
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-dev}
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-edu-crm}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KEYCLOAK_USER_PASSWORDS: ${KEYCLOAK_USER_PASSWORDS:-}
+      KEYCLOAK_SSL_REQUIRED: ${KEYCLOAK_SSL_REQUIRED:-}
+      # Адреса веб-интерфейса среды - они же адреса возврата после входа.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+    volumes:
+      - ./deploy/keycloak/realm-export.json:/realm/realm-export.json:ro
+    command: python -m scripts.keycloak_setup
 
   # Единая точка входа: клиентская часть и прокси к API (и Keycloak -
   # в preprod и prod). Образ собирается из frontend/: Node собирает

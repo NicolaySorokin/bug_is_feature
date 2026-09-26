@@ -147,6 +147,7 @@ def lms_workbook() -> bytes:
     workbook.save(buffer)
     return buffer.getvalue()
 
+
 _LINES = (
     "Вуз: Московский технический университет связи и информатики",
     "Договор: ДГ-2025-017",

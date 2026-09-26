@@ -24,8 +24,8 @@ export function SysadminGuide(): Section[] {
                   <code>nginx</code> (образ <code>edu-crm-web</code>)
                 </td>
                 <td>
-                  Отдаёт клиентскую часть (React, собрана в образ), проксирует <code>/api</code>, <code>/docs</code> к API и{" "}
-                  <code>/realms</code> к Keycloak; TLS, заголовки безопасности, сжатие.
+                  Отдаёт клиентскую часть (React, собрана в образ), проксирует <code>/api</code>, <code>/docs</code> к API и реалм{" "}
+                  <code>/realms/edu-crm</code> к Keycloak; TLS, заголовки безопасности, сжатие.
                 </td>
               </tr>
               <tr>
@@ -42,16 +42,16 @@ export function SysadminGuide(): Section[] {
                   <code>db</code>
                 </td>
                 <td>
-                  PostgreSQL 16, данные - том <code>pgdata</code>.
+                  PostgreSQL 16: база системы и база Keycloak (<code>keycloak</code>), данные - том <code>pgdata</code>.
                 </td>
               </tr>
               <tr>
                 <td>
-                  <code>keycloak</code>
+                  <code>keycloak</code> (образ <code>edu-crm-keycloak</code>)
                 </td>
                 <td>
-                  Keycloak 26: вход по OpenID Connect (Authorization Code + PKCE), роли. Реалм <code>edu-crm</code> импортируется
-                  из <code>deploy/keycloak/realm-export.json</code>.
+                  Keycloak 26 в боевом режиме: вход по OpenID Connect (Authorization Code + PKCE), роли, страница входа в стиле
+                  Ростелекома. Реалм <code>edu-crm</code> описан в <code>deploy/keycloak/realm-export.json</code>.
                 </td>
               </tr>
             </tbody>
@@ -116,7 +116,19 @@ make up ENV=prod                            # контейнеры, миграц
                 <td>
                   <code>KEYCLOAK_ADMIN</code>, <code>KEYCLOAK_ADMIN_PASSWORD</code>
                 </td>
-                <td>Администратор консоли Keycloak</td>
+                <td>
+                  Администратор консоли Keycloak (заводится при первом запуске). На новом реалме этим же паролем первый раз входит{" "}
+                  <code>admin</code> системы, поэтому пароль должен проходить политику паролей реалма
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>KEYCLOAK_USER_PASSWORDS</code>
+                </td>
+                <td>
+                  Необязательно: начальные пароли пользователей, <code>логин:пароль</code> через запятую. Ставятся только тем, у
+                  кого пароля ещё нет (сразу после создания реалма); дальше паролями управляют на сайте. В репозитории паролей нет
+                </td>
               </tr>
               <tr>
                 <td>
@@ -128,7 +140,10 @@ make up ENV=prod                            # контейнеры, миграц
                 <td>
                   <code>LMS_BASE_URL</code>, <code>LMS_TOKEN</code>, <code>SITE_BASE_URL</code>, <code>SITE_TOKEN</code>
                 </td>
-                <td>API LMS и сайта. Пусто - тестовые ответы (файл JSON можно загрузить в разделе «LMS и сайт»)</td>
+                <td>
+                  API LMS и сайта. Пусто - демонстрационный режим: пример ответа в формате источника (ответ настоящего API можно
+                  загрузить файлом JSON в разделе «LMS и сайт»)
+                </td>
               </tr>
               <tr>
                 <td>
@@ -155,14 +170,25 @@ make up ENV=prod                            # контейнеры, миграц
               Роли реалма <code>manager</code>, <code>head</code>, <code>admin</code>. Роль <code>admin</code> включает права{" "}
               <code>realm-management</code> на пользователей: администратор CRM управляет ролями из интерфейса системы.
             </li>
-            <li>Защита от подбора пароля: 10 неудачных попыток - временная блокировка; журнал событий входа хранится 90 дней.</li>
-            <li>Консоль Keycloak: https://домен-стенда/admin/ (логин и пароль из KEYCLOAK_ADMIN*).</li>
+            <li>
+              Политика паролей: не короче 12 знаков, строчные и заглавные буквы, цифры, не совпадает с логином. Защита от подбора:
+              10 неудачных попыток - временная блокировка; журнал событий входа хранится 90 дней.
+            </li>
+            <li>
+              Вход только через страницу Keycloak: выдача токена по паролю в обход неё выключена. Снаружи открыт только реалм{" "}
+              <code>edu-crm</code>, консоль администратора Keycloak из интернета недоступна.
+            </li>
+            <li>
+              Данные Keycloak хранятся в PostgreSQL и переживают пересоздание контейнера и сброс данных системы. Настройку из
+              выгрузки реалма (параметры, роли, клиенты) переносит в работающий Keycloak задача <code>keycloak-setup</code> - при
+              каждом деплое или вручную: <code>release.sh keycloak-setup</code>.
+            </li>
           </ul>
-          <Note warn>
-            В демонстрационном реалме у пользователей пароль совпадает с логином. Перед эксплуатацией смените пароли или удалите
-            демо-пользователей, задайте политику паролей реалма. Реалм импортируется при создании контейнера Keycloak: при
-            изменении файла выгрузки контейнер пересоздаётся, и пользователи, заведённые вручную, пропадают - для постоянной
-            эксплуатации подключите Keycloak к PostgreSQL (KC_DB=postgres).
+          <Note>
+            Учётными записями управляют на сайте: «Пользователи и права» - сотрудники, роли, отключение, пароли. Обновления стенда
+            их не трогают. Из выгрузки учётные записи берутся только при создании реалма на пустой базе Keycloak; начальные пароли
+            - из <code>KEYCLOAK_USER_PASSWORDS</code>, а без неё первый вход <code>admin</code> - паролем консоли Keycloak
+            (временным), остальным пароли задаёт он.
           </Note>
         </>
       ),
@@ -206,23 +232,33 @@ bash current/cicd/prod/server/release.sh compose logs -f api nginx`}</code>
       title: "Резервное копирование",
       body: (
         <>
-          <p>Копировать нужно базу и том с файлами вложений. Ежедневно, с хранением копий вне сервера:</p>
+          <p>
+            Каждую ночь таймер <code>edu-crm-backup.timer</code> снимает копию базы системы, базы Keycloak и файлов вложений в{" "}
+            <code>/opt/edu-crm/backups</code>; копии хранятся 14 дней. В копиях персональные данные: каталог доступен только
+            пользователю деплоя, копии стоит регулярно забирать за пределы сервера.
+          </p>
           <pre>
-            <code>{`cd /opt/edu-crm
-# база
-bash current/cicd/prod/server/release.sh compose exec -T db \\
-  pg_dump -U edu_crm -Fc edu_crm > backup/edu_crm-$(date +%F).dump
-# файлы вложений
-docker run --rm -v edu-crm_api_storage:/data -v $PWD/backup:/backup alpine \\
-  tar czf /backup/storage-$(date +%F).tgz -C /data .`}</code>
+            <code>{`cd /opt/edu-crm/current
+bash cicd/prod/server/release.sh backup     # копия сейчас
+systemctl list-timers edu-crm-backup.timer   # следующая по расписанию`}</code>
           </pre>
-          <p>Восстановление:</p>
+          <p>Восстановление (ДАТА - из имени файла копии):</p>
           <pre>
-            <code>{`bash current/cicd/prod/server/release.sh compose exec -T db \\
-  pg_restore -U edu_crm -d edu_crm --clean --if-exists < backup/edu_crm-ДАТА.dump
-docker run --rm -v edu-crm_api_storage:/data -v $PWD/backup:/backup alpine \\
-  tar xzf /backup/storage-ДАТА.tgz -C /data`}</code>
+            <code>{`R="bash cicd/prod/server/release.sh"
+$R compose stop api keycloak nginx
+$R compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner' \\
+  < ../../backups/ДАТА-edu_crm.dump
+$R compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d keycloak --clean --if-exists --no-owner' \\
+  < ../../backups/ДАТА-keycloak.dump
+$R compose up -d --wait --no-build
+$R compose exec -T api sh -c 'rm -rf /app/storage/* && tar xzf - -C /app/storage' \\
+  < ../../backups/ДАТА-storage.tgz`}</code>
           </pre>
+          <p>
+            Вернуть стенд к чистым демоданным: Actions → «Деплой» → Run workflow, «Данные стенда» - «Сбросить к демоданным» (или{" "}
+            <code>release.sh reset-data --confirm</code> на сервере). Перед сбросом снимается копия; учётные записи и пароли
+            Keycloak сброс не трогает.
+          </p>
         </>
       ),
     },

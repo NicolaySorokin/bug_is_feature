@@ -309,9 +309,7 @@ async def load_norms(session: AsyncSession) -> Norms:
     )
 
 
-async def _collect_all(
-    session: AsyncSession, principal: Principal, user: User
-) -> list[Alert]:
+async def _collect_all(session: AsyncSession, principal: Principal, user: User) -> list[Alert]:
     today = date.today()
     norms = await load_norms(session)
     contracts = await reports.fetch_contracts(session, ReportFilters(), principal, user)
@@ -334,9 +332,7 @@ async def _collect_all(
     return found
 
 
-async def collect_all(
-    session: AsyncSession, principal: Principal, user: User
-) -> list[Alert]:
+async def collect_all(session: AsyncSession, principal: Principal, user: User) -> list[Alert]:
     """Все поводы вмешаться по договорам, видимым пользователю, - через кэш."""
     key = cache.make_key(
         "alerts", str(user.id), sorted(principal.roles), user.data_scope, date.today()

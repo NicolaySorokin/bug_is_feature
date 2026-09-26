@@ -134,9 +134,7 @@ async def export(
     return Response(
         content=content,
         media_type=media_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="report-{stamp}.{extension}"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="report-{stamp}.{extension}"'},
     )
 
 

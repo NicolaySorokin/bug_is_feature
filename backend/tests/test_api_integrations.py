@@ -2,9 +2,11 @@
 
 from pathlib import Path
 
+import httpx
 import pytest
 from httpx import AsyncClient
 
+from app.core.errors import AppError, ErrorCode
 from app.services.integrations import base
 from tests.conftest import ADMIN, HEAD, MANAGER
 
@@ -88,3 +90,34 @@ async def test_disabled_source_is_not_synced(client: AsyncClient) -> None:
 async def test_manager_cannot_start_sync(client: AsyncClient) -> None:
     response = await client.post("/api/v1/integrations/sync", headers=MANAGER)
     assert response.status_code == 403
+
+
+def _unreachable(request: httpx.Request) -> httpx.Response:
+    raise httpx.ConnectError("Name or service not known", request=request)
+
+
+@pytest.mark.parametrize(
+    ("respond", "expected"),
+    [
+        (lambda _: httpx.Response(502), "ответила ошибкой 502"),
+        (lambda _: httpx.Response(401), "проверьте токен"),
+        (lambda _: httpx.Response(200, text="<html>не JSON</html>"), "не в формате JSON"),
+        (lambda request: _unreachable(request), "Не удалось связаться"),
+    ],
+)
+async def test_external_errors_are_readable(
+    monkeypatch: pytest.MonkeyPatch, respond: object, expected: str
+) -> None:
+    """Текст ошибки виден сотрудникам в журнале обмена: без адресов и английского."""
+    real_client = httpx.AsyncClient
+
+    def client_with_mock(**kwargs: object) -> httpx.AsyncClient:
+        return real_client(transport=httpx.MockTransport(respond), **kwargs)
+
+    monkeypatch.setattr(base.httpx, "AsyncClient", client_with_mock)
+    with pytest.raises(AppError) as error:
+        await base.fetch_json("https://lms.internal.example/api/v1/programs", "token")
+
+    assert expected in error.value.message
+    assert "lms.internal.example" not in error.value.message
+    assert error.value.code == ErrorCode.INTEGRATION_FAILED
