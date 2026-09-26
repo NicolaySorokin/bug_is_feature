@@ -253,9 +253,9 @@ Code + PKCE): выдача токена по паролю в обход неё �
 [deploy/keycloak/image/themes/edu-crm](deploy/keycloak/image/themes/edu-crm)).
 
 **Паролей в репозитории нет.** Их задаёт переменная
-`KEYCLOAK_USER_PASSWORDS` среды — пары `логин:пароль` через запятую,
-на боевом стенде это часть секрета `PROD_ENV`. Новые пароли для всех
-пользователей реалма генерирует тот же скрипт:
+`KEYCLOAK_USER_PASSWORDS` среды — пары `логин:пароль` через запятую;
+на боевом стенде это одноимённый секрет репозитория. Новые пароли для
+всех пользователей реалма генерирует тот же скрипт:
 
 ```bash
 cd backend && KEYCLOAK_REALM_FILE=../deploy/keycloak/realm-export.json \

@@ -79,10 +79,19 @@ jobs:
       - name: Проверка PROD_ENV
         env:
           PROD_ENV: ${{ secrets.PROD_ENV }}
+          # Пароли пользователей реалма можно держать отдельным секретом:
+          # его проще заменить, не переписывая PROD_ENV целиком.
+          KEYCLOAK_USER_PASSWORDS: ${{ secrets.KEYCLOAK_USER_PASSWORDS }}
         run: |
           set -euo pipefail
           # Секрет вставлен из Windows: убираем \r, иначе он окажется в паролях.
           printf '%s\n' "$PROD_ENV" | tr -d '\r' > "$RUNNER_TEMP/prod.env"
+          if [ -n "$KEYCLOAK_USER_PASSWORDS" ]; then
+            # Одной строкой: пары через запятую, переводы строк и пробелы убираем.
+            passwords=$(printf '%s' "$KEYCLOAK_USER_PASSWORDS" | tr -d '\r' | tr -s ' \n\t' ',' | sed 's/^,*//; s/,*$//')
+            passwords=${passwords#KEYCLOAK_USER_PASSWORDS=}
+            printf 'KEYCLOAK_USER_PASSWORDS=%s\n' "$passwords" >> "$RUNNER_TEMP/prod.env"
+          fi
           value() { sed -n "s/^$1=//p" "$RUNNER_TEMP/prod.env" | tail -1 | tr -d "\"'"; }
 
           keys=$(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$RUNNER_TEMP/prod.env" | sort -u | tr '\n' ' ')
@@ -91,7 +100,12 @@ jobs:
 
           # Без паролей compose подставил бы значения по умолчанию для разработки.
           for key in POSTGRES_PASSWORD KEYCLOAK_ADMIN_PASSWORD KEYCLOAK_USER_PASSWORDS; do
-            [ -n "$(value "$key")" ] || { echo "::error::В PROD_ENV не задан $key"; exit 1; }
+            if [ -z "$(value "$key")" ]; then
+              where="В PROD_ENV"
+              [ "$key" != KEYCLOAK_USER_PASSWORDS ] || where="Ни в PROD_ENV, ни отдельным секретом"
+              echo "::error::$where не задан $key"
+              exit 1
+            fi
           done
 
           # Пароль нужен каждому пользователю реалма, иначе под ним не войти.
@@ -100,7 +114,7 @@ jobs:
           given=$(value KEYCLOAK_USER_PASSWORDS | tr ', ' '\n\n' | sed -n 's/^\([^:]\{1,\}\):.\{1,\}$/\1/p' | sort -u)
           missing=$(comm -23 <(echo "$users") <(echo "$given") | tr '\n' ' ')
           if [ -n "$missing" ]; then
-            echo "::error::В KEYCLOAK_USER_PASSWORDS (PROD_ENV) нет паролей для: $missing"
+            echo "::error::В KEYCLOAK_USER_PASSWORDS нет паролей для: $missing"
             exit 1
           fi
           echo "Пароли заданы для всех $(echo "$users" | wc -l) пользователей реалма"
