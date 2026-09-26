@@ -70,8 +70,8 @@ export const listUsers = (query: Query = {}) => api<Page<User>>("/users", { quer
 export const getUser = (id: string) => api<UserDetail>(`/users/${id}`);
 export const createUser = (body: UserCreate) => api<UserDetail>("/users", { method: "POST", body });
 export const updateUser = (id: string, body: UserUpdate) => api<UserDetail>(`/users/${id}`, { method: "PATCH", body });
-export const resetPassword = (id: string, password: string) =>
-  api<void>(`/users/${id}/reset-password`, { method: "POST", body: { password } });
+export const resetPassword = (id: string, password: string, temporary: boolean) =>
+  api<void>(`/users/${id}/reset-password`, { method: "POST", body: { password, temporary } });
 export const syncRoles = () => api<RoleSyncResult>("/users/sync-roles", { method: "POST" });
 
 // --- Главная ----------------------------------------------------------------

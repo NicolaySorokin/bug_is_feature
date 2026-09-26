@@ -201,11 +201,13 @@ class KeycloakAdmin:
             await self.set_roles(user_id, roles)
         return user_id
 
-    async def reset_password(self, user_id: str, password: str) -> None:
+    async def reset_password(
+        self, user_id: str, password: str, *, temporary: bool = True
+    ) -> None:
         await self._request(
             "PUT",
             f"/users/{user_id}/reset-password",
-            json={"type": "password", "value": password, "temporary": True},
+            json={"type": "password", "value": password, "temporary": temporary},
         )
 
 

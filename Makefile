@@ -41,7 +41,7 @@ help: ## Показать список команд
 	@echo lock           - зафиксировать версии зависимостей в requirements.lock
 	@echo openapi        - выгрузить схему API в docs/openapi.json
 	@echo keycloak       - поднять Keycloak с готовым реалмом
-	@echo keycloak-setup - перенести realm-export.json в Keycloak и поставить пароли
+	@echo keycloak-setup - перенести настройку реалма в Keycloak, начальные пароли
 	@echo shell          - оболочка в контейнере API
 	@echo psql           - консоль PostgreSQL
 	@echo reset          - снести стенд вместе с данными и собрать заново
@@ -130,12 +130,13 @@ keycloak: db-ready ## Поднять Keycloak с готовым реалмом
 	$(KC_DC) up -d --wait keycloak
 	$(MAKE) keycloak-setup ENV=$(ENV)
 	@echo Keycloak: http://localhost:8080 - консоль admin/admin, реалм edu-crm.
-	@echo Пароли пользователей реалма напечатаны выше.
+	@echo Пароли пользователей, у которых их не было, напечатаны выше.
 	@echo Дальше выставьте AUTH_BACKEND=keycloak и выполните make restart
 
-# Выгрузка реалма в работающий Keycloak и пароли из KEYCLOAK_USER_PASSWORDS.
-# Параметры скрипта - через ARGS: make keycloak-setup ARGS=--reset-passwords.
-keycloak-setup: ## Перенести realm-export.json в Keycloak и поставить пароли
+# Настройка реалма из выгрузки в работающий Keycloak и начальные пароли тем,
+# у кого их нет (см. backend/scripts/keycloak_setup.py). Параметры скрипта -
+# через ARGS: make keycloak-setup ARGS=--reset-passwords.
+keycloak-setup: ## Перенести настройку реалма в Keycloak, начальные пароли
 	$(KC_DC) run --rm -T keycloak-setup python -m scripts.keycloak_setup $(ARGS)
 
 shell: ## Оболочка в контейнере API
