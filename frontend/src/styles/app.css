@@ -232,12 +232,16 @@ p {
   transition: transform 0.2s ease;
 }
 
+/* Логотип «Ростелеком ИТ Школа» и название продукта под ним. Блок выше
+   строки поиска, поэтому меню начинается ниже её границы. */
 .sidebar__brand {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  height: var(--topbar-height);
-  padding: 0 20px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  min-height: 84px;
+  padding: 14px 24px 10px;
   color: #fff;
   text-decoration: none;
 }
@@ -246,47 +250,25 @@ p {
   text-decoration: none;
 }
 
-.brand-mark {
-  position: relative;
-  display: grid;
-  width: 36px;
-  height: 36px;
+.rt-logo {
+  display: block;
+  width: auto;
+  max-width: 100%;
   flex: 0 0 auto;
-  place-items: center;
-  border-radius: 10px;
-  background: var(--rt-violet);
-  color: #fff;
-  font-weight: 800;
-  font-size: 15px;
 }
 
-.brand-mark::after {
-  content: "";
-  position: absolute;
-  right: -3px;
-  bottom: -3px;
-  width: 11px;
-  height: 11px;
-  border: 2px solid var(--rt-violet-deep);
-  border-radius: 50%;
-  background: var(--rt-orange);
+.rt-mark {
+  display: block;
+  flex: 0 0 auto;
 }
 
-.brand-text {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  line-height: 1.2;
-}
-
-.brand-text strong {
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.brand-text small {
+.sidebar__product {
+  padding-left: 1px;
   color: #c9b3ff;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.01em;
 }
 
 /* Меню прокручивается, если не помещается по высоте, но без полосы прокрутки. */
@@ -1062,8 +1044,104 @@ select.control--s {
   width: 100%;
 }
 
+/* Вкладки раздела. Строка с тонкой границей снизу; выбранная вкладка -
+   фиолетовый текст и фирменная полоса поверх границы. Ширина по тексту,
+   на узком экране строка прокручивается без полосы прокрутки. */
 .tabs {
+  display: flex;
+  gap: 4px;
   margin-bottom: 20px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line-strong);
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 14px 12px;
+  border: 0;
+  border-radius: var(--radius-s) var(--radius-s) 0 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 20px;
+  white-space: nowrap;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.tab::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  bottom: -1px;
+  left: 10px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.tab:hover {
+  color: var(--text);
+  background: var(--surface-muted);
+}
+
+.tab:hover::after {
+  background: var(--line-strong);
+}
+
+.tab[aria-selected="true"] {
+  color: var(--accent-700, #5500b8);
+  background: transparent;
+}
+
+.tab[aria-selected="true"]::after {
+  background: var(--rt-violet);
+}
+
+.tab:focus-visible {
+  box-shadow: inset var(--focus);
+}
+
+.tab svg {
+  flex: 0 0 auto;
+}
+
+.tab__count {
+  min-width: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.tab[aria-selected="true"] .tab__count {
+  background: var(--accent-50, #f1e6ff);
+  color: var(--accent-700, #5500b8);
+}
+
+.tab__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rt-orange);
 }
 
 /* --- Панель фильтров -------------------------------------------------------- */
@@ -1429,6 +1507,84 @@ select.control--s {
   align-content: center;
   gap: 16px;
   color: var(--text-muted);
+}
+
+/* --- Учётная запись ------------------------------------------------------------ */
+
+.page--narrow {
+  max-width: 880px;
+}
+
+.account-profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.account-profile > .stack-s {
+  flex: 1;
+}
+
+.account-profile__name {
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.account-note {
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.role-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.role-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.role-list .status-badge {
+  flex: 0 0 132px;
+}
+
+.account-action {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+}
+
+.account-action + .account-action {
+  border-top: 1px solid var(--line);
+}
+
+.account-action:first-child {
+  padding-top: 0;
+}
+
+.account-action:last-child {
+  padding-bottom: 0;
+}
+
+.account-action__icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-m);
+  background: var(--accent-50, #f1e6ff);
+  color: var(--accent-700, #5500b8);
 }
 
 /* --- Окна, боковые панели, уведомления --------------------------------------- */

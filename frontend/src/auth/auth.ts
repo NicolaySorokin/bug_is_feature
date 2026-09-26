@@ -30,6 +30,8 @@ export interface AuthSession {
 
 let keycloak: Keycloak | null = null;
 let devAccount: DemoAccount | null = null;
+/** Итог действия на странице Keycloak (смена пароля), с которым вернулись в систему. */
+let accountAction: { action: string; status: "success" | "cancelled" | "error" } | null = null;
 
 function apiBase(): string {
   return (import.meta.env.VITE_API_BASE_URL || "/api/v1").replace(/\/$/, "");
@@ -90,6 +92,11 @@ async function startAuth(): Promise<AuthSession> {
     keycloak.onAuthSuccess = saveTokens;
     keycloak.onTokenExpired = () => {
       keycloak?.updateToken(30).catch(() => undefined);
+    };
+    // Возврат со страницы смены пароля: keycloak-js разбирает kc_action_status
+    // из адреса и сообщает итог сюда.
+    keycloak.onActionUpdate = (status, action) => {
+      accountAction = { action: action || "", status };
     };
     let authenticated = false;
     try {
@@ -174,7 +181,22 @@ export function onUnauthorized(): void {
   }
 }
 
-/** Ссылка на страницу учётной записи Keycloak: смена пароля и профиль. */
-export function accountUrl(): string | null {
-  return keycloak ? keycloak.createAccountUrl() : null;
+/**
+ * Смена пароля: страница Keycloak «Новый пароль» (действие UPDATE_PASSWORD,
+ * Application Initiated Action). Пароль вводится только в Keycloak - система
+ * его не видит; после сохранения Keycloak возвращает на returnTo.
+ *
+ * Отдельная консоль учётной записи Keycloak (/realms/.../account) не нужна:
+ * она на английском, не в стиле системы и требует ролей клиента account.
+ */
+export async function changePassword(returnTo = window.location.href): Promise<void> {
+  if (!keycloak) return;
+  await keycloak.login({ action: "UPDATE_PASSWORD", redirectUri: returnTo, locale: "ru" });
+}
+
+/** Итог смены пароля, если только что вернулись со страницы Keycloak. Читается один раз. */
+export function takeAccountAction(): { action: string; status: "success" | "cancelled" | "error" } | null {
+  const result = accountAction;
+  accountAction = null;
+  return result;
 }

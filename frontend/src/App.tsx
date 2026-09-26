@@ -26,6 +26,7 @@ const WorkflowsPage = lazy(() => import("./pages/admin/WorkflowsPage"));
 const AuditPage = lazy(() => import("./pages/admin/AuditPage"));
 const SettingsPage = lazy(() => import("./pages/admin/SettingsPage"));
 const HelpPage = lazy(() => import("./pages/help/HelpPage"));
+const AccountPage = lazy(() => import("./pages/AccountPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
 function Page({ children }: { children: ReactNode }) {
@@ -168,6 +169,14 @@ const router = createBrowserRouter(
                 <SettingsPage />
               </Page>
             </Guard>
+          ),
+        },
+        {
+          path: "account",
+          element: (
+            <Page>
+              <AccountPage />
+            </Page>
           ),
         },
         {

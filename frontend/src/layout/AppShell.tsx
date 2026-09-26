@@ -29,8 +29,9 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { getAlerts, listContracts, listUniversities } from "../api/endpoints";
 import { keys } from "../api/queries";
-import { accountUrl, logout } from "../auth/auth";
+import { logout } from "../auth/auth";
 import { useSession, type Permission } from "../auth/session";
+import { RtLogo } from "../components/Brand";
 import { Avatar, IconButton } from "../components/ui";
 import { countLabel } from "../lib/format";
 import { ROLE_SHORT } from "../lib/labels";
@@ -96,12 +97,9 @@ function Sidebar({ onNavigate, alerts }: { onNavigate: () => void; alerts: numbe
   );
   return (
     <aside className="sidebar" aria-label="Главное меню">
-      <Link to="/" className="sidebar__brand" onClick={onNavigate}>
-        <span className="brand-mark">РТ</span>
-        <span className="brand-text">
-          <strong>ИТ Школа</strong>
-          <small>Взаимодействие с вузами</small>
-        </span>
+      <Link to="/" className="sidebar__brand" onClick={onNavigate} aria-label="Ростелеком ИТ Школа - на главную">
+        <RtLogo height={40} />
+        <span className="sidebar__product">Взаимодействие с вузами</span>
       </Link>
       <nav className="sidebar__nav">
         {WORK.map(link)}
@@ -267,7 +265,6 @@ function UserMenu() {
   const { me, roles, mode } = useSession();
   const [open, setOpen] = useState(false);
   const ref = useOutsideClose(open, () => setOpen(false));
-  const account = accountUrl();
   const roleText = roles.map((role) => ROLE_SHORT[role]).join(", ") || "Нет ролей";
   return (
     <div style={{ position: "relative" }} ref={ref}>
@@ -288,13 +285,8 @@ function UserMenu() {
               <small className="muted">{roleText}</small>
             </div>
           </div>
-          {account && (
-            <a className="menu__item" href={account} target="_blank" rel="noreferrer">
-              <UserCog size={16} /> Учётная запись и пароль
-            </a>
-          )}
-          <Link className="menu__item" to="/help" onClick={() => setOpen(false)}>
-            <BookOpen size={16} /> Руководство пользователя
+          <Link className="menu__item" to="/account" onClick={() => setOpen(false)}>
+            <UserCog size={16} /> Учётная запись
           </Link>
           {mode === "dev" && (
             <div className="menu__item muted" style={{ fontWeight: 400, fontSize: 12 }}>

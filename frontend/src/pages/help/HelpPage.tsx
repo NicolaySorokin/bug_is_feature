@@ -115,7 +115,8 @@ export default function HelpPage() {
       <Tabs
         value={current}
         onChange={(key) => navigate(`/help/${key}`)}
-        items={guides.map((item) => ({ key: item.key, label: item.label, hidden: item.hidden }))}
+        label="Руководства"
+        items={guides.map((item) => ({ key: item.key, label: item.label, icon: item.icon, hidden: item.hidden }))}
       />
       {current === "user" && <Guide sections={UserGuide()} />}
       {current === "admin" && <Guide sections={AdminGuide()} />}

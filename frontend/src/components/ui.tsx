@@ -14,12 +14,10 @@ import {
   Input as AtomaroInput,
   Loader as AtomaroLoader,
   Switch as AtomaroSwitch,
-  TabsGroup,
-  TabsItem,
   TextArea as AtomaroTextArea,
 } from "@atomaro/ui-kit";
 import { AlertTriangle, Inbox, Search, type LucideIcon } from "lucide-react";
-import { useId, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
 import { ApiError, errorMessage } from "../api/client";
 import type { Tone } from "../lib/labels";
 
@@ -384,19 +382,82 @@ export function Avatar({ name, large }: { name?: string | null; large?: boolean 
 export interface TabItem {
   key: string;
   label: string;
+  icon?: LucideIcon;
+  /** Число рядом с названием: сколько записей на вкладке. */
+  count?: number;
+  /** Точка-метка: на вкладке есть то, что требует внимания. */
   dot?: boolean;
   hidden?: boolean;
 }
 
-export function Tabs({ items, value, onChange }: { items: TabItem[]; value: string; onChange: (key: string) => void }) {
+/**
+ * Вкладки раздела: подчёркивание фирменным цветом у выбранной, счётчики
+ * записей. Разметка по WAI-ARIA (tablist / tab), стрелки влево-вправо,
+ * Home и End переключают вкладки с клавиатуры. На узком экране строка
+ * прокручивается, выбранная вкладка всегда видна.
+ */
+export function Tabs({
+  items,
+  value,
+  onChange,
+  label = "Разделы",
+}: {
+  items: TabItem[];
+  value: string;
+  onChange: (key: string) => void;
+  label?: string;
+}) {
   const visible = items.filter((item) => !item.hidden);
+  const refs = useRef(new Map<string, HTMLButtonElement>());
+
+  useEffect(() => {
+    refs.current.get(value)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [value]);
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const index = visible.findIndex((item) => item.key === value);
+    const next =
+      event.key === "ArrowRight"
+        ? visible[(index + 1) % visible.length]
+        : event.key === "ArrowLeft"
+          ? visible[(index - 1 + visible.length) % visible.length]
+          : event.key === "Home"
+            ? visible[0]
+            : event.key === "End"
+              ? visible[visible.length - 1]
+              : null;
+    if (!next) return;
+    event.preventDefault();
+    onChange(next.key);
+    refs.current.get(next.key)?.focus();
+  };
+
   return (
-    <div className="tabs">
-      <TabsGroup value={value} onChange={onChange} scrollable size="m">
-        {visible.map((item) => (
-          <TabsItem key={item.key} index={item.key} label={item.label} dot={item.dot} />
-        ))}
-      </TabsGroup>
+    <div className="tabs" role="tablist" aria-label={label} onKeyDown={onKeyDown}>
+      {visible.map((item) => {
+        const selected = item.key === value;
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.key}
+            ref={(node) => {
+              if (node) refs.current.set(item.key, node);
+              else refs.current.delete(item.key);
+            }}
+            type="button"
+            role="tab"
+            className="tab"
+            aria-selected={selected}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => onChange(item.key)}
+          >
+            {Icon && <Icon size={16} aria-hidden="true" />}
+            <span>{item.label}</span>
+            {item.count !== undefined && <span className="tab__count">{item.count}</span>}
+            {item.dot && <span className="tab__dot" aria-label="есть что проверить" />}
+          </button>
+        );
+      })}
     </div>
   );
 }
