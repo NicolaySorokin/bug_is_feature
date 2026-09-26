@@ -12,9 +12,7 @@ PNG = bytes.fromhex(
 )
 
 
-async def test_comment_is_added_and_listed(
-    client: AsyncClient, university: dict
-) -> None:
+async def test_comment_is_added_and_listed(client: AsyncClient, university: dict) -> None:
     contract = await make_contract(client, university["id"], MANAGER)
 
     created = await client.post(
@@ -25,15 +23,11 @@ async def test_comment_is_added_and_listed(
     assert created.status_code == 201, created.text
     assert created.json()["author"]["username"] == "petrov"
 
-    listing = await client.get(
-        f"/api/v1/contracts/{contract['id']}/comments", headers=MANAGER
-    )
+    listing = await client.get(f"/api/v1/contracts/{contract['id']}/comments", headers=MANAGER)
     assert [item["text"] for item in listing.json()] == ["Договорились о встрече"]
 
 
-async def test_file_is_uploaded_and_downloaded(
-    client: AsyncClient, university: dict
-) -> None:
+async def test_file_is_uploaded_and_downloaded(client: AsyncClient, university: dict) -> None:
     contract = await make_contract(client, university["id"], MANAGER)
 
     uploaded = await client.post(
@@ -87,9 +81,7 @@ async def test_license_lifecycle(client: AsyncClient, university: dict) -> None:
     contract = await make_contract(
         client, university["id"], MANAGER, product_ids=[product["id"]]
     )
-    detail = (
-        await client.get(f"/api/v1/contracts/{contract['id']}", headers=MANAGER)
-    ).json()
+    detail = (await client.get(f"/api/v1/contracts/{contract['id']}", headers=MANAGER)).json()
     link_id = detail["products"][0]["id"]
 
     created = await client.post(

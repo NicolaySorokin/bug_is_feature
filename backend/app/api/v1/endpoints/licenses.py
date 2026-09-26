@@ -117,9 +117,7 @@ async def list_licenses(
         )
         for license_, contract, university, product in rows.all()
     ]
-    return Page(
-        items=items, total=total, limit=pagination.limit, offset=pagination.offset
-    )
+    return Page(items=items, total=total, limit=pagination.limit, offset=pagination.offset)
 
 
 @contract_router.get(
