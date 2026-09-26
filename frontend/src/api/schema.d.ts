@@ -1241,8 +1241,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Задать пароль
-         * @description Пароль пишется в Keycloak. Временный (по умолчанию) Keycloak попросит сменить при первом входе, постоянный остаётся как есть.
+         * Выдать временный пароль
+         * @description Пароль пишется в Keycloak временным: при первом входе Keycloak попросит сотрудника придумать свой. Постоянный пароль знает только сам сотрудник - администратор его не задаёт.
          */
         post: operations["reset_password_api_v1_users__user_id__reset_password_post"];
         delete?: never;
@@ -2793,11 +2793,6 @@ export interface components {
         PasswordReset: {
             /** Password */
             password: string;
-            /**
-             * Temporary
-             * @default true
-             */
-            temporary?: boolean;
         };
         /**
          * PeriodBasis
