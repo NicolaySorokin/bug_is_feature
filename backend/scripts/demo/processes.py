@@ -1,9 +1,17 @@
 """Шаблоны рабочих процессов и тексты, которыми обрастают этапы.
 
 Основной шаблон повторяет базовый workflow из ТЗ - 14 шагов от поиска
-контактов в вузе до контроля исполнения. У него две опубликованные версии:
-договоры, начатые до выхода второй, идут по первой - так видно правило
-раздела 3.1 концепции «правка шаблона не меняет запущенные процессы».
+контактов в вузе до контроля исполнения, плюс финальный этап «Отказ вуза»
+с неуспешным результатом. У него две версии: взаимодействия, начатые до
+выхода второй, идут по первой (она выведена из использования для новых -
+deprecated) - так видно правило раздела 3.1 концепции «правка шаблона не
+меняет запущенные процессы». Во второй версии этапы требуют документы:
+без проекта договора не уйти с подписания, без лицензионного сертификата -
+с передачи материалов.
+
+Этап сам ставит статусы программ и продуктов взаимодействия при входе:
+передача материалов - внедрение и передача начались, обучение
+преподавателей - продукт передан, ведение занятий - программа внедрена.
 
 Короткий шаблон - маршрут из концепции (Контакт -> Встреча -> Документы ->
 Согласование -> Подписание) для дополнительных соглашений, где внедрение
@@ -17,6 +25,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+from app.enums import (
+    DocumentType,
+    InteractionOutcome,
+    ProductTransferStatus,
+    ProgramImplementationStatus,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class StageSpec:
@@ -26,6 +41,14 @@ class StageSpec:
     sla_days: int | None
     optional: bool = False
     final: bool = False
+    outcome: InteractionOutcome | None = None  # у финальных - результат
+    required: tuple[DocumentType, ...] = ()  # документы, без которых этап не закончить
+    program_status: ProgramImplementationStatus | None = None  # ставится при входе
+    product_status: ProductTransferStatus | None = None
+
+    @property
+    def successful_final(self) -> bool:
+        return self.final and self.outcome != InteractionOutcome.UNSUCCESSFUL
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +127,8 @@ _MAIN_V1_STAGES = (
         "Передача материалов и лицензий",
         "Передать вузу обучающие материалы, лицензии ИТ-продукта и его документацию",
         10,
+        program_status=ProgramImplementationStatus.IN_PROGRESS,
+        product_status=ProductTransferStatus.IN_PROGRESS,
     ),
     StageSpec("rollout", "Сопровождение внедрения", "Помочь вузу развернуть ИТ-продукты", 30),
     StageSpec(
@@ -111,6 +136,7 @@ _MAIN_V1_STAGES = (
         "Обучение преподавателей",
         "Обучить преподавателей работе с программой и продуктом",
         21,
+        product_status=ProductTransferStatus.TRANSFERRED,
     ),
     StageSpec(
         "curriculum",
@@ -118,7 +144,13 @@ _MAIN_V1_STAGES = (
         "Обновить учебную программу с учётом обучения преподавателей и ИТ-продукта",
         30,
     ),
-    StageSpec("classes", "Ведение занятий", "Занятия со студентами по программе", 150),
+    StageSpec(
+        "classes",
+        "Ведение занятий",
+        "Занятия со студентами по программе",
+        150,
+        program_status=ProgramImplementationStatus.IMPLEMENTED,
+    ),
     StageSpec(
         "docs_update",
         "Актуализация документации",
@@ -137,8 +169,20 @@ _MAIN_V1_STAGES = (
         "Проверить исполнение всех этапов и закрыть цикл",
         None,
         final=True,
+        outcome=InteractionOutcome.SUCCESSFUL,
+    ),
+    StageSpec(
+        "refusal",
+        "Отказ вуза",
+        "Вуз отказался от сотрудничества: взаимодействие закрыто без результата",
+        None,
+        final=True,
+        outcome=InteractionOutcome.UNSUCCESSFUL,
     ),
 )
+
+# С каких этапов переговоров вуз может отказаться: до подписания.
+_REFUSAL_FROM = ("programs", "meeting", "documents", "corrections", "signing")
 
 _MAIN_TRANSITIONS = (
     TransitionSpec("contacts", "programs", "Контакт найден"),
@@ -178,15 +222,24 @@ _MAIN_TRANSITIONS = (
     TransitionSpec("classes", "docs_update", "Семестр завершён"),
     TransitionSpec("docs_update", "upskilling", "Документация обновлена"),
     TransitionSpec("upskilling", "control", "Квалификация повышена"),
+    *(
+        TransitionSpec(code, "refusal", "Вуз отказался", needs_comment=True)
+        for code in _REFUSAL_FROM
+    ),
 )
 
 
 def _v2_stage(stage: StageSpec) -> StageSpec:
     """Вторая версия: по итогам первого года повышение квалификации стало
     необязательным, на обновление документации дали больше времени,
-    финальный этап переименовали."""
+    финальный этап переименовали, а подписание и передача материалов
+    требуют документы."""
     if stage.code == "upskilling":
         return replace(stage, optional=True)
+    if stage.code == "signing":
+        return replace(stage, required=(DocumentType.CONTRACT,))
+    if stage.code == "handover":
+        return replace(stage, required=(DocumentType.LICENSE,))
     if stage.code == "docs_update":
         return replace(stage, sla_days=21)
     if stage.code == "control":
@@ -221,7 +274,14 @@ _SHORT_STAGES = (
     StageSpec("approval", "Согласование", "Согласовать соглашение с юристами вуза", 14),
     StageSpec("revision", "Доработка", "Внести замечания вуза", 7, optional=True),
     StageSpec(
-        "signing", "Подписание", "Подписать дополнительное соглашение", None, final=True
+        "signing",
+        "Подписание",
+        "Подписать дополнительное соглашение",
+        None,
+        final=True,
+        outcome=InteractionOutcome.SUCCESSFUL,
+        program_status=ProgramImplementationStatus.IN_PROGRESS,
+        product_status=ProductTransferStatus.IN_PROGRESS,
     ),
 )
 
@@ -271,6 +331,31 @@ class Upload:
     name: str
     chance: float = 1.0
     when_done: bool = False  # только если этап пройден: скан подписанного договора
+
+    @property
+    def document(self) -> DocumentType:
+        return document_type(self.name)
+
+
+# Тип документа по названию файла - те же правила, что и при переносе
+# старых вложений в миграции 0005.
+_DOCUMENT_WORDS: tuple[tuple[tuple[str, ...], DocumentType], ...] = (
+    (("соглашени",), DocumentType.AGREEMENT),
+    (("договор",), DocumentType.CONTRACT),
+    (("лиценз",), DocumentType.LICENSE),
+    (("акт ",), DocumentType.ACT),
+    (("протокол", "письм", "замечани"), DocumentType.LETTER),
+    (("учебный план", "программа повышения"), DocumentType.CURRICULUM),
+    (("каталог", "презентац"), DocumentType.PRESENTATION),
+)
+
+
+def document_type(name: str) -> DocumentType:
+    lowered = name.lower()
+    for words, kind in _DOCUMENT_WORDS:
+        if any(word in lowered for word in words):
+            return kind
+    return DocumentType.OTHER
 
 
 @dataclass(frozen=True, slots=True)

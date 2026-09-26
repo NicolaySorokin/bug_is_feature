@@ -1,11 +1,17 @@
-"""Загрузка каталогов из XLSX: предпросмотр, проверка, импорт."""
+"""Загрузка каталогов из XLSX: предпросмотр, проверка, импорт.
+
+Сводный каталог загружается через модель взаимодействия: строка - это
+взаимодействие вуза с договором, продукт - в программе взаимодействия,
+лицензия - по договору на этот продукт. Новый вуз из файла приходит на
+проверку.
+"""
 
 from io import BytesIO
 
 from httpx import AsyncClient
 from openpyxl import Workbook
 
-from tests.conftest import ADMIN, MANAGER
+from tests.conftest import ADMIN, HEAD, MANAGER, create_template
 
 XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -24,6 +30,7 @@ CATALOG_HEADERS = [
     "Название ВУЗа",
     "Вендор",
     "ПО",
+    "ИТ-программа",
     "Номер договора",
     "Подписание лицензии",
     "Срок действия лицензии (год)",
@@ -45,7 +52,17 @@ async def _upload(client: AsyncClient, content: bytes, import_type: str) -> dict
     return response.json()
 
 
-async def test_catalog_import_creates_contract_with_license(client: AsyncClient) -> None:
+async def _interactions(client: AsyncClient) -> dict:
+    # Импорт ответственного не нашёл - взаимодействие в очереди руководителя.
+    return (await client.get("/api/v1/interactions", headers=HEAD)).json()
+
+
+async def test_catalog_import_creates_interaction_with_license(client: AsyncClient) -> None:
+    await create_template(client)
+    program = await client.post(
+        "/api/v1/catalog/programs", json={"name": "Python-разработчик"}, headers=ADMIN
+    )
+    assert program.status_code == 201
     content = book(
         [
             CATALOG_HEADERS,
@@ -53,6 +70,7 @@ async def test_catalog_import_creates_contract_with_license(client: AsyncClient)
                 "Казанский университет",
                 "Ростелеком",
                 "Платформа онлайн-обучения",
+                "Python-разработчик",
                 "ДГ-2026-100",
                 "01.02.2026",
                 "2027",
@@ -80,8 +98,8 @@ async def test_catalog_import_creates_contract_with_license(client: AsyncClient)
     assert checked["run"]["rows_created"] == 1
     assert checked["run"]["rows_failed"] == 0
     # Замечание про ненайденного менеджера не мешает загрузке строки.
-    assert all("не найден" in item["message"] for item in checked["errors"])
-    assert (await client.get("/api/v1/contracts", headers=ADMIN)).json()["total"] == 0
+    assert all("Предупреждение" in item["message"] for item in checked["errors"])
+    assert (await _interactions(client))["total"] == 0
 
     result = (
         await client.post(f"/api/v1/imports/{run_id}/commit", json={}, headers=ADMIN)
@@ -89,26 +107,46 @@ async def test_catalog_import_creates_contract_with_license(client: AsyncClient)
     assert result["run"]["status"] == "completed"
     assert result["run"]["rows_created"] == 1
     assert result["run"]["rows_failed"] == 0
-    # Менеджер с таким ФИО не найден - об этом сказано, но строка загружена.
-    assert "не найден" in result["errors"][0]["message"]
+    # Менеджер с таким ФИО не найден, вуз новый - об этом сказано, строка загружена.
+    messages = " ".join(item["message"] for item in result["errors"])
+    assert "не найден" in messages
+    assert "на проверку" in messages
 
-    contracts = (await client.get("/api/v1/contracts", headers=ADMIN)).json()
-    assert contracts["total"] == 1
-    contract = contracts["items"][0]
-    assert contract["number"] == "ДГ-2026-100"
-    assert contract["university"]["name"] == "Казанский университет"
+    interactions = await _interactions(client)
+    assert interactions["total"] == 1
+    interaction = interactions["items"][0]
+    assert interaction["source"] == "import"
+    assert interaction["status"] == "draft"
+    assert interaction["contract"]["number"] == "ДГ-2026-100"
+    assert interaction["university"]["name"] == "Казанский университет"
 
-    detail = (await client.get(f"/api/v1/contracts/{contract['id']}", headers=ADMIN)).json()
-    assert detail["products"][0]["transfer_status"] == "implemented"
+    detail = (
+        await client.get(f"/api/v1/interactions/{interaction['id']}", headers=HEAD)
+    ).json()
+    assert detail["product_links"][0]["transfer_status"] == "transferred"
+    assert [item["program"]["name"] for item in detail["program_links"]] == [
+        "Python-разработчик"
+    ]
+    # Связи продукта с программой нет в справочнике - это отмеченное исключение.
+    assert detail["links"][0]["is_exception"] is True
+    assert detail["contacts"][0]["contact"]["full_name"] == "Гафуров Ильдар Рашидович"
 
-    licenses = (await client.get("/api/v1/licenses", headers=ADMIN)).json()
+    university = (
+        await client.get(
+            f"/api/v1/universities/{interaction['university']['id']}", headers=HEAD
+        )
+    ).json()
+    assert university["status"] == "pending"
+
+    licenses = (await client.get("/api/v1/licenses", headers=HEAD)).json()
     assert licenses["items"][0]["valid_to"] == "2027-12-31"
 
 
 async def test_repeated_import_updates_instead_of_duplicating(
     client: AsyncClient,
 ) -> None:
-    row = ["Вуз", None, None, "ДГ-1", None, None, None, None, None, None]
+    await create_template(client)
+    row = ["Вуз", None, None, None, "ДГ-1", None, None, None, None, None, None]
     content = book([CATALOG_HEADERS, row])
 
     first = await _upload(client, content, "catalog")
@@ -123,15 +161,15 @@ async def test_repeated_import_updates_instead_of_duplicating(
 
     assert result["run"]["rows_created"] == 0
     assert result["run"]["rows_updated"] == 1
-    assert (await client.get("/api/v1/contracts", headers=ADMIN)).json()["total"] == 1
+    assert (await _interactions(client))["total"] == 1
 
 
 async def test_bad_values_are_reported_per_row(client: AsyncClient) -> None:
     content = book(
         [
             CATALOG_HEADERS,
-            ["Вуз", None, None, "ДГ-2", "вчера", None, None, None, None, None],
-            [None, None, None, "ДГ-3", None, None, None, None, None, None],
+            ["Вуз", None, None, None, "ДГ-2", "вчера", None, None, None, None, None],
+            [None, None, None, None, "ДГ-3", None, None, None, None, None, None],
         ]
     )
     preview = await _upload(client, content, "catalog")
@@ -148,6 +186,7 @@ async def test_bad_values_are_reported_per_row(client: AsyncClient) -> None:
 
 
 async def test_mapping_can_be_corrected_by_hand(client: AsyncClient) -> None:
+    await create_template(client)
     content = book(
         [
             ["Учебное заведение", "Соглашение"],
@@ -171,7 +210,9 @@ async def test_mapping_can_be_corrected_by_hand(client: AsyncClient) -> None:
     ).json()
     assert result["run"]["rows_created"] == 1
 
-    universities = (await client.get("/api/v1/universities", headers=ADMIN)).json()
+    universities = (
+        await client.get("/api/v1/universities", params={"status": "pending"}, headers=ADMIN)
+    ).json()
     assert universities["items"][0]["name"] == "Северный университет"
 
 

@@ -12,7 +12,15 @@
 
 Каждая строка загружается в своей точке сохранения (SAVEPOINT) и только
 после проверки всех её значений: строка с ошибкой не оставляет после себя
-наполовину заведённых вуза или договора, а остальные строки загружаются.
+наполовину заведённых вуза или взаимодействия, а остальные строки
+загружаются.
+
+Сводный каталог загружается через целевую модель (пункт 12 перечня
+исправлений): строка - это взаимодействие с вузом и его договор; продукт
+добавляется только вместе с ИТ-программой - из колонки «ИТ-программа»
+или по справочному соответствию программ и продуктов. Строка, где
+программу определить нельзя, отклоняется с понятной причиной.
+Новый вуз из файла заводится «На проверке» - его подтверждает руководитель.
 """
 
 from __future__ import annotations
@@ -29,17 +37,40 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError, ErrorCode
-from app.enums import ImplementationStatus, ImportType
-from app.models.catalog import ItDirection, ItProduct, ItProgram, Vendor, VendorContact
-from app.models.contract import Contract, ContractContact, ContractProduct, License
+from app.enums import (
+    ImportType,
+    InteractionSource,
+    InteractionStatus,
+    ProductTransferStatus,
+    Role,
+    UniversityStatus,
+)
+from app.models.catalog import (
+    ItDirection,
+    ItProduct,
+    ItProgram,
+    ProgramProduct,
+    Vendor,
+    VendorContact,
+)
+from app.models.contract import Contract, License
+from app.models.interaction import (
+    InteractionContact,
+    InteractionProduct,
+    InteractionProgram,
+    InteractionProgramProduct,
+)
 from app.models.learning import Learner
 from app.models.university import University, UniversityContact
 from app.models.user import User
+from app.models.workflow import WorkflowInstance
+from app.services import licenses as license_service
+from app.services import workflow as workflow_service
 from app.services.integrations.base import normalize_email, normalize_phone
 
 MAX_PREVIEW_ROWS = 20
 MAX_ROWS = 5000
-# Роль, с которой контакт из каталога назначается ответственным по договору.
+# Роль, с которой контакт из каталога назначается ответственным по взаимодействию.
 CONTRACT_CONTACT_ROLE = "Ответственный от вуза"
 
 
@@ -71,13 +102,16 @@ CATALOG_SPEC = ImportSpec(
     import_type=ImportType.CATALOG,
     title="Сводный каталог",
     description=(
-        "Вузы, ИТ-продукты, договоры и лицензии одной таблицей - набор полей "
-        "из требования 1 технического задания."
+        "Вузы, взаимодействия с договорами, ИТ-продукты и лицензии одной таблицей - "
+        "набор полей из требования 1 технического задания. Колонка «ИТ-программа» "
+        "необязательна: без неё программа продукта берётся из справочного "
+        "соответствия программ и продуктов."
     ),
     fields=(
         FieldSpec("university_name", "Название ВУЗа", ("Вуз", "ВУЗ"), required=True),
         FieldSpec("vendor", "Вендор", ("Производитель",)),
         FieldSpec("product", "ПО", ("Продукт", "ИТ-продукт")),
+        FieldSpec("program", "ИТ-программа", ("Программа", "Курс")),
         FieldSpec("contract_number", "Номер договора", ("Договор",), required=True),
         FieldSpec("license_signed_at", "Подписание лицензии", ("Дата подписания лицензии",)),
         FieldSpec("license_valid_to", "Срок действия лицензии (год)", ("Срок лицензии",)),
@@ -193,20 +227,24 @@ SPECS: dict[ImportType, ImportSpec] = {
     )
 }
 
-TRANSFER_STATUSES: dict[str, ImplementationStatus] = {
-    "неначато": ImplementationStatus.NOT_STARTED,
-    "неначат": ImplementationStatus.NOT_STARTED,
-    "нет": ImplementationStatus.NOT_STARTED,
-    "вработе": ImplementationStatus.IN_PROGRESS,
-    "впроцессе": ImplementationStatus.IN_PROGRESS,
-    "передаётся": ImplementationStatus.IN_PROGRESS,
-    "передается": ImplementationStatus.IN_PROGRESS,
-    "внедрено": ImplementationStatus.IMPLEMENTED,
-    "передано": ImplementationStatus.IMPLEMENTED,
-    "завершено": ImplementationStatus.IMPLEMENTED,
-    "да": ImplementationStatus.IMPLEMENTED,
-    "приостановлено": ImplementationStatus.SUSPENDED,
-    "пауза": ImplementationStatus.SUSPENDED,
+TRANSFER_STATUSES: dict[str, ProductTransferStatus] = {
+    "неначато": ProductTransferStatus.NOT_STARTED,
+    "неначата": ProductTransferStatus.NOT_STARTED,
+    "неначат": ProductTransferStatus.NOT_STARTED,
+    "нет": ProductTransferStatus.NOT_STARTED,
+    "вработе": ProductTransferStatus.IN_PROGRESS,
+    "впроцессе": ProductTransferStatus.IN_PROGRESS,
+    "выполняется": ProductTransferStatus.IN_PROGRESS,
+    "передаётся": ProductTransferStatus.IN_PROGRESS,
+    "передается": ProductTransferStatus.IN_PROGRESS,
+    "внедрено": ProductTransferStatus.TRANSFERRED,
+    "передано": ProductTransferStatus.TRANSFERRED,
+    "передан": ProductTransferStatus.TRANSFERRED,
+    "завершено": ProductTransferStatus.TRANSFERRED,
+    "да": ProductTransferStatus.TRANSFERRED,
+    "приостановлено": ProductTransferStatus.SUSPENDED,
+    "приостановлена": ProductTransferStatus.SUSPENDED,
+    "пауза": ProductTransferStatus.SUSPENDED,
 }
 
 
@@ -443,7 +481,7 @@ def parse_license_valid_to(value: Any, signed_at: date | None) -> date | None:
     return parse_date(value)
 
 
-def parse_transfer_status(value: Any) -> ImplementationStatus | None:
+def parse_transfer_status(value: Any) -> ProductTransferStatus | None:
     if value in (None, ""):
         return None
     text = _normalize(_text(value))
@@ -562,60 +600,93 @@ RowImporter = Callable[
 
 
 async def _catalog_row(session, row, value, number, warnings) -> bool:  # noqa: ANN001
-    """Строка сводного каталога. Возвращает True, если заведён новый договор."""
+    """Строка сводного каталога: взаимодействие с договором. True - заведено новое."""
     university_name = _text(value(row, "university_name"))
     contract_number = _text(value(row, "contract_number"))
 
     university = await _find_university(session, university_name)
     if university is None:
-        university = University(name=university_name)
+        # Вуз из файла - на проверку руководителю (единый путь создания вуза).
+        university = University(
+            name=university_name, status=UniversityStatus.PENDING, origin="import"
+        )
         session.add(university)
         await session.flush()
+        warnings.append(
+            RowError(
+                number,
+                "Название ВУЗа",
+                f"Предупреждение: вуз «{university_name}» заведён на проверку - "
+                "его подтвердит руководитель",
+            )
+        )
 
     manager_name = _text(value(row, "manager_name"))
     manager = await _find_user(session, manager_name)
-    if manager_name and manager is None:
+    if manager is not None and Role.MANAGER not in (manager.roles or []):
+        warnings.append(
+            RowError(
+                number,
+                "ФИО Менеджера",
+                f"Предупреждение: у сотрудника «{manager_name}» нет роли «Менеджер», "
+                "ответственный не назначен",
+            )
+        )
+        manager = None
+    elif manager_name and manager is None:
         warnings.append(
             RowError(
                 number,
                 "ФИО Менеджера",
                 f"Предупреждение: сотрудник «{manager_name}» не найден, "
-                "ответственный по договору не изменён",
+                "ответственный не изменён",
             )
         )
 
     contract = await session.scalar(
-        select(Contract).where(
-            Contract.university_id == university.id,
+        select(Contract)
+        .join(WorkflowInstance, WorkflowInstance.id == Contract.workflow_instance_id)
+        .where(
+            WorkflowInstance.university_id == university.id,
             Contract.number == contract_number,
         )
     )
     created = contract is None
     comment = _text(value(row, "comment"))
     if contract is None:
-        contract = Contract(
+        template = await workflow_service.default_template(session)
+        if template is None:
+            raise ValueError("нет шаблона процесса с действующей версией - опубликуйте его")
+        version = await workflow_service.active_version(session, template.id)
+        instance = await workflow_service.create_interaction(
+            session,
             university_id=university.id,
-            number=contract_number,
-            manager_id=manager.id if manager else None,
+            version=version,
+            user=None,
+            manager_id=(manager.id if manager else university.manager_id),
+            title=f"Договор {contract_number}",
             comment=comment or None,
+            source=InteractionSource.IMPORT,
         )
+        contract = Contract(workflow_instance_id=instance.id, number=contract_number)
         session.add(contract)
         await session.flush()
     else:
-        if manager is not None:
-            contract.manager_id = manager.id
+        instance = await session.get(WorkflowInstance, contract.workflow_instance_id)
+        if manager is not None and instance.status != InteractionStatus.CANCELLED:
+            instance.manager_id = manager.id
         if comment:
-            contract.comment = comment
+            instance.comment = comment
 
-    await _import_contact(session, university, contract, _text(value(row, "contact_name")))
-    await _import_product_and_license(session, contract, row, value)
+    await _import_contact(session, university, instance, _text(value(row, "contact_name")))
+    await _import_product_and_license(session, instance, contract, row, value)
     return created
 
 
 async def _import_contact(
-    session: AsyncSession, university: University, contract: Contract, full_name: str
+    session: AsyncSession, university: University, instance: WorkflowInstance, full_name: str
 ) -> None:
-    """Ответственный от вуза: контакт вуза, назначенный на договор (раздел 9.2)."""
+    """Ответственный от вуза: контакт вуза, назначенный во взаимодействии."""
     if not full_name:
         return
     contact = await session.scalar(
@@ -628,18 +699,93 @@ async def _import_contact(
         contact = UniversityContact(university_id=university.id, full_name=full_name)
         session.add(contact)
         await session.flush()
-    link = await session.get(ContractContact, (contract.id, contact.id))
+    link = await session.get(InteractionContact, (instance.id, contact.id))
     if link is None:
         session.add(
-            ContractContact(
-                contract_id=contract.id, contact_id=contact.id, role=CONTRACT_CONTACT_ROLE
+            InteractionContact(
+                workflow_instance_id=instance.id,
+                contact_id=contact.id,
+                role=CONTRACT_CONTACT_ROLE,
             )
         )
         await session.flush()
 
 
+async def _program_links_for(
+    session: AsyncSession, instance: WorkflowInstance, product: ItProduct, program_name: str
+) -> list[tuple[InteractionProgram, bool]]:
+    """Программы взаимодействия для продукта: (связь, это исключение).
+
+    Колонка «ИТ-программа» задаёт программу явно; без неё - справочное
+    соответствие программ и продуктов.
+    """
+
+    async def ensure_program(program: ItProgram) -> InteractionProgram:
+        link = await session.scalar(
+            select(InteractionProgram).where(
+                InteractionProgram.workflow_instance_id == instance.id,
+                InteractionProgram.program_id == program.id,
+            )
+        )
+        if link is None:
+            link = InteractionProgram(workflow_instance_id=instance.id, program_id=program.id)
+            session.add(link)
+            await session.flush()
+        return link
+
+    catalog = set(
+        (
+            await session.execute(
+                select(ProgramProduct.program_id).where(
+                    ProgramProduct.product_id == product.id
+                )
+            )
+        ).scalars()
+    )
+    if program_name:
+        program = await session.scalar(
+            select(ItProgram)
+            .where(func.lower(ItProgram.name) == program_name.lower())
+            .limit(1)
+        )
+        if program is None:
+            raise ValueError(
+                f"программы «{program_name}» нет в справочнике - загрузите её раньше"
+            )
+        return [(await ensure_program(program), program.id not in catalog)]
+
+    existing = list(
+        (
+            await session.execute(
+                select(InteractionProgram).where(
+                    InteractionProgram.workflow_instance_id == instance.id,
+                    InteractionProgram.program_id.in_(catalog or {None}),
+                )
+            )
+        ).scalars()
+    )
+    if existing:
+        return [(link, False) for link in existing]
+    if len(catalog) == 1:
+        program = await session.get(ItProgram, next(iter(catalog)))
+        return [(await ensure_program(program), False)]
+    if not catalog:
+        raise ValueError(
+            f"продукт «{product.name}» не связан ни с одной ИТ-программой: заполните "
+            "колонку «ИТ-программа» или свяжите продукт с программой в справочнике"
+        )
+    raise ValueError(
+        f"продукт «{product.name}» используется в нескольких программах - укажите "
+        "нужную в колонке «ИТ-программа»"
+    )
+
+
 async def _import_product_and_license(
-    session: AsyncSession, contract: Contract, row: list[Any], value
+    session: AsyncSession,
+    instance: WorkflowInstance,
+    contract: Contract,
+    row: list[Any],
+    value,
 ) -> None:  # noqa: ANN001
     product_name = _text(value(row, "product"))
     if not product_name:
@@ -655,16 +801,36 @@ async def _import_product_and_license(
     if vendor is not None and product.vendor_id is None:
         product.vendor_id = vendor.id
 
+    program_links = await _program_links_for(
+        session, instance, product, _text(value(row, "program"))
+    )
+
     link = await session.scalar(
-        select(ContractProduct).where(
-            ContractProduct.contract_id == contract.id,
-            ContractProduct.product_id == product.id,
+        select(InteractionProduct).where(
+            InteractionProduct.workflow_instance_id == instance.id,
+            InteractionProduct.product_id == product.id,
         )
     )
     if link is None:
-        link = ContractProduct(contract_id=contract.id, product_id=product.id)
+        link = InteractionProduct(workflow_instance_id=instance.id, product_id=product.id)
         session.add(link)
         await session.flush()
+    for program_link, exception in program_links:
+        if await session.get(InteractionProgramProduct, (program_link.id, link.id)) is None:
+            session.add(
+                InteractionProgramProduct(
+                    interaction_program_id=program_link.id,
+                    interaction_product_id=link.id,
+                    is_exception=exception,
+                    exception_comment=(
+                        "Загружено из Excel: в справочнике программ и продуктов "
+                        "такой связи нет"
+                        if exception
+                        else None
+                    ),
+                )
+            )
+    await session.flush()
 
     status = parse_transfer_status(value(row, "transfer_status"))
     if status is not None:
@@ -676,15 +842,20 @@ async def _import_product_and_license(
         return
 
     license_ = await session.scalar(
-        select(License).where(License.contract_product_id == link.id).limit(1)
+        select(License).where(License.interaction_product_id == link.id).limit(1)
     )
     if license_ is None:
-        session.add(
-            License(contract_product_id=link.id, signed_at=signed_at, valid_to=valid_to)
+        license_ = License(
+            contract_id=contract.id,
+            interaction_product_id=link.id,
+            signed_at=signed_at,
+            valid_to=valid_to,
         )
+        session.add(license_)
     else:
         license_.signed_at = signed_at or license_.signed_at
         license_.valid_to = valid_to or license_.valid_to
+    license_service.normalize_status(license_)
     await session.flush()
 
 
@@ -693,7 +864,8 @@ async def _university_row(session, row, value, number, warnings) -> bool:  # noq
     university = await _find_university(session, name)
     created = university is None
     if university is None:
-        university = University(name=name)
+        # Вуз из файла - на проверку руководителю (единый путь создания вуза).
+        university = University(name=name, status=UniversityStatus.PENDING, origin="import")
         session.add(university)
     university.short_name = _text(value(row, "short_name")) or university.short_name
     university.city = _text(value(row, "city")) or university.city

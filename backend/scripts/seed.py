@@ -2,24 +2,32 @@
 
 Запуск:
     python -m scripts.seed               # демоданные, если база пустая
-    python -m scripts.seed --load 3000   # ещё 3000 договоров для нагрузочной проверки
+    python -m scripts.seed --load 3000   # ещё 3000 взаимодействий для нагрузочной проверки
 
-Повторный запуск ничего не портит: если в базе уже есть договоры или шаблоны
-процессов, основной набор не загружается. Перезалить с нуля - ``make reset``.
+Повторный запуск ничего не портит: если в базе уже есть взаимодействия или
+шаблоны процессов, основной набор не загружается. Перезалить с нуля -
+``make reset``.
 
 Что получается (подробности - в пакете scripts/demo):
 
-* 23 сотрудника ИТ Школы: 20 менеджеров, два руководителя и администратор;
-* 30 вузов с контактными лицами, 16 программ по 8 направлениям, 12 продуктов;
-* шаблон процесса из 14 шагов ТЗ в двух версиях и короткий шаблон
-  для дополнительных соглашений;
-* около 85 договоров за два года с историей переходов, комментариями
-  и файлами всех форматов из ТЗ, кроме xls;
-* журналы синхронизаций с LMS и сайтом и прошлых загрузок каталогов;
+* 23 сотрудника ИТ Школы: 20 менеджеров, два руководителя со своими
+  командами и администратор; роли не наследуются;
+* 30 вузов с контактными лицами и один вуз на проверке, 16 программ
+  по 8 направлениям, 12 продуктов;
+* шаблон процесса из 14 шагов ТЗ с этапом «Отказ вуза» в двух версиях
+  (первая устарела, вторая действует) и короткий шаблон для
+  дополнительных соглашений;
+* около 90 взаимодействий с вузами за два года: с историей переходов,
+  составом программ и продуктов, договорами (у тех, кто дошёл до обмена
+  документами), лицензиями, комментариями и файлами всех форматов из ТЗ,
+  кроме xls; есть черновик, отказ вуза и досрочная отмена;
+* журналы синхронизаций с LMS и сайтом, связи с их записями и одна запись
+  в очереди сопоставления, прошлые загрузки каталогов;
 * каталог вендоров с ответственными и около 400 заявок на обучение
-  с анкетами обучающихся - для статистики востребованности программ.
+  с потоками, анкетами и зачислениями - для статистики востребованности.
 
-На главной видна ровно одна тревога каждого вида из раздела 7 концепции.
+На главной руководителя и администратора видна тревога каждого вида
+из раздела 7 концепции.
 
 Пользователи заводятся под ту схему входа, что настроена сейчас
 (AUTH_BACKEND): под dev-заглушкой - ``X-Dev-User: petrov``, под Keycloak -
@@ -41,7 +49,7 @@ from app.models.user import User
 from app.services import cache
 from scripts.demo import learning, vendors
 from scripts.demo.loader import DemoLoader
-from scripts.demo.people import EMPLOYEE_BY_USERNAME
+from scripts.demo.people import EMPLOYEE_BY_USERNAME, HEAD_OF
 
 
 async def sync_demo_roles(session: AsyncSession) -> int:
@@ -56,6 +64,23 @@ async def sync_demo_roles(session: AsyncSession) -> int:
     return updated
 
 
+async def sync_demo_teams(session: AsyncSession) -> int:
+    """Команды руководителей: без них область «команда» пуста.
+
+    Нужна и в базе, заполненной до появления команд: связь ставится тем
+    демо-сотрудникам, у которых руководитель ещё не указан.
+    """
+    users = {user.username: user for user in (await session.execute(select(User))).scalars()}
+    updated = 0
+    for username, head in HEAD_OF.items():
+        user, leader = users.get(username), users.get(head)
+        if user is not None and leader is not None and user.head_id is None:
+            user.head_id = leader.id
+            updated += 1
+    await session.flush()
+    return updated
+
+
 async def main(load: int) -> None:
     async with SessionFactory() as session:
         loader = DemoLoader(session)
@@ -64,7 +89,8 @@ async def main(load: int) -> None:
             await session.commit()
             print(
                 f"Демоданные загружены: сотрудников {summary.users}, "
-                f"вузов {summary.universities}, договоров {summary.contracts}, "
+                f"вузов {summary.universities}, взаимодействий {summary.interactions}, "
+                f"договоров {summary.contracts}, "
                 f"переходов по процессам {summary.events}, "
                 f"комментариев {summary.comments}, файлов {summary.attachments}."
             )
@@ -73,6 +99,8 @@ async def main(load: int) -> None:
 
         if updated := await sync_demo_roles(session):
             print(f"Роли в карточках демо-сотрудников: {updated}.")
+        if updated := await sync_demo_teams(session):
+            print(f"Демо-сотрудники распределены по командам: {updated}.")
         if await vendors.is_empty(session):
             outcome = await vendors.load(session)
             print(f"Каталог вендоров: создано {outcome.created}, обновлено {outcome.updated}.")
@@ -87,7 +115,7 @@ async def main(load: int) -> None:
             added = await loader.load_extra(load)
             await cache.bump_version(session)
             await session.commit()
-            print(f"Для нагрузочной проверки добавлено договоров: {added}.")
+            print(f"Для нагрузочной проверки добавлено взаимодействий: {added}.")
 
     await engine.dispose()
 
@@ -99,6 +127,6 @@ if __name__ == "__main__":
         type=int,
         default=0,
         metavar="N",
-        help="добавить N договоров для нагрузочной проверки (без файлов и заметок)",
+        help="добавить N взаимодействий для нагрузочной проверки (без файлов и заметок)",
     )
     asyncio.run(main(parser.parse_args().load))

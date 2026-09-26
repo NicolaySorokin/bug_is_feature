@@ -9,8 +9,13 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.core.security import Principal
-from app.enums import Role, StageState, WorkflowEventType, WorkflowInstanceStatus
+from app.enums import (
+    ClosureReason,
+    InteractionOutcome,
+    StageState,
+    WorkflowEventType,
+    WorkflowInstanceStatus,
+)
 from app.models.user import User
 from app.models.workflow import (
     WorkflowEvent,
@@ -34,28 +39,44 @@ class FakeSession:
     async def flush(self) -> None:
         return None
 
+    async def get(self, _model: object, _key: object) -> None:
+        return None
 
-def make_stage(code: str, order: int, *, optional: bool = False, final: bool = False):
+
+def make_stage(
+    code: str,
+    order: int,
+    *,
+    initial: bool = False,
+    optional: bool = False,
+    final: bool = False,
+    outcome: InteractionOutcome | None = None,
+):
     return WorkflowStage(
         id=uuid.uuid4(),
         code=code,
         name=code,
         sort_order=order,
+        is_initial=initial,
         is_optional=optional,
         is_final=final,
+        outcome=outcome or (InteractionOutcome.SUCCESSFUL if final else None),
+        required_documents=[],
     )
 
 
 @pytest.fixture
 def version() -> WorkflowVersion:
-    contact = make_stage("contact", 10)
+    # Стартовый этап отмечен явно - и не первым по сортировке.
+    contact = make_stage("contact", 30, initial=True)
     meeting = make_stage("meeting", 20)
-    documents = make_stage("documents", 30, optional=True)
+    documents = make_stage("documents", 35, optional=True)
     approval = make_stage("approval", 40)
     signing = make_stage("signing", 50, final=True)
+    refusal = make_stage("refusal", 60, final=True, outcome=InteractionOutcome.UNSUCCESSFUL)
 
     version = WorkflowVersion(id=uuid.uuid4(), version_number=1)
-    version.stages = [contact, meeting, documents, approval, signing]
+    version.stages = [contact, meeting, documents, approval, signing, refusal]
     version.transitions = [
         WorkflowTransition(
             id=uuid.uuid4(),
@@ -97,6 +118,14 @@ def version() -> WorkflowVersion:
             is_backward=False,
             requires_comment=False,
         ),
+        WorkflowTransition(
+            id=uuid.uuid4(),
+            workflow_version_id=version.id,
+            from_stage_id=approval.id,
+            to_stage_id=refusal.id,
+            is_backward=False,
+            requires_comment=True,
+        ),
     ]
     return version
 
@@ -109,7 +138,7 @@ def stage(version: WorkflowVersion, code: str) -> WorkflowStage:
 def instance(version: WorkflowVersion) -> WorkflowInstance:
     return WorkflowInstance(
         id=uuid.uuid4(),
-        contract_id=uuid.uuid4(),
+        university_id=uuid.uuid4(),
         workflow_version_id=version.id,
         current_stage_id=stage(version, "contact").id,
         status=WorkflowInstanceStatus.IN_PROGRESS,
@@ -122,18 +151,12 @@ def user() -> User:
     return User(id=uuid.uuid4(), keycloak_id="k", username="u", full_name="U")
 
 
-@pytest.fixture
-def manager() -> Principal:
-    return Principal(subject="k", username="u", full_name="U", roles=frozenset({Role.MANAGER}))
-
-
-@pytest.fixture
-def head() -> Principal:
-    return Principal(subject="h", username="h", full_name="H", roles=frozenset({Role.HEAD}))
-
-
-def test_initial_stage_is_lowest_sort_order(version: WorkflowVersion) -> None:
+def test_initial_stage_is_marked_explicitly(version: WorkflowVersion) -> None:
     assert service.initial_stage(version).code == "contact"
+    for item in version.stages:
+        item.is_initial = False
+    with pytest.raises(service.WorkflowError):
+        service.initial_stage(version)
 
 
 def test_available_transitions_limited_to_current_stage(version, instance) -> None:
@@ -141,36 +164,28 @@ def test_available_transitions_limited_to_current_stage(version, instance) -> No
     assert [t.to_stage_id for t in available] == [stage(version, "meeting").id]
 
 
-async def test_forward_transition_records_event(version, instance, user, manager) -> None:
+async def test_forward_transition_records_event(version, instance, user) -> None:
     session = FakeSession()
-    event = await service.move(
-        session, instance, version, stage(version, "meeting").id, user, manager
-    )
+    event = await service.move(session, instance, version, stage(version, "meeting").id, user)
 
     assert event.event_type == WorkflowEventType.FORWARD
     assert instance.current_stage_id == stage(version, "meeting").id
     assert event in session.added
 
 
-async def test_transition_not_in_template_is_rejected(
-    version, instance, user, manager
-) -> None:
+async def test_transition_not_in_template_is_rejected(version, instance, user) -> None:
     session = FakeSession()
     with pytest.raises(service.WorkflowError):
-        await service.move(
-            session, instance, version, stage(version, "signing").id, user, manager
-        )
+        await service.move(session, instance, version, stage(version, "signing").id, user)
     assert instance.current_stage_id == stage(version, "contact").id
 
 
-async def test_backward_transition_requires_comment(version, instance, user, manager) -> None:
+async def test_backward_transition_requires_comment(version, instance, user) -> None:
     instance.current_stage_id = stage(version, "approval").id
     session = FakeSession()
 
     with pytest.raises(service.WorkflowError):
-        await service.move(
-            session, instance, version, stage(version, "meeting").id, user, manager
-        )
+        await service.move(session, instance, version, stage(version, "meeting").id, user)
 
     event = await service.move(
         session,
@@ -178,15 +193,12 @@ async def test_backward_transition_requires_comment(version, instance, user, man
         version,
         stage(version, "meeting").id,
         user,
-        manager,
         comment="Не хватает документов",
     )
     assert event.event_type == WorkflowEventType.BACKWARD
 
 
-async def test_manager_skips_only_optional_stage(
-    version, instance, user, manager, head
-) -> None:
+async def test_manager_skips_only_optional_stage(version, instance, user) -> None:
     instance.current_stage_id = stage(version, "meeting").id
     session = FakeSession()
 
@@ -198,7 +210,6 @@ async def test_manager_skips_only_optional_stage(
             version,
             stage(version, "documents").id,
             user,
-            manager,
             comment="Не нужна",
             skip=True,
         )
@@ -210,20 +221,43 @@ async def test_manager_skips_only_optional_stage(
         version,
         stage(version, "documents").id,
         user,
-        head,
         comment="Встреча уже была вне системы",
         skip=True,
+        may_skip_required=True,
     )
     assert event.event_type == WorkflowEventType.SKIPPED
 
 
-async def test_final_stage_completes_instance(version, instance, user, manager) -> None:
+async def test_final_stage_completes_instance(version, instance, user) -> None:
     instance.current_stage_id = stage(version, "approval").id
     session = FakeSession()
 
-    await service.move(session, instance, version, stage(version, "signing").id, user, manager)
+    await service.move(session, instance, version, stage(version, "signing").id, user)
     assert instance.status == WorkflowInstanceStatus.COMPLETED
-    assert instance.completed_at is not None
+    assert instance.outcome == InteractionOutcome.SUCCESSFUL
+    assert instance.closed_at is not None
+    assert instance.closed_by_id == user.id
+
+
+async def test_unsuccessful_final_needs_reason(version, instance, user) -> None:
+    instance.current_stage_id = stage(version, "approval").id
+    session = FakeSession()
+    refusal = stage(version, "refusal").id
+
+    with pytest.raises(service.WorkflowError):
+        await service.move(session, instance, version, refusal, user, comment="Отказ")
+    await service.move(
+        session,
+        instance,
+        version,
+        refusal,
+        user,
+        comment="Вуз выбрал другого партнёра",
+        closure_reason=ClosureReason.UNIVERSITY_REFUSED,
+    )
+    assert instance.status == WorkflowInstanceStatus.COMPLETED
+    assert instance.outcome == InteractionOutcome.UNSUCCESSFUL
+    assert instance.closure_reason == ClosureReason.UNIVERSITY_REFUSED
 
 
 def test_stage_states_derived_from_history(version, instance) -> None:

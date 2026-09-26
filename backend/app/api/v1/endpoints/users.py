@@ -2,15 +2,30 @@
 
 ТЗ, ролевая модель: администратор управляет правами пользователей
 и ограничениями по видимой информации. Роли живут в Keycloak - их CRM
-меняет через Admin API (app.services.keycloak_admin); доступ к данным
-(область видимости договоров, открытые вузы, отключение учётной записи)
-хранится у нас.
+меняет через Admin API (app.services.keycloak_admin); права на данные
+хранятся у нас (раздел 12 «Решений по бизнес-модели»):
+
+* роли не наследуются - совмещение задаётся несколькими ролями явно;
+* дополнительные права (запуск обмена, журнал обмена, персональные данные
+  студентов, представление схемы процесса) выдаются отдельно;
+* область данных: по ролям или явно (свои, команда, все, нет доступа);
+  область шире ролевой выдаётся с основанием и, при необходимости, сроком;
+* точечный доступ к вузу - со сроком, основанием и отметкой, кто выдал;
+  отзыв помечает запись, а не удаляет её.
+
+Каждое изменение попадает в журнал изменений.
+
+Список сотрудников с почтой и ролями виден только администратору.
+Руководителю для назначения ответственных - краткий справочник
+менеджеров его области (ФИО без почты), менеджеру - только он сам.
 """
 
 import uuid
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy import delete, func, or_, select
+from fastapi import APIRouter, Query, status
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
     AccessTokenDep,
@@ -18,31 +33,38 @@ from app.api.deps import (
     PaginationDep,
     PrincipalDep,
     SessionDep,
-    require_roles,
+    require_action,
 )
 from app.core.config import settings
 from app.core.errors import AppError, ConflictError, ErrorCode, ForbiddenError, NotFoundError
-from app.db.session import mark_changed
-from app.enums import Role
+from app.core.security import Principal
+from app.enums import DataScope, Role
 from app.models.access import UserUniversityAccess
-from app.models.contract import Contract
 from app.models.university import University
 from app.models.user import User
+from app.models.workflow import WorkflowInstance
 from app.schemas.common import Page
 from app.schemas.user import (
+    AccessGrantRead,
+    AccessGrantWrite,
     MeRead,
     PasswordReset,
     RoleSyncResult,
+    UserBrief,
     UserCreate,
     UserDetail,
     UserRead,
     UserUpdate,
 )
 from app.services import access
+from app.services.access import Action
 from app.services.keycloak_admin import KeycloakAdmin, split_full_name
 
 router = APIRouter(tags=["users"])
-admin_only = [Depends(require_roles(Role.ADMIN))]
+admin_only = [require_action(Action.MANAGE_USERS, "Пользователями управляет администратор")]
+
+# Насколько широка область: шире ролевой - только с основанием.
+_SCOPE_RANK = {DataScope.NONE: 0, DataScope.OWN: 1, DataScope.TEAM: 2, DataScope.ALL: 3}
 
 
 def _keycloak_mode() -> bool:
@@ -59,23 +81,59 @@ def _keycloak(token: str | None) -> KeycloakAdmin:
     return KeycloakAdmin(token)
 
 
-async def _get_user(session: SessionDep, user_id: uuid.UUID) -> User:
+async def _get_user(session: AsyncSession, user_id: uuid.UUID) -> User:
     user = await session.get(User, user_id)
     if user is None:
         raise NotFoundError("Пользователь не найден")
     return user
 
 
-async def _detail(session: SessionDep, user: User) -> UserDetail:
-    granted = list(
-        (
-            await session.execute(
-                select(UserUniversityAccess.university_id).where(
-                    UserUniversityAccess.user_id == user.id
-                )
-            )
-        ).scalars()
+def _role_principal(user: User) -> Principal:
+    """Сотрудник как носитель ролей из снимка - для расчёта области по ролям."""
+    return Principal(
+        subject=user.keycloak_id,
+        username=user.username,
+        full_name=user.full_name,
+        roles=frozenset(user.roles or []),
     )
+
+
+async def _grants(session: AsyncSession, user: User) -> list[AccessGrantRead]:
+    rows = await session.execute(
+        select(UserUniversityAccess, University)
+        .join(University, University.id == UserUniversityAccess.university_id)
+        .where(UserUniversityAccess.user_id == user.id)
+        .order_by(UserUniversityAccess.created_at.desc())
+    )
+    people_ids = set()
+    items = list(rows.all())
+    for grant, _ in items:
+        people_ids.update(filter(None, (grant.granted_by_id, grant.revoked_by_id)))
+    people = {
+        person.id: UserBrief.model_validate(person)
+        for person in (
+            await session.execute(select(User).where(User.id.in_(people_ids)))
+        ).scalars()
+    }
+    now = datetime.now(UTC)
+    return [
+        AccessGrantRead(
+            university_id=university.id,
+            university_name=university.short_name or university.name,
+            reason=grant.reason,
+            granted_by=people.get(grant.granted_by_id),
+            created_at=grant.created_at,
+            expires_at=grant.expires_at,
+            revoked_at=grant.revoked_at,
+            revoked_by=people.get(grant.revoked_by_id),
+            is_active=grant.revoked_at is None
+            and (grant.expires_at is None or grant.expires_at > now),
+        )
+        for grant, university in items
+    ]
+
+
+async def _detail(session: AsyncSession, user: User) -> UserDetail:
     managed = list(
         (
             await session.execute(
@@ -83,53 +141,109 @@ async def _detail(session: SessionDep, user: User) -> UserDetail:
             )
         ).scalars()
     )
-    contracts = await session.scalar(
-        select(func.count()).select_from(Contract).where(Contract.manager_id == user.id)
+    interactions = await session.scalar(
+        select(func.count())
+        .select_from(WorkflowInstance)
+        .where(WorkflowInstance.manager_id == user.id)
     )
+    team = (
+        await session.execute(
+            select(User).where(User.head_id == user.id).order_by(User.full_name)
+        )
+    ).scalars()
+    head = await session.get(User, user.head_id) if user.head_id else None
     detail = UserDetail.model_validate(user)
-    detail.university_ids = granted
+    detail.effective_scope = access.effective_scope(_role_principal(user), user)
+    detail.head = UserBrief.model_validate(head) if head else None
+    detail.grants = await _grants(session, user)
     detail.managed_university_ids = managed
-    detail.contracts_count = contracts or 0
+    detail.interactions_count = interactions or 0
+    detail.team = [UserBrief.model_validate(member) for member in team]
     return detail
 
 
-async def _replace_grants(
-    session: SessionDep, user: User, university_ids: list[uuid.UUID]
-) -> None:
-    unique = list(dict.fromkeys(university_ids))
-    if unique:
-        found = set(
-            (
-                await session.execute(select(University.id).where(University.id.in_(unique)))
-            ).scalars()
+async def _check_head(session: AsyncSession, user: User, head_id: uuid.UUID | None) -> None:
+    if head_id is None:
+        return
+    if head_id == user.id:
+        raise ConflictError("Сотрудник не может быть руководителем самому себе")
+    head = await session.get(User, head_id)
+    if head is None:
+        raise NotFoundError("Руководитель не найден")
+    if Role.HEAD not in (head.roles or []):
+        raise ConflictError(
+            "Руководителем команды назначается сотрудник с ролью «Руководитель»"
         )
-        missing = [str(item) for item in unique if item not in found]
-        if missing:
-            raise NotFoundError(f"Вузы не найдены: {', '.join(missing)}")
-    await session.execute(
-        delete(UserUniversityAccess).where(UserUniversityAccess.user_id == user.id)
-    )
-    # Доступ к данным поменялся - закэшированные сводки пользователя устарели.
-    mark_changed(session)
-    for university_id in unique:
-        session.add(UserUniversityAccess(user_id=user.id, university_id=university_id))
-    await session.flush()
+
+
+def _apply_scope(user: User, scope: DataScope, reason: str | None, expires_at) -> None:  # noqa: ANN001
+    """Область шире ролевой - только с основанием: это бизнес-доступ сверх роли."""
+    role_scope = access.role_scope(_role_principal(user))
+    wider = scope is not DataScope.DEFAULT and _SCOPE_RANK[scope] > _SCOPE_RANK[role_scope]
+    if wider and not (reason or "").strip():
+        raise AppError(
+            "Область данных шире, чем даёт роль: укажите основание "
+            "(и срок, если доступ временный)",
+            code=ErrorCode.VALIDATION_ERROR,
+        )
+    if expires_at is not None and expires_at <= datetime.now(UTC):
+        raise AppError("Срок области данных уже прошёл", code=ErrorCode.VALIDATION_ERROR)
+    user.data_scope = scope
+    user.data_scope_reason = reason if scope is not DataScope.DEFAULT else None
+    user.data_scope_expires_at = expires_at if scope is not DataScope.DEFAULT else None
 
 
 @router.get("/me", response_model=MeRead, summary="Профиль текущего пользователя")
-async def read_me(user: CurrentUserDep, principal: PrincipalDep) -> MeRead:
+async def read_me(
+    user: CurrentUserDep, principal: PrincipalDep, session: SessionDep
+) -> MeRead:
     me = MeRead.model_validate(user)
     # Роли - из токена этого запроса, а не из снимка: они точнее.
     me.roles = sorted(role for role in principal.roles if role in {r.value for r in Role})
-    me.sees_all_contracts = access.sees_all_contracts(principal, user)
+    me.effective_scope = access.effective_scope(principal, user)
+    me.actions = sorted(action.value for action in access.actions(principal, user))
+    head = await session.get(User, user.head_id) if user.head_id else None
+    me.head = UserBrief.model_validate(head) if head else None
     return me
 
 
-@router.get("/users", response_model=Page[UserRead], summary="Сотрудники ИТ Школы")
+@router.get(
+    "/users/directory",
+    response_model=list[UserBrief],
+    summary="Справочник сотрудников для назначения и фильтров",
+    description=(
+        "Менеджеры, которых сотрудник может назначить ответственными или "
+        "выбрать в фильтре: руководителю - менеджеры его команды (или все - при "
+        "области «все»), менеджеру - он сам. Без почты и ролей."
+    ),
+)
+async def directory(
+    session: SessionDep,
+    user: CurrentUserDep,
+    principal: PrincipalDep,
+    role: Role = Role.MANAGER,
+) -> list[UserBrief]:
+    scope = access.effective_scope(principal, user)
+    statement = select(User).where(User.is_active.is_(True), User.roles.any(role.value))
+    if access.can(principal, user, Action.MANAGE_USERS) or scope is DataScope.ALL:
+        pass
+    elif scope is DataScope.TEAM:
+        statement = statement.where(or_(User.head_id == user.id, User.id == user.id))
+    else:
+        statement = statement.where(User.id == user.id)
+    result = await session.execute(statement.order_by(User.full_name))
+    return [UserBrief.model_validate(row) for row in result.scalars()]
+
+
+@router.get(
+    "/users",
+    response_model=Page[UserRead],
+    dependencies=admin_only,
+    summary="Сотрудники ИТ Школы",
+)
 async def list_users(
     session: SessionDep,
     pagination: PaginationDep,
-    _: CurrentUserDep,
     search: str | None = Query(default=None, description="ФИО, логин или почта"),
     role: Role | None = Query(default=None, description="Только с этой ролью"),
     is_active: bool | None = None,
@@ -177,7 +291,7 @@ async def read_user(
     current: CurrentUserDep,
     principal: PrincipalDep,
 ) -> UserDetail:
-    if user_id != current.id and not principal.has_role(Role.ADMIN):
+    if user_id != current.id and not access.can(principal, current, Action.MANAGE_USERS):
         raise ForbiddenError("Карточки других пользователей доступны администратору")
     return await _detail(session, await _get_user(session, user_id))
 
@@ -190,7 +304,7 @@ async def read_user(
     summary="Завести пользователя",
     description=(
         "С Keycloak учётная запись создаётся в реалме с временным паролем и ролями, "
-        "в CRM - карточка с ФИО и доступом к данным. Без Keycloak (режим "
+        "в CRM - карточка с ФИО и правами на данные. Без Keycloak (режим "
         "разработки) заводится только карточка: войти можно заголовком X-Dev-User."
     ),
 )
@@ -230,11 +344,15 @@ async def create_user(
         full_name=payload.full_name,
         email=payload.email,
         roles=roles,
-        data_scope=payload.data_scope,
+        permissions=sorted({item.value for item in payload.permissions}),
+    )
+    await _check_head(session, user, payload.head_id)
+    user.head_id = payload.head_id
+    _apply_scope(
+        user, payload.data_scope, payload.data_scope_reason, payload.data_scope_expires_at
     )
     session.add(user)
     await session.flush()
-    await _replace_grants(session, user, payload.university_ids)
     return await _detail(session, user)
 
 
@@ -242,9 +360,10 @@ async def create_user(
     "/users/{user_id}",
     response_model=UserDetail,
     dependencies=admin_only,
-    summary="Изменить права и доступ пользователя",
+    summary="Изменить роли, права и область данных",
     description=(
-        "Роли меняются в Keycloak (без Keycloak - только в карточке). Отключённый "
+        "Роли меняются в Keycloak (без Keycloak - только в карточке). Область данных "
+        "шире ролевой требует основания; можно задать срок. Отключённый "
         "пользователь не проходит в CRM даже с действующим токеном."
     ),
 )
@@ -275,6 +394,13 @@ async def update_user(
             await keycloak.set_roles(user.keycloak_id, set(roles))
         user.roles = roles
 
+    if payload.permissions is not None:
+        user.permissions = sorted({item.value for item in payload.permissions})
+
+    if "head_id" in data:
+        await _check_head(session, user, data["head_id"])
+        user.head_id = data["head_id"]
+
     if payload.is_active is not None:
         if keycloak is not None:
             await keycloak.set_enabled(user.keycloak_id, payload.is_active)
@@ -291,11 +417,75 @@ async def update_user(
                 user.keycloak_id, first_name=first_name, last_name=last_name, email=user.email
             )
 
-    if payload.data_scope is not None:
-        user.data_scope = payload.data_scope
-    if payload.university_ids is not None:
-        await _replace_grants(session, user, payload.university_ids)
+    if "data_scope" in data or "data_scope_reason" in data or "data_scope_expires_at" in data:
+        _apply_scope(
+            user,
+            DataScope(data.get("data_scope", user.data_scope)),
+            data.get("data_scope_reason", user.data_scope_reason),
+            data.get("data_scope_expires_at", user.data_scope_expires_at),
+        )
 
+    await session.flush()
+    return await _detail(session, user)
+
+
+# --- Точечный доступ к вузам ------------------------------------------------------
+
+
+@router.put(
+    "/users/{user_id}/grants",
+    response_model=UserDetail,
+    dependencies=admin_only,
+    summary="Открыть сотруднику вуз",
+    description=(
+        "Точечный доступ сверх области данных: основание обязательно, срок - если "
+        "доступ временный (например, на время отпуска коллеги). Повторный вызов "
+        "продлевает или восстанавливает доступ."
+    ),
+)
+async def grant_access(
+    user_id: uuid.UUID,
+    payload: AccessGrantWrite,
+    session: SessionDep,
+    current: CurrentUserDep,
+) -> UserDetail:
+    user = await _get_user(session, user_id)
+    if await session.get(University, payload.university_id) is None:
+        raise NotFoundError("Вуз не найден")
+    if payload.expires_at is not None and payload.expires_at <= datetime.now(UTC):
+        raise AppError("Срок доступа уже прошёл", code=ErrorCode.VALIDATION_ERROR)
+    grant = await session.get(UserUniversityAccess, (user.id, payload.university_id))
+    if grant is None:
+        grant = UserUniversityAccess(user_id=user.id, university_id=payload.university_id)
+        session.add(grant)
+    grant.reason = payload.reason
+    grant.expires_at = payload.expires_at
+    grant.granted_by_id = current.id
+    grant.revoked_at = None
+    grant.revoked_by_id = None
+    await session.flush()
+    return await _detail(session, user)
+
+
+@router.delete(
+    "/users/{user_id}/grants/{university_id}",
+    response_model=UserDetail,
+    dependencies=admin_only,
+    summary="Отозвать доступ к вузу",
+    description="Запись не удаляется: отмечаются время отзыва и кто отозвал.",
+)
+async def revoke_access(
+    user_id: uuid.UUID,
+    university_id: uuid.UUID,
+    session: SessionDep,
+    current: CurrentUserDep,
+) -> UserDetail:
+    user = await _get_user(session, user_id)
+    grant = await session.get(UserUniversityAccess, (user.id, university_id))
+    if grant is None or grant.revoked_at is not None:
+        raise NotFoundError("Действующего доступа к этому вузу нет")
+    grant.revoked_at = datetime.now(UTC)
+    grant.revoked_by_id = current.id
     await session.flush()
     return await _detail(session, user)
 

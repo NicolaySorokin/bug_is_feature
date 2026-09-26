@@ -2,9 +2,11 @@
 
 Требование ТЗ: отчёт за выбранный период по выбранным вузам,
 ИТ-направлениям, ИТ-продуктам и ответственным, с выбором колонок
-и выгрузкой в XLSX или PDF. Диаграммы строятся из той же выборки,
-что и табличная часть (раздел 6.1 концепции), поэтому и строки,
-и агрегаты приезжают одним ответом.
+и выгрузкой в XLS, XLSX или PDF. Отчёт строится вокруг взаимодействия
+с вузом (пункт 23 перечня исправлений): «статус работы с вузом» - статус
+взаимодействия, договор - необязательный юридический блок. Диаграммы
+строятся из той же выборки, что и табличная часть (раздел 6.1 концепции),
+поэтому и строки, и агрегаты приезжают одним ответом.
 """
 
 import uuid
@@ -13,7 +15,14 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.enums import ContractStatus, ImplementationStatus
+from app.enums import (
+    ClosureReason,
+    ContractStatus,
+    InteractionOutcome,
+    InteractionSource,
+    InteractionStatus,
+    ProgramImplementationStatus,
+)
 
 
 class ReportColumn(StrEnum):
@@ -23,14 +32,21 @@ class ReportColumn(StrEnum):
     DIRECTION = "direction"
     PROGRAM = "program"
     PRODUCT = "product"
-    CONTRACT_STATUS = "contract_status"
+    STATUS = "status"  # статус работы с вузом = статус взаимодействия
     MANAGER = "manager"
-    CONTRACT_NUMBER = "contract_number"
+    INTERACTION = "interaction"
     STAGE = "stage"
     DAYS_ON_STAGE = "days_on_stage"
+    OUTCOME = "outcome"
+    CLOSURE_REASON = "closure_reason"
+    SOURCE = "source"
     IMPLEMENTATION_STATUS = "implementation_status"
+    CONTRACT_NUMBER = "contract_number"
+    CONTRACT_STATUS = "contract_status"
     SIGNED_AT = "signed_at"
     VALID_TO = "valid_to"
+    CREATED_AT = "created_at"
+    CLOSED_AT = "closed_at"
     COMMENT = "comment"
 
 
@@ -39,14 +55,21 @@ COLUMN_TITLES: dict[ReportColumn, str] = {
     ReportColumn.DIRECTION: "ИТ-направление",
     ReportColumn.PROGRAM: "ИТ-программа",
     ReportColumn.PRODUCT: "ИТ-продукт",
-    ReportColumn.CONTRACT_STATUS: "Статус работы с вузом",
+    ReportColumn.STATUS: "Статус работы с вузом",
     ReportColumn.MANAGER: "Ответственный",
-    ReportColumn.CONTRACT_NUMBER: "Номер договора",
+    ReportColumn.INTERACTION: "Взаимодействие",
     ReportColumn.STAGE: "Этап процесса",
     ReportColumn.DAYS_ON_STAGE: "Дней на этапе",
-    ReportColumn.IMPLEMENTATION_STATUS: "Статус внедрения",
-    ReportColumn.SIGNED_AT: "Подписан",
-    ReportColumn.VALID_TO: "Действует до",
+    ReportColumn.OUTCOME: "Результат",
+    ReportColumn.CLOSURE_REASON: "Причина закрытия",
+    ReportColumn.SOURCE: "Источник",
+    ReportColumn.IMPLEMENTATION_STATUS: "Статус внедрения программы",
+    ReportColumn.CONTRACT_NUMBER: "Номер договора",
+    ReportColumn.CONTRACT_STATUS: "Статус договора",
+    ReportColumn.SIGNED_AT: "Договор подписан",
+    ReportColumn.VALID_TO: "Договор действует до",
+    ReportColumn.CREATED_AT: "Взаимодействие начато",
+    ReportColumn.CLOSED_AT: "Закрыто",
     ReportColumn.COMMENT: "Комментарий",
 }
 
@@ -55,25 +78,28 @@ DEFAULT_COLUMNS: list[ReportColumn] = [
     ReportColumn.DIRECTION,
     ReportColumn.PROGRAM,
     ReportColumn.PRODUCT,
-    ReportColumn.CONTRACT_NUMBER,
-    ReportColumn.CONTRACT_STATUS,
-    ReportColumn.STAGE,
+    ReportColumn.STATUS,
     ReportColumn.MANAGER,
+    ReportColumn.STAGE,
+    ReportColumn.CONTRACT_NUMBER,
 ]
 
 
 class PeriodBasis(StrEnum):
     """По какой дате считается «за выбранный период»."""
 
-    SIGNED = "signed"  # дата подписания, а если её нет - дата заведения
-    CREATED = "created"  # дата появления договора в системе
+    CREATED = "created"  # взаимодействие начато в периоде
     ACTIVITY = "activity"  # были движения по процессу внутри периода
+    SIGNED = "signed"  # договор подписан в периоде (без подписания - не входит)
+    CLOSED = "closed"  # взаимодействие закрыто в периоде
 
 
 class ChartKey(StrEnum):
     BY_STATUS = "by_status"
+    BY_OUTCOME = "by_outcome"
     BY_STAGE = "by_stage"
     BY_DIRECTION = "by_direction"
+    BY_PROGRAM = "by_program"
     BY_UNIVERSITY = "by_university"
     BY_MANAGER = "by_manager"
     # Статистика обучения (заявки сайта и обучающиеся LMS).
@@ -102,14 +128,18 @@ class ReportFilters(BaseModel):
 
     date_from: date | None = None
     date_to: date | None = None
-    period_basis: PeriodBasis = PeriodBasis.SIGNED
+    period_basis: PeriodBasis = PeriodBasis.CREATED
     university_ids: list[uuid.UUID] = Field(default_factory=list)
     direction_ids: list[uuid.UUID] = Field(default_factory=list)
     program_ids: list[uuid.UUID] = Field(default_factory=list)
     product_ids: list[uuid.UUID] = Field(default_factory=list)
     manager_ids: list[uuid.UUID] = Field(default_factory=list)
     stage_ids: list[uuid.UUID] = Field(default_factory=list)
-    statuses: list[ContractStatus] = Field(default_factory=list)
+    statuses: list[InteractionStatus] = Field(default_factory=list)
+    outcomes: list[InteractionOutcome] = Field(default_factory=list)
+    closure_reasons: list[ClosureReason] = Field(default_factory=list)
+    sources: list[InteractionSource] = Field(default_factory=list)
+    contract_statuses: list[ContractStatus] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check_period(self) -> "ReportFilters":
@@ -133,28 +163,44 @@ class ReportRequest(BaseModel):
 
 
 class ReportRow(BaseModel):
-    """Строка отчёта: договор в разрезе одной ИТ-программы.
+    """Строка отчёта: взаимодействие в разрезе одной ИТ-программы.
 
-    Продукты договора собраны в одну ячейку: если размножить строки ещё
-    и по продуктам, договор посчитается несколько раз и диаграммы соврут.
+    В ячейке «ИТ-продукт» - только продукты, фактически связанные с этой
+    программой во взаимодействии (пункт 24 перечня исправлений), а не весь
+    список продуктов на каждую программу.
     """
 
-    contract_id: uuid.UUID
+    interaction_id: uuid.UUID
     university_id: uuid.UUID
     university: str
+    university_full: str = ""
+    interaction: str = ""
     direction: str = ""
+    program_id: uuid.UUID | None = None
     program: str = ""
+    product_ids: list[uuid.UUID] = Field(default_factory=list)
     product: str = ""
-    contract_number: str = ""
-    contract_status: ContractStatus
-    contract_status_label: str = ""
+    status: InteractionStatus
+    status_label: str = ""
     stage: str = ""
     days_on_stage: int | None = None
+    manager_id: uuid.UUID | None = None
     manager: str = ""
-    implementation_status: ImplementationStatus | None = None
+    outcome: InteractionOutcome | None = None
+    outcome_label: str = ""
+    closure_reason: ClosureReason | None = None
+    closure_reason_label: str = ""
+    source: InteractionSource
+    source_label: str = ""
+    implementation_status: ProgramImplementationStatus | None = None
     implementation_status_label: str = ""
+    contract_number: str = ""
+    contract_status: ContractStatus | None = None
+    contract_status_label: str = ""
     signed_at: date | None = None
     valid_to: date | None = None
+    created_at: date | None = None
+    closed_at: date | None = None
     comment: str = ""
 
 
@@ -166,7 +212,7 @@ class ChartItem(BaseModel):
 class ChartData(BaseModel):
     key: ChartKey
     title: str
-    # Что считаем: договоры или строки состава. Подписываем явно, чтобы
+    # Что считаем: взаимодействия или строки состава. Подписываем явно, чтобы
     # по диаграмме было видно, из чего она построена.
     measure: str
     items: list[ChartItem] = Field(default_factory=list)
@@ -174,10 +220,14 @@ class ChartData(BaseModel):
 
 class ReportTotals(BaseModel):
     rows: int
-    contracts: int
+    interactions: int
     universities: int
     programs: int
     products: int
+    contracts: int
+    # Период «по дате подписания»: сколько взаимодействий по остальным
+    # фильтрам подходят, но не вошли, потому что договор не подписан.
+    unsigned_excluded: int = 0
 
 
 class ReportResponse(BaseModel):

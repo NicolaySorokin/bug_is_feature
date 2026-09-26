@@ -14,8 +14,8 @@ from app.core.errors import AppError, ErrorCode, ForbiddenError, NotFoundError
 from app.core.security import AuthBackend, Principal, bearer_token
 from app.db.session import get_session
 from app.enums import Role
-from app.models.contract import Contract
 from app.models.user import User
+from app.models.workflow import WorkflowInstance
 from app.services import access, audit
 
 # scope="function": транзакция фиксируется до отправки ответа, см. get_session.
@@ -120,30 +120,49 @@ def require_roles(*roles: str) -> Callable[[Principal], Awaitable[Principal]]:
     return dependency
 
 
-async def get_accessible_contract(
-    contract_id: uuid.UUID,
+async def get_accessible_interaction(
+    interaction_id: uuid.UUID,
     session: SessionDep,
     user: CurrentUserDep,
     principal: PrincipalDep,
-) -> Contract:
-    """Договор из пути запроса с проверкой прав на него.
-
-    Вуз подгружается сразу: по нему проверяется, закреплён ли менеджер
-    за вузом, и он же нужен почти во всех ответах.
-    """
+) -> WorkflowInstance:
+    """Взаимодействие из пути запроса с проверкой области данных."""
     statement = (
-        select(Contract)
-        .where(Contract.id == contract_id)
-        .options(selectinload(Contract.university))
+        select(WorkflowInstance)
+        .where(WorkflowInstance.id == interaction_id)
+        .options(selectinload(WorkflowInstance.university))
     )
-    contract = (await session.execute(statement)).scalar_one_or_none()
-    if contract is None:
-        raise NotFoundError("Договор не найден")
-    await access.ensure_contract_access(session, contract, principal, user)
-    return contract
+    interaction = (await session.execute(statement)).scalar_one_or_none()
+    if interaction is None:
+        raise NotFoundError("Взаимодействие не найдено")
+    await access.ensure_interaction_read(session, interaction, principal, user)
+    return interaction
 
 
-ContractDep = Annotated[Contract, Depends(get_accessible_contract)]
+InteractionDep = Annotated[WorkflowInstance, Depends(get_accessible_interaction)]
+
+
+async def get_writable_interaction(
+    interaction: InteractionDep,
+    session: SessionDep,
+    user: CurrentUserDep,
+    principal: PrincipalDep,
+) -> WorkflowInstance:
+    """То же, но для изменения: нужна бизнес-роль (менеджер или руководитель)."""
+    await access.ensure_interaction_write(session, interaction, principal, user)
+    return interaction
+
+
+WritableInteractionDep = Annotated[WorkflowInstance, Depends(get_writable_interaction)]
+
+
+def require_action(action: "access.Action", message: str):  # noqa: ANN201
+    """Зависимость: у сотрудника есть действие (по ролям или выданным правам)."""
+
+    async def dependency(principal: PrincipalDep, user: CurrentUserDep) -> None:
+        access.ensure(principal, user, action, message)
+
+    return Depends(dependency)
 
 
 class Pagination:

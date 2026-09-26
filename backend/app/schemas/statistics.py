@@ -32,13 +32,14 @@ class ProgramStatistics(BaseModel):
     program: str
     direction: str
     applications: int
-    # Сколько заявителей нашлось среди обучающихся LMS (по почте или телефону).
+    # Сколько обучающихся зачислено на программу по заявкам выборки.
     learners: int
     # Сколько разных потоков набрано по программе.
     streams: int
     # Доля заявок, дошедших до обучения, %.
     conversion: float
-    contracts: int
+    # Взаимодействия с вузами по программе (в работе и завершённые) и их вузы.
+    interactions: int
     universities: int
     first_application: datetime | None = None
     last_application: datetime | None = None
@@ -46,7 +47,10 @@ class ProgramStatistics(BaseModel):
 
 class StatisticsTotals(BaseModel):
     applications: int
+    # Разные люди: один обучающийся на двух программах - один человек...
     learners: int
+    # ...но два зачисления.
+    enrollments: int = 0
     streams: int
     programs: int
     directions: int
@@ -68,13 +72,12 @@ class ApplicationRead(BaseModel):
     course_name: str
     program_id: uuid.UUID | None
     stream_number: int | None
+    stream_period: str | None = None
     full_name: str
     phone: str | None
     email: str | None
     university_id: uuid.UUID | None
     university_name: str | None = None
-    contract_id: uuid.UUID | None
-    contract_number: str | None = None
     submitted_at: datetime
-    # Нашёлся ли заявитель среди обучающихся LMS.
+    # Зачислен ли заявитель на программу этой заявки.
     enrolled: bool = False

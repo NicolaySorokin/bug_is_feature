@@ -1,34 +1,41 @@
 """Статистика обучения: востребованность ИТ-программ по заявкам и потокам.
 
-Сводные цифры видны всем сотрудникам - в них нет персональных данных.
-Список заявок с ФИО и контактами - только руководителю и администратору:
-доступ к персональным данным ограничен теми, кому он нужен по работе
-(152-ФЗ).
+Сводные цифры видят менеджеры и руководители - в них нет персональных
+данных. Список заявок с ФИО и контактами - только по отдельному праву
+«Персональные данные студентов»: из роли оно не следует (152-ФЗ,
+раздел 12 «Решений по бизнес-модели»).
 """
 
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import Date, case, cast, func, or_, select
+from fastapi import APIRouter, Query, Response
+from sqlalchemy import Date, cast, exists, func, or_, select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import CurrentUserDep, PaginationDep, SessionDep, require_roles
+from app.api.deps import CurrentUserDep, PaginationDep, SessionDep, require_action
 from app.core.errors import AppError, ErrorCode
-from app.enums import Role
 from app.models.catalog import ItProgram
-from app.models.contract import Contract
-from app.models.learning import LearningApplication
+from app.models.learning import Enrollment, LearningApplication, LearningStream
 from app.models.university import University
 from app.schemas.common import Page
 from app.schemas.report import ChartKey, ExportFormat, ImageFormat
 from app.schemas.statistics import ApplicationRead, StatisticsFilters, StatisticsResponse
 from app.services import statistics
+from app.services.access import Action
 from app.services.export import charts as chart_export
 from app.services.export import runner
 from app.services.export import table as table_export
 
-router = APIRouter(prefix="/statistics", tags=["statistics"])
+router = APIRouter(
+    prefix="/statistics",
+    tags=["statistics"],
+    dependencies=[
+        require_action(
+            Action.VIEW_STATISTICS, "Статистика обучения - менеджеру и руководителю"
+        )
+    ],
+)
 
 CONTENT_TYPES = {
     ExportFormat.XLSX: (
@@ -47,7 +54,7 @@ HEADERS = [
     "Обучающиеся",
     "Потоки",
     "Дошли до обучения, %",
-    "Договоры",
+    "Взаимодействия",
     "Вузы",
 ]
 
@@ -81,7 +88,7 @@ def statistics_table(data: StatisticsResponse) -> table_export.Table:
                 row.learners,
                 row.streams,
                 row.conversion,
-                row.contracts,
+                row.interactions,
                 row.universities,
             ]
             for row in data.rows
@@ -182,13 +189,24 @@ async def statistics_chart(
     )
 
 
+def _enrolled_condition():  # noqa: ANN202 - выражение SQLAlchemy
+    """Заявитель зачислен на программу этой заявки."""
+    return exists().where(Enrollment.application_id == LearningApplication.id)
+
+
 @router.get(
     "/applications",
     response_model=Page[ApplicationRead],
-    dependencies=[Depends(require_roles(Role.HEAD, Role.ADMIN))],
+    dependencies=[
+        require_action(
+            Action.VIEW_PERSONAL_DATA,
+            "Заявки с персональными данными - по праву «Персональные данные студентов»",
+        )
+    ],
     summary="Заявки на обучение",
     description=(
-        "Заявки с персональными данными заявителей - только руководителю и администратору."
+        "Заявки с персональными данными заявителей - только по отдельному праву. "
+        "Заявка студента используется в статистике и взаимодействие с вузом не создаёт."
     ),
 )
 async def list_applications(
@@ -197,13 +215,12 @@ async def list_applications(
     program_id: uuid.UUID | None = None,
     university_id: uuid.UUID | None = None,
     stream: int | None = Query(default=None, ge=0),
-    enrolled: bool | None = Query(default=None, description="Нашёлся ли в LMS"),
+    enrolled: bool | None = Query(default=None, description="Зачислен на программу"),
     search: str | None = Query(default=None, description="Номер заявки, ФИО, почта, курс"),
     date_from: date | None = None,
     date_to: date | None = None,
 ) -> Page[ApplicationRead]:
     application = LearningApplication
-    enrolled_flag = case((statistics.enrolled_condition(), True), else_=False)
     conditions = []
     if program_id is not None:
         conditions.append(application.program_id == program_id)
@@ -212,7 +229,7 @@ async def list_applications(
     if stream is not None:
         conditions.append(application.stream_number == stream)
     if enrolled is not None:
-        condition = statistics.enrolled_condition()
+        condition = _enrolled_condition()
         conditions.append(condition if enrolled else ~condition)
     if date_from is not None:
         conditions.append(cast(application.submitted_at, Date) >= date_from)
@@ -234,9 +251,14 @@ async def list_applications(
         select(func.count()).select_from(application).where(*conditions)
     )
     result = await session.execute(
-        select(application, enrolled_flag, University.name, Contract.number)
+        select(
+            application,
+            _enrolled_condition().label("enrolled"),
+            func.coalesce(University.short_name, University.name),
+            LearningStream.period,
+        )
         .outerjoin(University, University.id == application.university_id)
-        .outerjoin(Contract, Contract.id == application.contract_id)
+        .outerjoin(LearningStream, LearningStream.id == application.stream_id)
         .where(*conditions)
         .options(selectinload(application.source), selectinload(application.program))
         .order_by(application.submitted_at.desc(), application.external_id)
@@ -251,6 +273,7 @@ async def list_applications(
             course_name=item.program.name if item.program else item.course_name,
             program_id=item.program_id,
             stream_number=item.stream_number,
+            stream_period=period,
             full_name=" ".join(
                 part for part in (item.last_name, item.first_name, item.middle_name) if part
             ),
@@ -258,12 +281,10 @@ async def list_applications(
             email=item.email,
             university_id=item.university_id,
             university_name=university_name,
-            contract_id=item.contract_id,
-            contract_number=contract_number,
             submitted_at=item.submitted_at,
             enrolled=bool(is_enrolled),
         )
-        for item, is_enrolled, university_name, contract_number in result.all()
+        for item, is_enrolled, university_name, period in result.all()
     ]
     return Page(
         items=items, total=total or 0, limit=pagination.limit, offset=pagination.offset
@@ -272,22 +293,37 @@ async def list_applications(
 
 @router.get(
     "/programs/{program_id}/streams",
-    summary="Потоки программы: заявки и обучающиеся по каждому",
+    summary="Потоки программы: заявки и зачисленные по каждому",
 )
 async def program_streams(
     program_id: uuid.UUID, session: SessionDep, _: CurrentUserDep
-) -> list[dict[str, int | None]]:
+) -> list[dict[str, int | str | None]]:
     if await session.get(ItProgram, program_id) is None:
         raise AppError("Программа не найдена", code=ErrorCode.NOT_FOUND, status_code=404)
     application = LearningApplication
-    enrolled_flag = case((statistics.enrolled_condition(), 1), else_=0)
+    learners = (
+        select(func.count(func.distinct(Enrollment.learner_id)))
+        .where(Enrollment.stream_id == LearningStream.id)
+        .scalar_subquery()
+    )
     result = await session.execute(
-        select(application.stream_number, func.count(), func.sum(enrolled_flag))
-        .where(application.program_id == program_id)
-        .group_by(application.stream_number)
-        .order_by(application.stream_number.nullslast())
+        select(
+            LearningStream.number,
+            LearningStream.period,
+            func.count(application.id),
+            learners,
+        )
+        .join(application, application.stream_id == LearningStream.id)
+        .where(LearningStream.program_id == program_id)
+        .group_by(LearningStream.id)
+        .order_by(LearningStream.period, LearningStream.number.nullslast())
     )
     return [
-        {"stream": stream, "applications": count, "learners": int(learners or 0)}
-        for stream, count, learners in result.all()
+        {
+            "stream": number,
+            "period": period,
+            "applications": count,
+            "learners": int(enrolled or 0),
+        }
+        for number, period, count, enrolled in result.all()
     ]

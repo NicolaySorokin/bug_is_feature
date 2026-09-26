@@ -5,14 +5,14 @@
 «Телефон», «Email», «Номер потока». В выгрузке встречаются пустые
 элементы (null) - они пропускаются и учитываются в журнале запуска.
 
-Заявка - это спрос на программу: по заявкам и потокам считается
-статистика востребованности (ТЗ, раздел «Актуальность»). Если источник
-дополнительно передаёт вуз («Вуз»), заявка попадает в процесс по договору
-этого вуза - существующий или новый (функциональное требование 5 ТЗ).
+Заявка студента - это спрос на программу: по заявкам и потокам считается
+статистика востребованности (ТЗ, раздел «Актуальность»). Взаимодействие
+с вузом она не создаёт (раздел 10 «Решений по бизнес-модели»). Если
+источник передаёт вуз заявителя («Вуз»), он нужен для разреза статистики.
 
-Прежний тестовый формат (объект с universities и requests) тоже
-разбирается: на нём построены демонстрационные сюжеты заведения договора
-по заявке вуза.
+Заявка вуза на сотрудничество - другой тип данных (объект с universities
+и requests): она добавляется в открытое взаимодействие с вузом или
+заводит взаимодействие-черновик (функциональное требование 5 ТЗ).
 """
 
 from __future__ import annotations
@@ -53,6 +53,7 @@ def parse_application(item: dict[str, Any]) -> ExternalApplication | None:
         email=normalize_email(pick(item, "Email", "Почта", "email")),
         university_name=text(pick(item, "Вуз", "Учебное заведение", "university")),
         submitted_at=parse_datetime(pick(item, "Дата заявки", "Дата", "created_at")),
+        stream_id=text(pick(item, "ID потока", "Идентификатор потока", "stream_id")),
     )
 
 
@@ -69,11 +70,14 @@ class SiteAdapter:
         return not self.base_url
 
     async def fetch(self) -> IntegrationPayload:
+        attempts = 1
         if self.uses_fixture:
             raw = load_fixture("site")
         else:
-            raw = await fetch_json(f"{self.base_url}/api/applications", self._token)
-        return self.parse(raw)
+            raw, attempts = await fetch_json(f"{self.base_url}/api/applications", self._token)
+        payload = self.parse(raw)
+        payload.attempts = attempts
+        return payload
 
     @staticmethod
     def parse(raw: Any) -> IntegrationPayload:

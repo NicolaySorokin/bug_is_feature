@@ -15,6 +15,7 @@ from __future__ import annotations
 import contextlib
 import uuid
 from collections.abc import AsyncIterator
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -32,10 +33,32 @@ from app.services import cache
 
 TEST_DB = f"{settings.postgres_db}_test"
 
+# Роли не наследуются: у каждого ровно те, что перечислены. Орлова -
+# руководитель, который и сам ведёт вузы; администратор бизнес-данных не
+# видит (область «никаких»), пока ему её не выдали.
 MANAGER = {"X-Dev-User": "petrov", "X-Dev-Roles": "manager"}
 OTHER_MANAGER = {"X-Dev-User": "ivanova", "X-Dev-Roles": "manager"}
 HEAD = {"X-Dev-User": "orlova", "X-Dev-Roles": "manager,head"}
-ADMIN = {"X-Dev-User": "root", "X-Dev-Roles": "manager,head,admin"}
+PURE_HEAD = {"X-Dev-User": "fedorov", "X-Dev-Roles": "head"}
+ADMIN = {"X-Dev-User": "root", "X-Dev-Roles": "admin"}
+
+TEST_GRAPH = {
+    "stages": [
+        {"code": "contact", "name": "Контакт", "sla_days": 7, "is_initial": True},
+        {"code": "meeting", "name": "Встреча", "is_optional": True},
+        {"code": "signing", "name": "Подписание", "is_final": True, "outcome": "successful"},
+    ],
+    "transitions": [
+        {"from_code": "contact", "to_code": "meeting"},
+        {"from_code": "meeting", "to_code": "signing"},
+        {
+            "from_code": "meeting",
+            "to_code": "contact",
+            "is_backward": True,
+            "requires_comment": True,
+        },
+    ],
+}
 
 
 def _url(database: str) -> str:
@@ -120,31 +143,13 @@ async def university(client: AsyncClient) -> dict:
     return response.json()
 
 
-@pytest.fixture
-async def workflow_version(client: AsyncClient) -> dict:
-    """Опубликованный шаблон процесса: контакт -> встреча -> подписание."""
+async def create_template(
+    client: AsyncClient, name: str = "Тестовый процесс", graph: dict | None = None
+) -> dict:
+    """Шаблон с действующей версией: контакт -> встреча -> подписание."""
     response = await client.post(
         "/api/v1/workflow/templates",
-        json={
-            "name": "Тестовый процесс",
-            "graph": {
-                "stages": [
-                    {"code": "contact", "name": "Контакт", "sla_days": 7},
-                    {"code": "meeting", "name": "Встреча", "is_optional": True},
-                    {"code": "signing", "name": "Подписание", "is_final": True},
-                ],
-                "transitions": [
-                    {"from_code": "contact", "to_code": "meeting"},
-                    {"from_code": "meeting", "to_code": "signing"},
-                    {
-                        "from_code": "meeting",
-                        "to_code": "contact",
-                        "is_backward": True,
-                        "requires_comment": True,
-                    },
-                ],
-            },
-        },
+        json={"name": name, "graph": graph or TEST_GRAPH},
         headers=ADMIN,
     )
     assert response.status_code == 201, response.text
@@ -157,15 +162,84 @@ async def workflow_version(client: AsyncClient) -> dict:
     return version
 
 
-async def make_contract(
-    client: AsyncClient, university_id: str, headers: dict, **extra
+@pytest.fixture
+async def workflow_version(client: AsyncClient) -> dict:
+    return await create_template(client)
+
+
+async def me(client: AsyncClient, headers: dict) -> dict:
+    response = await client.get("/api/v1/me", headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def join_team(client: AsyncClient, member: dict, head: dict = HEAD) -> None:
+    """Менеджер входит в команду руководителя: тот видит и назначает его."""
+    member_id = (await me(client, member))["id"]
+    head_id = (await me(client, head))["id"]
+    response = await client.patch(
+        f"/api/v1/users/{member_id}", json={"head_id": head_id}, headers=ADMIN
+    )
+    assert response.status_code == 200, response.text
+
+
+async def ensure_template(client: AsyncClient) -> None:
+    templates = (await client.get("/api/v1/workflow/templates", headers=HEAD)).json()
+    if not templates:
+        await create_template(client)
+
+
+async def make_interaction(
+    client: AsyncClient,
+    university_id: str,
+    headers: dict,
+    *,
+    start: bool = True,
+    **extra,
 ) -> dict:
-    payload = {
-        "university_id": university_id,
-        "number": f"ДГ-{uuid.uuid4().hex[:8]}",
-        "status": "active",
-        **extra,
-    }
-    response = await client.post("/api/v1/contracts", json=payload, headers=headers)
+    """Взаимодействие, которое ведёт владелец ``headers``.
+
+    Менеджеру его заводит руководитель: вуз из теста не закреплён за
+    менеджером, а назначить ответственным можно менеджера своей команды.
+    """
+    await ensure_template(client)
+    author = headers
+    roles = headers["X-Dev-Roles"].split(",")
+    if "head" not in roles:
+        await join_team(client, headers)
+        author = HEAD
+    if "manager" in roles:
+        extra.setdefault("manager_id", (await me(client, headers))["id"])
+    response = await client.post(
+        "/api/v1/interactions",
+        json={"university_id": university_id, "start": start, **extra},
+        headers=author,
+    )
     assert response.status_code == 201, response.text
     return response.json()
+
+
+def contract_payload(**extra) -> dict:
+    today = date.today()
+    return {
+        "number": f"ДГ-{uuid.uuid4().hex[:8]}",
+        "status": "active",
+        "signed_at": today.isoformat(),
+        "valid_from": today.isoformat(),
+        "valid_to": (today + timedelta(days=365)).isoformat(),
+        **extra,
+    }
+
+
+async def make_contract(
+    client: AsyncClient, university_id: str, headers: dict, **extra
+) -> tuple[dict, dict]:
+    """Взаимодействие с договором: (взаимодействие, договор)."""
+    interaction = await make_interaction(client, university_id, headers)
+    response = await client.put(
+        f"/api/v1/interactions/{interaction['id']}/contract",
+        json=contract_payload(**extra),
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    return interaction, response.json()

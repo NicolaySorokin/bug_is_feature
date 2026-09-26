@@ -1,16 +1,22 @@
 """Схемы лицензий.
 
-Лицензия относится к конкретному продукту в конкретном договоре
-(раздел 9.2 концепции), поэтому создаётся внутри строки состава договора.
+Лицензия относится к конкретному продукту взаимодействия и оформляется по
+договору этого взаимодействия (раздел 9 «Решений по бизнес-модели»).
 """
 
 import uuid
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.enums import LicenseStatus
 from app.schemas.common import ORMModel
+from app.schemas.university import UniversityBrief
+
+
+def _check_period(valid_from: date | None, valid_to: date | None) -> None:
+    if valid_from and valid_to and valid_from > valid_to:
+        raise ValueError("Срок лицензии начинается позже, чем заканчивается")
 
 
 class LicenseCreate(BaseModel):
@@ -20,6 +26,11 @@ class LicenseCreate(BaseModel):
     valid_from: date | None = None
     valid_to: date | None = None
     status: LicenseStatus = LicenseStatus.ACTIVE
+
+    @model_validator(mode="after")
+    def _dates(self) -> "LicenseCreate":
+        _check_period(self.valid_from, self.valid_to)
+        return self
 
 
 class LicenseUpdate(BaseModel):
@@ -33,7 +44,8 @@ class LicenseUpdate(BaseModel):
 
 class LicenseRead(ORMModel):
     id: uuid.UUID
-    contract_product_id: uuid.UUID
+    contract_id: uuid.UUID
+    interaction_product_id: uuid.UUID
     number: str | None
     seats: int | None
     signed_at: date | None
@@ -43,12 +55,11 @@ class LicenseRead(ORMModel):
 
 
 class LicenseListItem(LicenseRead):
-    """Лицензия вместе с контекстом: чей договор и какой продукт."""
+    """Лицензия вместе с контекстом: чьё взаимодействие и какой продукт."""
 
-    contract_id: uuid.UUID
+    interaction_id: uuid.UUID
     contract_number: str
-    university_id: uuid.UUID
-    university_name: str
+    university: UniversityBrief
     product_id: uuid.UUID
     product_name: str
     days_left: int | None = None

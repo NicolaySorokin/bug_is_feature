@@ -32,6 +32,7 @@ from app.services.integrations.base import (
     load_fixture,
     normalize_email,
     normalize_phone,
+    parse_int,
     pick,
     text,
 )
@@ -46,6 +47,12 @@ LEARNER_FIELDS: dict[str, tuple[str, ...]] = {
     "gender": ("Пол", "gender"),
     "education": ("Образование", "education"),
     "region": ("Регион регистрации", "Регион", "region"),
+    # Связь слушателя с программой и потоком - если LMS её передаёт.
+    "external_id": ("ID слушателя", "Идентификатор слушателя", "learner_id"),
+    "course_name": ("Курс", "Программа", "course"),
+    "program_external_id": ("ID программы", "program_id"),
+    "stream_external_id": ("ID потока", "stream_id"),
+    "stream_number": ("Номер потока", "Поток", "stream"),
 }
 _USED_KEYS = {key(name) for names in LEARNER_FIELDS.values() for name in names}
 
@@ -74,6 +81,11 @@ def parse_learner(item: dict[str, Any], dropped: set[str]) -> ExternalLearner | 
         gender=_gender(pick(item, *LEARNER_FIELDS["gender"])),
         education=text(pick(item, *LEARNER_FIELDS["education"])),
         region=text(pick(item, *LEARNER_FIELDS["region"])),
+        external_id=text(pick(item, *LEARNER_FIELDS["external_id"])),
+        course_name=text(pick(item, *LEARNER_FIELDS["course_name"])),
+        program_external_id=text(pick(item, *LEARNER_FIELDS["program_external_id"])),
+        stream_external_id=text(pick(item, *LEARNER_FIELDS["stream_external_id"])),
+        stream_number=parse_int(pick(item, *LEARNER_FIELDS["stream_number"])),
     )
 
 
@@ -90,11 +102,14 @@ class LmsAdapter:
         return not self.base_url
 
     async def fetch(self) -> IntegrationPayload:
+        attempts = 1
         if self.uses_fixture:
             raw = load_fixture("lms")
         else:
-            raw = await fetch_json(f"{self.base_url}/api/v1/programs", self._token)
-        return self.parse(raw)
+            raw, attempts = await fetch_json(f"{self.base_url}/api/v1/programs", self._token)
+        payload = self.parse(raw)
+        payload.attempts = attempts
+        return payload
 
     @staticmethod
     def parse(raw: Any) -> IntegrationPayload:

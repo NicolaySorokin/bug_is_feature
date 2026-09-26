@@ -8,8 +8,9 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
+from app.enums import DocumentType
 from app.schemas.common import ORMModel
-from app.schemas.user import UserRead
+from app.schemas.user import UserBrief
 
 if TYPE_CHECKING:  # pragma: no cover - только для подсказок типов
     from app.models.content import Attachment
@@ -23,24 +24,25 @@ class CommentCreate(BaseModel):
 
 class CommentRead(ORMModel):
     id: uuid.UUID
-    contract_id: uuid.UUID
+    workflow_instance_id: uuid.UUID
     workflow_event_id: uuid.UUID | None
     author_id: uuid.UUID | None
     text: str
     created_at: datetime
-    author: UserRead | None = None
+    author: UserBrief | None = None
 
 
 class AttachmentRead(ORMModel):
     id: uuid.UUID
-    contract_id: uuid.UUID
+    workflow_instance_id: uuid.UUID
     workflow_event_id: uuid.UUID | None
     uploaded_by: uuid.UUID | None
+    document_type: DocumentType | None = None
     original_name: str
     mime_type: str | None
     size_bytes: int | None
     created_at: datetime
-    uploader: UserRead | None = None
+    uploader: UserBrief | None = None
     # Заполняется в from_model: в самой модели такого поля нет.
     download_url: str = ""
 

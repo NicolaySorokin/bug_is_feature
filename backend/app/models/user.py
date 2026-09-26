@@ -5,14 +5,16 @@
 только их снимок с последнего входа: по нему администратор видит, кто есть
 кто, а руководитель выбирает ответственных из менеджеров.
 
-Настройки видимости данных (раздел ролевой модели ТЗ: «администратор
-разграничивает пользователей по доступу к данным») - уже наши: область
-видимости договоров и выданный доступ к отдельным вузам.
+Права на данные - уже наши (раздел 12 «Решений по бизнес-модели»): роль
+задаёт действия, а область данных и точечные доступы - какие
+взаимодействия и вузы видны. Область можно поднять временно - со сроком
+и основанием; по истечении срока действует область по ролям.
 """
 
+import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -33,10 +35,22 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     roles: Mapped[list[str]] = mapped_column(
         ARRAY(String(32)), default=list, server_default="{}"
     )
-    # default - по роли: менеджер видит своё, руководитель и администратор - всё;
-    # all - все договоры независимо от роли (выдаёт администратор).
+    # Дополнительные права сверх роли (enums.Permission).
+    permissions: Mapped[list[str]] = mapped_column(
+        ARRAY(String(48)), default=list, server_default="{}"
+    )
+    # Руководитель сотрудника: по этой связи строится область «команда».
+    head_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Область бизнес-данных; default - по ролям.
     data_scope: Mapped[str] = mapped_column(
         String(16), default=DataScope.DEFAULT, server_default=DataScope.DEFAULT
+    )
+    # Область выдана временно: основание и срок. После срока - область по ролям.
+    data_scope_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    data_scope_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
     last_seen_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

@@ -1,25 +1,126 @@
 """Перечисления предметной области.
 
-В базе значения хранятся как varchar (см. раздел 9 концепции), проверка
-допустимых значений выполняется на уровне схем Pydantic и сервисов.
+В базе и API хранится стабильный английский код, русские названия - только
+в словаре подписей (app.services.labels), см. раздел 11 «Решений по
+бизнес-модели». Проверка допустимых значений выполняется на уровне схем
+Pydantic, сервисов и ограничений базы.
+
+Статусы разных сущностей не подменяют друг друга: у взаимодействия, этапа,
+договора, лицензии, программы и продукта - свои перечисления, даже если
+коды совпадают.
 """
 
 from enum import StrEnum
 
 
 class Role(StrEnum):
-    """Роли из Keycloak. Соответствуют разделу 8 концепции."""
+    """Роли из Keycloak (раздел 12 «Решений по бизнес-модели»).
 
-    MANAGER = "manager"  # Пользователь / KAM
+    Роли не наследуются: руководитель не получает права менеджера,
+    администратор - права руководителя. Совмещение задаётся явно
+    несколькими ролями.
+    """
+
+    MANAGER = "manager"  # Менеджер (КАМ)
     HEAD = "head"  # Руководитель
     ADMIN = "admin"  # Администратор
 
 
 class DataScope(StrEnum):
-    """Какие договоры видит пользователь. Задаёт администратор."""
+    """Область бизнес-данных, которые видит сотрудник.
 
-    DEFAULT = "default"  # по роли: менеджер - свои, руководитель и админ - все
-    ALL = "all"  # все договоры, даже если роль - менеджер
+    ``default`` - по ролям: менеджер - ``own``, руководитель - ``team``,
+    администратор без бизнес-роли - ``none``. Остальные значения задаёт
+    администратор явно, в том числе временно (со сроком и основанием).
+    """
+
+    DEFAULT = "default"
+    OWN = "own"  # свои взаимодействия и явно открытые вузы
+    TEAM = "team"  # плюс взаимодействия менеджеров своей команды
+    ALL = "all"  # все бизнес-данные организации
+    NONE = "none"  # только административные функции
+
+
+class Permission(StrEnum):
+    """Дополнительные права сверх роли. Выдаёт администратор.
+
+    По решениям о бизнес-модели запуск обмена, правка представления схемы
+    процесса и просмотр персональных данных студентов не следуют из роли
+    руководителя автоматически - их назначают отдельно.
+    """
+
+    SYNC_INTEGRATIONS = "sync_integrations"
+    VIEW_INTEGRATION_LOG = "view_integration_log"
+    VIEW_PERSONAL_DATA = "view_personal_data"
+    EDIT_WORKFLOW_PRESENTATION = "edit_workflow_presentation"
+
+
+class UniversityStatus(StrEnum):
+    """Жизненный цикл записи о вузе: единый путь для всех источников."""
+
+    PENDING = "pending"  # заведён импортом, обменом или менеджером - ждёт проверки
+    CONFIRMED = "confirmed"  # проверен, с ним можно работать
+    ARCHIVED = "archived"  # в архиве или объединён с другим вузом
+
+
+class InteractionStatus(StrEnum):
+    """Жизненный цикл взаимодействия (экземпляра workflow)."""
+
+    DRAFT = "draft"  # создано, процесс ещё не запущен
+    IN_PROGRESS = "in_progress"
+    BLOCKED = "blocked"  # продолжение временно невозможно, причина обязательна
+    COMPLETED = "completed"  # достигнут финальный этап шаблона
+    CANCELLED = "cancelled"  # досрочно прекращено, причина обязательна
+
+
+# Прежнее имя: оставлено, чтобы не переписывать места, где речь именно
+# о состоянии процесса.
+WorkflowInstanceStatus = InteractionStatus
+
+# Взаимодействие ещё идёт: по нему ждут действий.
+OPEN_INTERACTION_STATUSES = frozenset(
+    {InteractionStatus.DRAFT, InteractionStatus.IN_PROGRESS, InteractionStatus.BLOCKED}
+)
+CLOSED_INTERACTION_STATUSES = frozenset(
+    {InteractionStatus.COMPLETED, InteractionStatus.CANCELLED}
+)
+
+
+class InteractionOutcome(StrEnum):
+    """Бизнес-результат закрытого взаимодействия. Хранится отдельно от статуса."""
+
+    SUCCESSFUL = "successful"
+    PARTIAL = "partial"
+    UNSUCCESSFUL = "unsuccessful"
+
+
+class ClosureReason(StrEnum):
+    """Причина неуспешного завершения или отмены взаимодействия."""
+
+    UNIVERSITY_REFUSED = "university_refused"
+    SCHOOL_REFUSED = "school_refused"
+    NO_CONTACT = "no_contact"
+    LOST_RELEVANCE = "lost_relevance"
+    DUPLICATE = "duplicate"
+    OTHER = "other"
+
+
+class InteractionSource(StrEnum):
+    """Откуда появилось взаимодействие."""
+
+    MANUAL = "manual"  # завёл сотрудник
+    SITE = "site"  # заявка вуза на сотрудничество с сайта
+    LMS = "lms"
+    IMPORT = "import"  # загрузка каталога из Excel
+
+
+class WorkflowVersionStatus(StrEnum):
+    """Жизненный цикл версии шаблона (раздел 3 «Решений по бизнес-модели»)."""
+
+    DRAFT = "draft"  # правится, процессы не запускаются
+    ACTIVE = "active"  # единственная действующая версия шаблона
+    DEPRECATED = "deprecated"  # новые не запускаются, начатые продолжаются
+    RETIRED = "retired"  # процессов не осталось, хранится для истории
 
 
 class ContractStatus(StrEnum):
@@ -27,6 +128,15 @@ class ContractStatus(StrEnum):
     ACTIVE = "active"
     SUSPENDED = "suspended"
     CLOSED = "closed"
+    CANCELLED = "cancelled"  # отменён до вступления в силу
+
+
+class ContractClosureReason(StrEnum):
+    """Почему закрыт договор (только для статуса closed)."""
+
+    FULFILLED = "fulfilled"  # исполнен
+    EXPIRED = "expired"  # истёк срок
+    TERMINATED = "terminated"  # расторгнут
 
 
 class LicenseStatus(StrEnum):
@@ -35,8 +145,8 @@ class LicenseStatus(StrEnum):
     REVOKED = "revoked"
 
 
-class ImplementationStatus(StrEnum):
-    """Статус внедрения программы или продукта внутри договора (раздел 4)."""
+class ProgramImplementationStatus(StrEnum):
+    """Внедрение ИТ-программы во взаимодействии."""
 
     NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
@@ -44,11 +154,18 @@ class ImplementationStatus(StrEnum):
     SUSPENDED = "suspended"
 
 
-class WorkflowInstanceStatus(StrEnum):
+# Прежнее имя статуса программы.
+ImplementationStatus = ProgramImplementationStatus
+
+
+class ProductTransferStatus(StrEnum):
+    """Передача ИТ-продукта вузу. Отдельное перечисление: у продукта не
+    «внедрён», а «передан»."""
+
+    NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
-    BLOCKED = "blocked"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
+    TRANSFERRED = "transferred"
+    SUSPENDED = "suspended"
 
 
 class StageState(StrEnum):
@@ -66,6 +183,7 @@ class StageState(StrEnum):
 
 
 class WorkflowEventType(StrEnum):
+    CREATED = "created"  # взаимодействие заведено (черновик)
     STARTED = "started"
     FORWARD = "forward"
     BACKWARD = "backward"
@@ -73,13 +191,37 @@ class WorkflowEventType(StrEnum):
     BLOCKED = "blocked"
     UNBLOCKED = "unblocked"
     COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    REASSIGNED = "reassigned"  # сменился ответственный
     COMMENTED = "commented"
+
+
+class DocumentType(StrEnum):
+    """Тип документа во вложении: по нему проверяется комплектность этапа."""
+
+    CONTRACT = "contract"  # договор
+    AGREEMENT = "agreement"  # дополнительное соглашение
+    LICENSE = "license"  # лицензионный договор, сертификат лицензии
+    ACT = "act"  # акт приёма-передачи
+    LETTER = "letter"  # письмо, протокол встречи
+    CURRICULUM = "curriculum"  # учебный план, программа курса
+    PRESENTATION = "presentation"
+    OTHER = "other"
 
 
 class IntegrationRunStatus(StrEnum):
     RUNNING = "running"
     SUCCESS = "success"
+    PARTIAL = "partial"  # часть записей не загружена - см. ошибки запуска
     FAILED = "failed"
+
+
+class MappingStatus(StrEnum):
+    """Сопоставление внешней записи с записью системы."""
+
+    PENDING = "pending"  # ждёт решения администратора
+    RESOLVED = "resolved"  # сопоставлено с существующей или создана новая
+    IGNORED = "ignored"  # запись источника не нужна
 
 
 class ImportRunStatus(StrEnum):
@@ -110,7 +252,7 @@ class AuditAction(StrEnum):
 
 
 class AlertKind(StrEnum):
-    """Причины, по которым договор попадает в проблемные (раздел 7)."""
+    """Причины, по которым взаимодействие попадает в проблемные (раздел 7)."""
 
     STAGE_STALE = "stage_stale"
     PROCESS_BLOCKED = "process_blocked"
@@ -120,7 +262,10 @@ class AlertKind(StrEnum):
     NO_MANAGER = "no_manager"
     NO_DOCUMENTS = "no_documents"
     IMPLEMENTATION_NOT_STARTED = "implementation_not_started"
+    PRODUCT_WITHOUT_PROGRAM = "product_without_program"
     INTEGRATION_FAILED = "integration_failed"
+    MAPPING_PENDING = "mapping_pending"
+    UNIVERSITY_PENDING = "university_pending"
 
 
 class AlertSeverity(StrEnum):

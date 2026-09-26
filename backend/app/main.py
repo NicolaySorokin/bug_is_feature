@@ -49,16 +49,28 @@ TAGS = [
             "Текущий пользователь, сотрудники, их роли в Keycloak и доступ к данным."
         ),
     },
-    {"name": "universities", "description": "Вузы и их контактные лица."},
+    {
+        "name": "universities",
+        "description": "Вузы, их контактные лица, подтверждение, архив и объединение дублей.",
+    },
     {"name": "catalog", "description": "Справочники направлений, программ и продуктов."},
-    {"name": "contracts", "description": "Реестр договоров и карточка договора."},
-    {"name": "workflow", "description": "Рабочий процесс: схема, история, переходы."},
+    {
+        "name": "interactions",
+        "description": (
+            "Взаимодействия с вузами - центральная сущность: процесс, программы "
+            "и продукты, договор, контакты, лицензии."
+        ),
+    },
+    {"name": "workflow", "description": "Шаблоны процессов и их версии для чтения."},
     {
         "name": "workflow admin",
         "description": "Шаблоны процессов: черновики версий, этапы, переходы, публикация.",
     },
-    {"name": "comments & files", "description": "Комментарии и вложения по договору."},
-    {"name": "licenses", "description": "Лицензии на продукты в составе договора."},
+    {
+        "name": "comments & files",
+        "description": "Комментарии и вложения по взаимодействию, типы документов этапа.",
+    },
+    {"name": "licenses", "description": "Реестр лицензий на продукты по договорам."},
     {"name": "reports", "description": "Отчёты, выгрузки XLS, XLSX, PDF и JSON, диаграммы."},
     {
         "name": "statistics",
@@ -68,7 +80,10 @@ TAGS = [
         ),
     },
     {"name": "dashboard", "description": "Сводка на главной и проблемные процессы."},
-    {"name": "integrations", "description": "Обмен с LMS и сайтом ИТ Школы."},
+    {
+        "name": "integrations",
+        "description": "Обмен с LMS и сайтом ИТ Школы, ошибки по записям, сопоставление.",
+    },
     {"name": "imports", "description": "Загрузка каталогов из XLS и XLSX."},
     {"name": "audit", "description": "Журнал изменений предметных данных."},
     {"name": "settings", "description": "Системные настройки: нормы контроля процессов."},

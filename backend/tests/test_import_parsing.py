@@ -9,7 +9,7 @@ from datetime import date
 
 import pytest
 
-from app.enums import ImplementationStatus, ImportType
+from app.enums import ImportType, ProductTransferStatus
 from app.services import imports
 
 
@@ -38,9 +38,10 @@ def test_license_term_accepts_year_and_duration() -> None:
 
 
 def test_transfer_status_understands_russian_wording() -> None:
-    assert imports.parse_transfer_status("Передано") == ImplementationStatus.IMPLEMENTED
-    assert imports.parse_transfer_status("в работе") == ImplementationStatus.IN_PROGRESS
-    assert imports.parse_transfer_status("Не начато") == ImplementationStatus.NOT_STARTED
+    # У продукта свой статус: не «внедрён», а «передан».
+    assert imports.parse_transfer_status("Передано") == ProductTransferStatus.TRANSFERRED
+    assert imports.parse_transfer_status("в работе") == ProductTransferStatus.IN_PROGRESS
+    assert imports.parse_transfer_status("Не начато") == ProductTransferStatus.NOT_STARTED
     assert imports.parse_transfer_status(None) is None
 
     with pytest.raises(ValueError, match="неизвестный статус"):

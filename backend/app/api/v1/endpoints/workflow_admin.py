@@ -5,18 +5,18 @@
 основной метод здесь один: ``PUT /versions/{id}/graph``.
 
 Доступ у администратора: менеджер работает внутри правил шаблона,
-но саму структуру не меняет. Руководителю (раздел 3.3 концепции: изменение
-структуры «по решению команды») доступно то, что ход процессов не меняет:
-названия статусов и расположение узлов схемы.
+но саму структуру не меняет. Названия статусов и расположение узлов схемы
+на ход процессов не влияют - их правит администратор и сотрудник,
+которому выдано право «Названия этапов и расположение схемы»: из роли
+руководителя оно не следует (раздел 12 «Решений по бизнес-модели»).
 """
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 
-from app.api.deps import SessionDep, require_roles
+from app.api.deps import SessionDep, require_action
 from app.core.errors import NotFoundError
-from app.enums import Role
 from app.models.workflow import WorkflowStage
 from app.schemas.workflow import (
     GraphWrite,
@@ -31,17 +31,25 @@ from app.schemas.workflow import (
     VersionRead,
 )
 from app.services import workflow_admin
+from app.services.access import Action
 
 router = APIRouter(
     prefix="/workflow",
     tags=["workflow admin"],
-    dependencies=[Depends(require_roles(Role.ADMIN))],
+    dependencies=[
+        require_action(Action.EDIT_TEMPLATES, "Шаблоны процессов меняет администратор")
+    ],
 )
-# Правки, которые не меняют ход процессов: руководителю тоже можно.
+# Правки, которые не меняют ход процессов: по отдельному праву.
 presentation_router = APIRouter(
     prefix="/workflow",
     tags=["workflow admin"],
-    dependencies=[Depends(require_roles(Role.HEAD, Role.ADMIN))],
+    dependencies=[
+        require_action(
+            Action.EDIT_WORKFLOW_PRESENTATION,
+            "Названия этапов и расположение схемы меняют по отдельному праву",
+        )
+    ],
 )
 
 
@@ -134,7 +142,11 @@ async def save_layout(
     "/versions/{version_id}/publish",
     response_model=VersionRead,
     summary="Опубликовать версию",
-    description="После публикации схема неизменна, а новые договоры пойдут по ней.",
+    description=(
+        "Схема проверяется целиком (details.problems - что мешает). Версия "
+        "становится действующей, прежняя - устаревшей: новые взаимодействия "
+        "пойдут по новой, начатые продолжат по своей."
+    ),
 )
 async def publish_version(version_id: uuid.UUID, session: SessionDep) -> VersionRead:
     version = await workflow_admin.get_version(session, version_id)

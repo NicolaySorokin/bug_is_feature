@@ -235,7 +235,8 @@ def build(report: ReportResponse) -> bytes:
             styles["meta"],
         ),
         Paragraph(
-            f"Договоров: {report.totals.contracts} · вузов: {report.totals.universities} · "
+            f"Взаимодействий: {report.totals.interactions} · "
+            f"вузов: {report.totals.universities} · "
             f"программ: {report.totals.programs} · продуктов: {report.totals.products} · "
             f"строк: {report.totals.rows}",
             styles["meta"],

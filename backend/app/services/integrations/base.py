@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -66,7 +67,7 @@ class ExternalProduct:
 
 @dataclass(slots=True)
 class ExternalRequest:
-    """Заявка на обучение: повод завести договор и запустить процесс."""
+    """Заявка вуза на сотрудничество: повод для взаимодействия с вузом."""
 
     external_id: str
     university_external_id: str
@@ -86,10 +87,12 @@ class ExternalApplication:
     middle_name: str | None = None
     phone: str | None = None
     email: str | None = None
-    # Необязательные поля: если источник их передаст, заявка попадёт
-    # в процесс по договору вуза (существующий или новый).
+    # Необязательные поля. Вуз заявителя - только разрез статистики:
+    # заявка студента взаимодействие с вузом не создаёт.
     university_name: str | None = None
     submitted_at: datetime | None = None
+    # Стабильный идентификатор потока, если источник его передаёт.
+    stream_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -104,6 +107,13 @@ class ExternalLearner:
     gender: str | None = None
     education: str | None = None
     region: str | None = None
+    # Если LMS передаёт, на какой программе и в каком потоке человек учится,
+    # зачисление берётся отсюда, а не угадывается по контактам заявки.
+    external_id: str | None = None
+    course_name: str | None = None
+    program_external_id: str | None = None
+    stream_external_id: str | None = None
+    stream_number: int | None = None
 
 
 @dataclass(slots=True)
@@ -118,6 +128,8 @@ class IntegrationPayload:
     skipped: int = 0
     # Поля источника, которые намеренно не сохраняются (минимизация ПДн).
     dropped_fields: set[str] = field(default_factory=set)
+    # Сколько попыток обращения к источнику понадобилось.
+    attempts: int = 1
 
     @property
     def size(self) -> int:
@@ -151,40 +163,75 @@ def load_fixture(name: str) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-async def fetch_json(url: str, token: str) -> Any:
-    """Запрос к внешнему API. Ошибки сети превращаются в понятный код.
+# Повторы при сбоях сети и ошибках 5xx: сколько попыток и пауза между ними.
+FETCH_ATTEMPTS = 3
+FETCH_BACKOFF_SECONDS = (1.0, 3.0)
 
-    Текст ошибки попадает в журнал обмена, который видят сотрудники, поэтому
-    он короткий и по-русски, без адресов и внутренностей HTTP-клиента;
-    подробности - в журнале сервера.
+
+class _Retryable(Exception):
+    """Сбой, после которого имеет смысл повторить запрос."""
+
+
+async def _fetch_once(url: str, headers: dict[str, str]) -> Any:
+    async with httpx.AsyncClient(timeout=settings.integration_timeout_seconds) as client:
+        response = await client.get(url, headers=headers)
+        if response.status_code >= 500:
+            raise _Retryable(response.status_code)
+        response.raise_for_status()
+        return response.json()
+
+
+async def fetch_json(url: str, token: str) -> tuple[Any, int]:
+    """Запрос к внешнему API с повторами. Возвращает ответ и число попыток.
+
+    Сбой сети, тайм-аут и ответ 5xx повторяются (до FETCH_ATTEMPTS раз
+    с паузой); ошибка 4xx - сразу: повтор её не исправит. Текст ошибки
+    попадает в журнал обмена, который видят сотрудники, поэтому он короткий
+    и по-русски, без адресов и внутренностей HTTP-клиента; подробности -
+    в журнале сервера.
     """
     headers = {"Accept": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    try:
-        async with httpx.AsyncClient(timeout=settings.integration_timeout_seconds) as client:
-            response = await client.get(url, headers=headers)
-            response.raise_for_status()
-            return response.json()
-    except httpx.HTTPStatusError as exc:
-        status = exc.response.status_code
-        message = f"Внешняя система ответила ошибкой {status}"
-        if status in (401, 403):
-            message += ": проверьте токен доступа к API"
-        elif status == 404:
-            message += ": проверьте адрес API"
-        cause: Exception = exc
-    except httpx.TimeoutException as exc:
-        message = f"Внешняя система не ответила за {settings.integration_timeout_seconds:g} с"
-        cause = exc
-    except httpx.HTTPError as exc:
-        message = "Не удалось связаться с внешней системой: проверьте адрес API и сеть"
-        cause = exc
-    except ValueError as exc:
-        message = "Внешняя система прислала ответ не в формате JSON"
-        cause = exc
+    message = "Не удалось связаться с внешней системой"
+    cause: Exception | None = None
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
+        try:
+            return await _fetch_once(url, headers), attempt
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            message = f"Внешняя система ответила ошибкой {status}"
+            if status in (401, 403):
+                message += ": проверьте токен доступа к API"
+            elif status == 404:
+                message += ": проверьте адрес API"
+            cause = exc
+            break
+        except _Retryable as exc:
+            message = f"Внешняя система ответила ошибкой {exc.args[0]}"
+            cause = exc
+        except httpx.TimeoutException as exc:
+            message = (
+                f"Внешняя система не ответила за {settings.integration_timeout_seconds:g} с"
+            )
+            cause = exc
+        except httpx.HTTPError as exc:
+            message = "Не удалось связаться с внешней системой: проверьте адрес API и сеть"
+            cause = exc
+        except ValueError as exc:
+            message = "Внешняя система прислала ответ не в формате JSON"
+            cause = exc
+            break
+        if attempt < FETCH_ATTEMPTS:
+            await asyncio.sleep(
+                FETCH_BACKOFF_SECONDS[min(attempt - 1, len(FETCH_BACKOFF_SECONDS) - 1)]
+            )
     logger.warning("Обмен с %s не удался: %r", url, cause)
-    raise AppError(message, code=ErrorCode.INTEGRATION_FAILED) from cause
+    raise AppError(
+        f"{message} (попыток: {attempt})",
+        code=ErrorCode.INTEGRATION_FAILED,
+        details={"attempts": attempt},
+    ) from cause
 
 
 def contacts_from(raw: list[dict[str, Any]] | None) -> list[ExternalContact]:

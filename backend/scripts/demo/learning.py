@@ -10,9 +10,16 @@
 За год набирается около четырёхсот заявок. Популярные программы набирают
 больше потоков: поток закрывается, когда в нём 20 человек или прошло
 три месяца, - так появляются параллельные потоки, по которым ТЗ предлагает
-судить о востребованности. Около 60% заявителей доходят до обучения
-и появляются в LMS. Часть заявок пришла от студентов вузов-партнёров -
-они привязаны к договору вуза с этой программой.
+судить о востребованности. Поток - отдельная запись со стабильным ключом
+и периодом набора. Около 60% заявителей доходят до обучения: у них есть
+анкета LMS и явное зачисление на программу и поток. Часть заявок пришла
+от студентов вузов-партнёров - у заявки указан вуз, если с ним идёт
+взаимодействие по этой программе. Заявка студента - только статистика:
+взаимодействие с вузом она не создаёт.
+
+Названия курсов связаны с программами явно (``external_links``, тип
+``course``): обмен с сайтом по одному совпадению названия программу не
+выбирает.
 
 Загружается отдельно от основных демоданных и только в пустые таблицы:
 python -m scripts.seed вызывает загрузку при каждом запуске.
@@ -22,18 +29,20 @@ from __future__ import annotations
 
 import random
 import string
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums import ContractStatus
+from app.enums import InteractionStatus
 from app.models.catalog import ItDirection, ItProgram
-from app.models.contract import Contract, ContractProgram
-from app.models.integration import IntegrationSource
-from app.models.learning import Learner, LearningApplication
+from app.models.integration import ExternalLink, IntegrationSource
+from app.models.interaction import InteractionProgram
+from app.models.learning import Enrollment, Learner, LearningApplication, LearningStream
 from app.models.university import University
+from app.models.workflow import WorkflowInstance
 from app.services.integrations import sync
 from scripts.demo.catalog import AI, DATA, DEV, PROGRAMS, QA
 from scripts.demo.people import _FEMALE_NAMES, _MALE_NAMES, _PATRONYMICS, _SURNAMES, translit
@@ -174,18 +183,55 @@ async def _programs(session: AsyncSession) -> dict[str, ItProgram]:
     return found
 
 
-async def _contracts_by_program(session: AsyncSession) -> dict[str, list[Contract]]:
-    """Действующие договоры с каждой программой: к ним привязываются заявки студентов."""
+async def _universities_by_program(session: AsyncSession) -> dict[str, list[uuid.UUID]]:
+    """Вузы, с которыми идёт или закрыто успешно взаимодействие по каждой программе."""
     result = await session.execute(
-        select(ItProgram.name, Contract)
-        .join(ContractProgram, ContractProgram.program_id == ItProgram.id)
-        .join(Contract, Contract.id == ContractProgram.contract_id)
-        .where(Contract.status == ContractStatus.ACTIVE)
+        select(ItProgram.name, WorkflowInstance.university_id)
+        .join(InteractionProgram, InteractionProgram.program_id == ItProgram.id)
+        .join(WorkflowInstance, WorkflowInstance.id == InteractionProgram.workflow_instance_id)
+        .where(
+            WorkflowInstance.status.in_(
+                (InteractionStatus.IN_PROGRESS, InteractionStatus.COMPLETED)
+            )
+        )
+        .distinct()
     )
-    by_program: dict[str, list[Contract]] = {}
-    for name, contract in result.all():
-        by_program.setdefault(name, []).append(contract)
+    by_program: dict[str, list[uuid.UUID]] = {}
+    for name, university_id in result.all():
+        by_program.setdefault(name, []).append(university_id)
+    for items in by_program.values():
+        items.sort()  # порядок выборки не должен влиять на зерно случайности
     return by_program
+
+
+async def _course_links(
+    session: AsyncSession, site: IntegrationSource, programs: dict[str, ItProgram]
+) -> None:
+    """Курс из заявок сайта -> программа: явная связь, а не совпадение названия."""
+    known = set(
+        (
+            await session.execute(
+                select(ExternalLink.external_id).where(
+                    ExternalLink.source_id == site.id,
+                    ExternalLink.entity_type == sync.COURSE,
+                )
+            )
+        ).scalars()
+    )
+    for name, program in programs.items():
+        key = sync.normalize_course(name)
+        if key in known:
+            continue
+        known.add(key)
+        session.add(
+            ExternalLink(
+                source_id=site.id,
+                entity_type=sync.COURSE,
+                entity_id=program.id,
+                external_id=key,
+            )
+        )
+    await session.flush()
 
 
 async def is_empty(session: AsyncSession) -> bool:
@@ -202,7 +248,8 @@ async def load(session: AsyncSession, total: int = TOTAL) -> tuple[int, int]:
     lms: IntegrationSource = sources["lms"]
 
     programs = await _programs(session)
-    contracts = await _contracts_by_program(session)
+    await _course_links(session, site, programs)
+    partners = await _universities_by_program(session)
     universities = {
         university.id: university
         for university in (await session.execute(select(University))).scalars()
@@ -216,15 +263,27 @@ async def load(session: AsyncSession, total: int = TOTAL) -> tuple[int, int]:
     )
 
     # Поток программы: открывается первой заявкой, закрывается по размеру
-    # или по сроку набора. Номер потока сквозной по программе.
-    streams: dict[str, tuple[int, datetime, int]] = {}
+    # или по сроку набора. Номер потока сквозной по программе, ключ потока -
+    # программа, номер и полугодие открытия набора.
+    streams: dict[str, tuple[int, datetime, int, LearningStream | None]] = {}
     applications = learners = 0
     for index, moment in enumerate(moments, start=1):
         name = rng.choices(names, weights)[0]
-        number, opened, size = streams.get(name, (0, moment, STREAM_CAPACITY))
+        number, opened, size, stream = streams.get(name, (0, moment, STREAM_CAPACITY, None))
         if size >= STREAM_CAPACITY or (moment - opened).days > STREAM_DAYS:
             number, opened, size = number + 1, moment, 0
-        streams[name] = (number, opened, size + 1)
+            key, period = sync.stream_key(programs[name].id, name, number, opened)
+            stream = LearningStream(
+                source_id=site.id,
+                external_id=key,
+                program_id=programs[name].id,
+                number=number,
+                period=period,
+                starts_on=(opened + timedelta(days=STREAM_DAYS // 3)).date(),
+            )
+            session.add(stream)
+            await session.flush()
+        streams[name] = (number, opened, size + 1, stream)
 
         who = person(rng, index)
         application = LearningApplication(
@@ -232,6 +291,7 @@ async def load(session: AsyncSession, total: int = TOTAL) -> tuple[int, int]:
             external_id=order_number(rng, moment),
             program_id=programs[name].id,
             course_name=name,
+            stream_id=stream.id if stream else None,
             stream_number=number,
             last_name=who.last_name,
             first_name=who.first_name,
@@ -240,11 +300,9 @@ async def load(session: AsyncSession, total: int = TOTAL) -> tuple[int, int]:
             email=who.email,
             submitted_at=moment,
         )
-        candidates = contracts.get(name)
+        candidates = partners.get(name)
         if candidates and rng.random() < WITH_UNIVERSITY_SHARE:
-            contract = rng.choice(candidates)
-            application.contract_id = contract.id
-            application.university_id = contract.university_id
+            application.university_id = rng.choice(candidates)
         session.add(application)
         applications += 1
 
@@ -252,19 +310,30 @@ async def load(session: AsyncSession, total: int = TOTAL) -> tuple[int, int]:
             university = universities.get(application.university_id)
             city = university.city if university else None
             region = city or rng.choice(REGIONS)
+            learner = Learner(
+                source_id=lms.id,
+                last_name=who.last_name,
+                first_name=who.first_name,
+                middle_name=who.middle_name,
+                email=who.email,
+                phone=application.phone,
+                gender="Ж" if who.female else "М",
+                education=rng.choices(
+                    [level for level, _ in EDUCATION], [weight for _, weight in EDUCATION]
+                )[0],
+                region=region,
+            )
+            session.add(learner)
+            await session.flush()
+            # Зачисление передала LMS: человек учится по программе в этом потоке.
             session.add(
-                Learner(
-                    source_id=lms.id,
-                    last_name=who.last_name,
-                    first_name=who.first_name,
-                    middle_name=who.middle_name,
-                    email=who.email,
-                    phone=application.phone,
-                    gender="Ж" if who.female else "М",
-                    education=rng.choices(
-                        [level for level, _ in EDUCATION], [weight for _, weight in EDUCATION]
-                    )[0],
-                    region=region,
+                Enrollment(
+                    learner_id=learner.id,
+                    program_id=programs[name].id,
+                    stream_id=application.stream_id,
+                    application_id=application.id,
+                    matched_by="lms",
+                    created_at=min(now, moment + timedelta(days=rng.randint(3, 20))),
                 )
             )
             learners += 1

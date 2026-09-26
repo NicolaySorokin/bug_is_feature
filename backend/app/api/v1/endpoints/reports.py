@@ -8,7 +8,7 @@
 
 from fastapi import APIRouter, Query, Response
 
-from app.api.deps import CurrentUserDep, PrincipalDep, SessionDep
+from app.api.deps import CurrentUserDep, PrincipalDep, SessionDep, require_action
 from app.core.errors import AppError, ErrorCode
 from app.schemas.report import (
     COLUMN_TITLES,
@@ -21,13 +21,22 @@ from app.schemas.report import (
     ReportResponse,
 )
 from app.services import reports
+from app.services.access import Action
 from app.services.export import charts as chart_export
 from app.services.export import pdf as pdf_export
 from app.services.export import runner
 from app.services.export import table as table_export
 from app.services.export import xlsx as xlsx_export
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+router = APIRouter(
+    prefix="/reports",
+    tags=["reports"],
+    dependencies=[
+        require_action(
+            Action.VIEW_REPORTS, "Отчёты по взаимодействиям - менеджеру и руководителю"
+        )
+    ],
+)
 
 CONTENT_TYPES = {
     ExportFormat.XLSX: (
@@ -77,7 +86,7 @@ def report_table(report: ReportResponse) -> table_export.Table:
         meta=[
             f"Период: {reports.format_period(report.filters)}",
             f"Построен: {report.generated_at.strftime('%d.%m.%Y %H:%M')} · "
-            f"договоров: {report.totals.contracts} · строк: {report.totals.rows}",
+            f"взаимодействий: {report.totals.interactions} · строк: {report.totals.rows}",
         ],
         headers=[COLUMN_TITLES[column] for column in report.columns],
         rows=[

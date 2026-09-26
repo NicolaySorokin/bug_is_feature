@@ -1,8 +1,10 @@
-"""Комментарии и вложения по договору.
+"""Комментарии и файлы взаимодействия.
 
 Функциональные требования 2 и 3 ТЗ: комментарий при переходе от статуса
 к статусу и файлы в статусах. И комментарий, и файл можно привязать
-к событию процесса - тогда они видны в карточке этапа.
+к событию процесса - тогда они видны в карточке этапа. У файла есть тип
+документа: по нему проверяется комплектность этапа (пункт 21 перечня
+исправлений).
 """
 
 import uuid
@@ -12,51 +14,57 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import ContractDep, CurrentUserDep, PrincipalDep, SessionDep
+from app.api.deps import (
+    CurrentUserDep,
+    InteractionDep,
+    PrincipalDep,
+    SessionDep,
+    WritableInteractionDep,
+)
 from app.core.config import settings
 from app.core.errors import ForbiddenError, NotFoundError
-from app.enums import Role
+from app.enums import DocumentType
 from app.models.content import Attachment, Comment
-from app.models.contract import Contract
 from app.models.workflow import WorkflowEvent, WorkflowInstance
 from app.schemas.content import AttachmentRead, CommentCreate, CommentRead
 from app.services import access, storage
+from app.services.access import Action
 
-router = APIRouter(prefix="/contracts", tags=["comments & files"])
+router = APIRouter(prefix="/interactions", tags=["comments & files"])
 files_router = APIRouter(prefix="/attachments", tags=["comments & files"])
 
 
-async def _check_event_belongs_to_contract(
-    session: SessionDep, contract_id: uuid.UUID, event_id: uuid.UUID | None
+async def _check_event(
+    session: SessionDep, interaction_id: uuid.UUID, event_id: uuid.UUID | None
 ) -> None:
-    """Событие процесса должно принадлежать этому же договору."""
+    """Событие процесса должно принадлежать этому же взаимодействию."""
     if event_id is None:
         return
-    statement = (
-        select(WorkflowEvent.id)
-        .join(WorkflowInstance, WorkflowInstance.id == WorkflowEvent.workflow_instance_id)
-        .where(WorkflowEvent.id == event_id, WorkflowInstance.contract_id == contract_id)
+    found = await session.scalar(
+        select(WorkflowEvent.id).where(
+            WorkflowEvent.id == event_id, WorkflowEvent.workflow_instance_id == interaction_id
+        )
     )
-    if (await session.execute(statement)).scalar_one_or_none() is None:
-        raise NotFoundError("Событие процесса не найдено в этом договоре")
+    if found is None:
+        raise NotFoundError("Событие процесса не найдено в этом взаимодействии")
 
 
 # --- Комментарии --------------------------------------------------------------
 
 
 @router.get(
-    "/{contract_id}/comments",
+    "/{interaction_id}/comments",
     response_model=list[CommentRead],
-    summary="Комментарии по договору",
+    summary="Комментарии взаимодействия",
 )
 async def list_comments(
-    contract: ContractDep,
+    interaction: InteractionDep,
     session: SessionDep,
     workflow_event_id: uuid.UUID | None = None,
 ) -> list[CommentRead]:
     statement = (
         select(Comment)
-        .where(Comment.contract_id == contract.id)
+        .where(Comment.workflow_instance_id == interaction.id)
         .options(selectinload(Comment.author))
         .order_by(Comment.created_at)
     )
@@ -67,20 +75,20 @@ async def list_comments(
 
 
 @router.post(
-    "/{contract_id}/comments",
+    "/{interaction_id}/comments",
     response_model=CommentRead,
     status_code=status.HTTP_201_CREATED,
     summary="Добавить комментарий",
 )
 async def create_comment(
-    contract: ContractDep,
+    interaction: WritableInteractionDep,
     payload: CommentCreate,
     session: SessionDep,
     user: CurrentUserDep,
 ) -> CommentRead:
-    await _check_event_belongs_to_contract(session, contract.id, payload.workflow_event_id)
+    await _check_event(session, interaction.id, payload.workflow_event_id)
     comment = Comment(
-        contract_id=contract.id,
+        workflow_instance_id=interaction.id,
         workflow_event_id=payload.workflow_event_id,
         author_id=user.id,
         text=payload.text,
@@ -95,18 +103,18 @@ async def create_comment(
 
 
 @router.get(
-    "/{contract_id}/attachments",
+    "/{interaction_id}/attachments",
     response_model=list[AttachmentRead],
-    summary="Файлы по договору",
+    summary="Файлы взаимодействия",
 )
 async def list_attachments(
-    contract: ContractDep,
+    interaction: InteractionDep,
     session: SessionDep,
     workflow_event_id: uuid.UUID | None = None,
 ) -> list[AttachmentRead]:
     statement = (
         select(Attachment)
-        .where(Attachment.contract_id == contract.id)
+        .where(Attachment.workflow_instance_id == interaction.id)
         .options(selectinload(Attachment.uploader))
         .order_by(Attachment.created_at)
     )
@@ -117,29 +125,32 @@ async def list_attachments(
 
 
 @router.post(
-    "/{contract_id}/attachments",
+    "/{interaction_id}/attachments",
     response_model=AttachmentRead,
     status_code=status.HTTP_201_CREATED,
     summary="Загрузить файл",
     description=(
         "Допустимые форматы: png, jpeg, pdf, zip, gzip, rar, doc, docx, xls, xlsx. "
+        "Тип документа (document_type) нужен для обязательных документов этапа. "
         "Файл можно привязать к событию процесса - тогда он появится в карточке этапа."
     ),
 )
 async def upload_attachment(
-    contract: ContractDep,
+    interaction: WritableInteractionDep,
     session: SessionDep,
     user: CurrentUserDep,
     file: UploadFile = File(description="Файл документа"),
     workflow_event_id: uuid.UUID | None = Form(default=None),
+    document_type: DocumentType | None = Form(default=None),
 ) -> AttachmentRead:
-    await _check_event_belongs_to_contract(session, contract.id, workflow_event_id)
-    stored = await storage.save_upload(file, f"contracts/{contract.id}")
+    await _check_event(session, interaction.id, workflow_event_id)
+    stored = await storage.save_upload(file, f"interactions/{interaction.id}")
 
     attachment = Attachment(
-        contract_id=contract.id,
+        workflow_instance_id=interaction.id,
         workflow_event_id=workflow_event_id,
         uploaded_by=user.id,
+        document_type=document_type or DocumentType.OTHER,
         original_name=stored.original_name,
         storage_path=stored.storage_path,
         mime_type=stored.mime_type,
@@ -162,14 +173,13 @@ async def _get_attachment(
         .where(Attachment.id == attachment_id)
         .options(
             selectinload(Attachment.uploader),
-            # Вуз нужен для проверки прав: менеджер видит файлы своих договоров.
-            selectinload(Attachment.contract).selectinload(Contract.university),
+            selectinload(Attachment.interaction).selectinload(WorkflowInstance.university),
         )
     )
     attachment = (await session.execute(statement)).scalar_one_or_none()
     if attachment is None:
         raise NotFoundError("Файл не найден")
-    await access.ensure_contract_access(session, attachment.contract, principal, user)
+    await access.ensure_interaction_read(session, attachment.interaction, principal, user)
     return attachment
 
 
@@ -204,8 +214,11 @@ async def delete_attachment(
     user: CurrentUserDep,
 ) -> None:
     attachment = await _get_attachment(session, attachment_id, principal, user)
-    # Свой файл удаляет автор, чужой - только руководитель или администратор.
-    if attachment.uploaded_by != user.id and not principal.has_role(Role.HEAD, Role.ADMIN):
+    await access.ensure_interaction_write(session, attachment.interaction, principal, user)
+    # Свой файл удаляет автор, чужой - только руководитель.
+    if attachment.uploaded_by != user.id and not access.can(
+        principal, user, Action.ASSIGN_RESPONSIBLE
+    ):
         raise ForbiddenError("Удалять чужие файлы может только руководитель")
     storage.delete(attachment.storage_path)
     await session.delete(attachment)

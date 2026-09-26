@@ -1,8 +1,19 @@
-"""Бизнес-логика рабочего процесса по договору.
+"""Бизнес-логика взаимодействия и его рабочего процесса.
 
-Здесь собраны все правила, которые не должны утечь в слой HTTP: какие
-переходы разрешены, кто может пропускать этапы и как из истории переходов
-получаются пять состояний этапа из раздела 3.4.
+Здесь собраны правила, которые не должны утечь в слой HTTP: какие переходы
+разрешены, кто может пропускать этапы, когда процесс завершается и с каким
+результатом, как из истории переходов получаются пять состояний этапа
+из раздела 3.4.
+
+Жизненный цикл взаимодействия (раздел 6 «Решений по бизнес-модели»)::
+
+    draft -> in_progress <-> blocked -> completed
+      └───────────────┴──────────────> cancelled
+
+* ``draft`` - взаимодействие заведено, процесс не запущен;
+* ``completed`` - достигнут финальный этап; результат берётся из этапа
+  (``outcome``), для неуспешного обязательна причина;
+* ``cancelled`` - досрочное прекращение, причина обязательна.
 """
 
 from __future__ import annotations
@@ -10,24 +21,43 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.security import Principal
-from app.enums import Role, StageState, WorkflowEventType, WorkflowInstanceStatus
+from app.db.session import mark_changed
+from app.enums import (
+    ClosureReason,
+    InteractionOutcome,
+    InteractionStatus,
+    ProductTransferStatus,
+    ProgramImplementationStatus,
+    StageState,
+    WorkflowEventType,
+    WorkflowVersionStatus,
+)
+from app.models.content import Attachment
+from app.models.interaction import InteractionProduct, InteractionProgram
 from app.models.user import User
 from app.models.workflow import (
     WorkflowEvent,
     WorkflowInstance,
     WorkflowStage,
+    WorkflowTemplate,
     WorkflowTransition,
     WorkflowVersion,
 )
+from app.services.labels import DOCUMENT_TYPE_LABELS, label
+
+OPEN = (InteractionStatus.DRAFT, InteractionStatus.IN_PROGRESS, InteractionStatus.BLOCKED)
 
 
 class WorkflowError(Exception):
     """Нарушение правил процесса. Слой API превращает это в 409."""
+
+    def __init__(self, message: str, details: dict | None = None) -> None:
+        super().__init__(message)
+        self.details = details
 
 
 def _now() -> datetime:
@@ -50,22 +80,22 @@ async def load_version(session: AsyncSession, version_id: uuid.UUID) -> Workflow
     return version
 
 
-async def latest_published_version(
-    session: AsyncSession, template_id: uuid.UUID
-) -> WorkflowVersion:
-    """Текущая версия шаблона: последняя опубликованная.
-
-    Новый договор получает её, а уже начатый процесс продолжает работать
-    по своей версии (раздел 3.4).
-    """
+async def active_version(session: AsyncSession, template_id: uuid.UUID) -> WorkflowVersion:
+    """Действующая версия шаблона: пользователь выбирает шаблон, версию -
+    система. Уже начатый процесс продолжает работать по своей (раздел 3.4)."""
+    template = await session.get(WorkflowTemplate, template_id)
+    if template is None:
+        raise WorkflowError("Шаблон процесса не найден")
+    if not template.is_active:
+        raise WorkflowError(
+            f"Шаблон «{template.name}» отключён: новые процессы по нему не идут"
+        )
     statement = (
         select(WorkflowVersion)
         .where(
             WorkflowVersion.template_id == template_id,
-            WorkflowVersion.published_at.is_not(None),
+            WorkflowVersion.status == WorkflowVersionStatus.ACTIVE,
         )
-        .order_by(WorkflowVersion.version_number.desc())
-        .limit(1)
         .options(
             selectinload(WorkflowVersion.stages),
             selectinload(WorkflowVersion.transitions),
@@ -73,15 +103,34 @@ async def latest_published_version(
     )
     version = (await session.execute(statement)).scalar_one_or_none()
     if version is None:
-        raise WorkflowError("У шаблона нет опубликованных версий")
+        raise WorkflowError("У шаблона нет действующей версии - опубликуйте её")
     return version
 
 
+# Прежнее имя: «последняя опубликованная» теперь значит «действующая».
+latest_published_version = active_version
+
+
+async def default_template(session: AsyncSession) -> WorkflowTemplate | None:
+    """Основной шаблон: самый ранний включённый шаблон с действующей версией."""
+    return await session.scalar(
+        select(WorkflowTemplate)
+        .join(WorkflowVersion, WorkflowVersion.template_id == WorkflowTemplate.id)
+        .where(
+            WorkflowTemplate.is_active.is_(True),
+            WorkflowVersion.status == WorkflowVersionStatus.ACTIVE,
+        )
+        .order_by(WorkflowTemplate.created_at)
+        .limit(1)
+    )
+
+
 def initial_stage(version: WorkflowVersion) -> WorkflowStage:
-    """Стартовый этап - этап с наименьшим порядком сортировки."""
-    if not version.stages:
-        raise WorkflowError("В версии шаблона нет этапов")
-    return min(version.stages, key=lambda stage: stage.sort_order)
+    """Стартовый этап - явно отмеченный в схеме."""
+    for stage in version.stages:
+        if stage.is_initial:
+            return stage
+    raise WorkflowError("В версии шаблона не отмечен стартовый этап")
 
 
 def available_transitions(
@@ -125,63 +174,100 @@ def compute_stage_states(
 
     current = instance.current_stage_id
     if current in states:
-        if instance.status == WorkflowInstanceStatus.COMPLETED:
+        if instance.status == InteractionStatus.COMPLETED:
             states[current] = StageState.COMPLETED
-        elif instance.status == WorkflowInstanceStatus.BLOCKED:
+        elif instance.status == InteractionStatus.BLOCKED:
             states[current] = StageState.BLOCKED
+        elif instance.status == InteractionStatus.CANCELLED:
+            # Работа прекращена на этом этапе - он не пройден.
+            states[current] = StageState.SKIPPED
         else:
             states[current] = StageState.ACTIVE
 
     return states
 
 
-async def start_instance(
-    session: AsyncSession,
-    contract_id: uuid.UUID,
-    version: WorkflowVersion,
-    user: User,
-) -> WorkflowInstance:
-    """Создаёт экземпляр процесса по договору и ставит его на стартовый этап."""
-    if not version.is_published:
-        # Черновик ещё правят: запускать по нему процессы нельзя, иначе
-        # правка шаблона изменит ход уже идущей работы.
-        raise WorkflowError("Версия шаблона не опубликована")
-
-    existing = await session.execute(
-        select(WorkflowInstance).where(
-            WorkflowInstance.contract_id == contract_id,
-            WorkflowInstance.status.in_(
-                [WorkflowInstanceStatus.IN_PROGRESS, WorkflowInstanceStatus.BLOCKED]
-            ),
-        )
+def _event(
+    instance: WorkflowInstance,
+    user: User | None,
+    kind: WorkflowEventType,
+    *,
+    from_stage: uuid.UUID | None = None,
+    to_stage: uuid.UUID | None = None,
+    comment: str | None = None,
+) -> WorkflowEvent:
+    return WorkflowEvent(
+        id=uuid.uuid4(),
+        workflow_instance_id=instance.id,
+        from_stage_id=from_stage,
+        to_stage_id=to_stage,
+        user_id=user.id if user else None,
+        event_type=kind,
+        comment=comment,
     )
-    if existing.scalar_one_or_none() is not None:
-        raise WorkflowError("По договору уже есть активный процесс")
 
-    stage = initial_stage(version)
-    now = _now()
+
+async def create_interaction(
+    session: AsyncSession,
+    *,
+    university_id: uuid.UUID,
+    version: WorkflowVersion,
+    user: User | None,
+    manager_id: uuid.UUID | None,
+    title: str | None = None,
+    comment: str | None = None,
+    source: str = "manual",
+    start: bool = False,
+) -> WorkflowInstance:
+    """Заводит взаимодействие-черновик; ``start`` - сразу запускает процесс."""
+    if version.status != WorkflowVersionStatus.ACTIVE:
+        raise WorkflowError("Новые взаимодействия идут только по действующей версии шаблона")
     instance = WorkflowInstance(
-        contract_id=contract_id,
+        id=uuid.uuid4(),
+        university_id=university_id,
+        manager_id=manager_id,
+        title=title,
+        comment=comment,
+        source=source,
+        created_by_id=user.id if user else None,
         workflow_version_id=version.id,
-        current_stage_id=stage.id,
-        status=WorkflowInstanceStatus.IN_PROGRESS,
-        current_stage_started_at=now,
-        started_at=now,
+        status=InteractionStatus.DRAFT,
     )
     session.add(instance)
     await session.flush()
-
-    session.add(
-        WorkflowEvent(
-            workflow_instance_id=instance.id,
-            from_stage_id=None,
-            to_stage_id=stage.id,
-            user_id=user.id,
-            event_type=WorkflowEventType.STARTED,
-            comment=None,
-        )
-    )
+    session.add(_event(instance, user, WorkflowEventType.CREATED))
     await session.flush()
+    if start:
+        await start_instance(session, instance, user)
+    return instance
+
+
+async def start_instance(
+    session: AsyncSession, instance: WorkflowInstance, user: User | None
+) -> WorkflowInstance:
+    """Черновик -> в работе: процесс встаёт на стартовый этап.
+
+    Пока процесс не запущен, у черновика нет ни одного этапа, поэтому он
+    перепривязывается к действующей версии своего шаблона: если шаблон
+    успели обновить, стартует уже по новой версии.
+    """
+    if instance.status != InteractionStatus.DRAFT:
+        raise WorkflowError("Процесс уже запущен")
+    current = await load_version(session, instance.workflow_version_id)
+    version = await active_version(session, current.template_id)
+    stage = initial_stage(version)
+    now = _now()
+    previous_version = instance.workflow_version_id
+    instance.workflow_version_id = version.id
+    instance.current_stage_id = stage.id
+    instance.status = InteractionStatus.IN_PROGRESS
+    instance.current_stage_started_at = now
+    instance.started_at = now
+    session.add(_event(instance, user, WorkflowEventType.STARTED, to_stage=stage.id))
+    await session.flush()
+    await apply_stage_statuses(session, instance, stage)
+    if previous_version != version.id:
+        await maybe_retire(session, previous_version)
     return instance
 
 
@@ -203,23 +289,48 @@ def _stage_by_id(version: WorkflowVersion, stage_id: uuid.UUID) -> WorkflowStage
     raise WorkflowError("Этап не принадлежит версии шаблона этого процесса")
 
 
+async def missing_documents(
+    session: AsyncSession, instance: WorkflowInstance, stage: WorkflowStage
+) -> list[str]:
+    """Типы обязательных документов этапа, которых нет во вложениях."""
+    required = [item for item in stage.required_documents or [] if item]
+    if not required:
+        return []
+    present = set(
+        (
+            await session.execute(
+                select(Attachment.document_type).where(
+                    Attachment.workflow_instance_id == instance.id,
+                    Attachment.document_type.in_(required),
+                )
+            )
+        ).scalars()
+    )
+    return [item for item in required if item not in present]
+
+
 async def move(
     session: AsyncSession,
     instance: WorkflowInstance,
     version: WorkflowVersion,
     to_stage_id: uuid.UUID,
     user: User,
-    principal: Principal,
+    *,
     comment: str | None = None,
     skip: bool = False,
+    may_skip_required: bool = False,
+    closure_reason: ClosureReason | None = None,
 ) -> WorkflowEvent:
-    """Выполняет переход на разрешённый этап.
+    """Переход на разрешённый этап.
 
-    Менеджер работает строго в пределах правил шаблона: структура шаблона
-    здесь не меняется, проверяется только наличие перехода.
+    Менеджер работает строго в пределах правил шаблона: структура здесь не
+    меняется, проверяется наличие перехода, комментарий, обязательные
+    документы этапа и правила пропуска.
     """
-    if instance.status != WorkflowInstanceStatus.IN_PROGRESS:
-        raise WorkflowError(f"Процесс в статусе «{instance.status}», переход недоступен")
+    if instance.status == InteractionStatus.DRAFT:
+        raise WorkflowError("Процесс ещё не запущен")
+    if instance.status != InteractionStatus.IN_PROGRESS:
+        raise WorkflowError("Взаимодействие не в работе: переход недоступен")
     if instance.current_stage_id is None:
         raise WorkflowError("У процесса не задан текущий этап")
 
@@ -231,10 +342,9 @@ async def move(
         raise WorkflowError("Для этого перехода обязателен комментарий")
 
     if skip:
-        # Менеджер пропускает только необязательные этапы;
-        # руководитель и администратор - любые (раздел 3.3).
-        privileged = principal.has_role(Role.HEAD, Role.ADMIN)
-        if not current_stage.is_optional and not privileged:
+        # Менеджер пропускает только необязательные этапы; руководитель -
+        # любые, но это исключение с обязательной причиной (раздел 3.3).
+        if not current_stage.is_optional and not may_skip_required:
             raise WorkflowError("Этап обязательный, пропуск недоступен")
         if not comment:
             raise WorkflowError("При пропуске этапа нужно указать причину")
@@ -243,6 +353,20 @@ async def move(
         event_type = WorkflowEventType.BACKWARD
     else:
         event_type = WorkflowEventType.FORWARD
+        missing = await missing_documents(session, instance, current_stage)
+        if missing:
+            names = ", ".join(label(DOCUMENT_TYPE_LABELS, item) for item in missing)
+            raise WorkflowError(
+                f"Чтобы завершить этап «{current_stage.name}», загрузите документы: {names}",
+                details={"missing_documents": missing},
+            )
+
+    outcome = target_stage.outcome if target_stage.is_final else None
+    if target_stage.is_final and outcome not in (None, InteractionOutcome.SUCCESSFUL):
+        if closure_reason is None:
+            raise WorkflowError("Укажите причину: этап завершает взаимодействие без успеха")
+        if closure_reason is ClosureReason.OTHER and not comment:
+            raise WorkflowError("Для причины «Иное» нужен комментарий")
 
     event = WorkflowEvent(
         workflow_instance_id=instance.id,
@@ -254,14 +378,56 @@ async def move(
     )
     session.add(event)
 
+    now = _now()
     instance.current_stage_id = to_stage_id
-    instance.current_stage_started_at = _now()
+    instance.current_stage_started_at = now
+    if event_type != WorkflowEventType.BACKWARD:
+        await apply_stage_statuses(session, instance, target_stage)
     if target_stage.is_final:
-        instance.status = WorkflowInstanceStatus.COMPLETED
-        instance.completed_at = _now()
+        instance.status = InteractionStatus.COMPLETED
+        instance.outcome = outcome or InteractionOutcome.SUCCESSFUL
+        instance.closure_reason = (
+            closure_reason if instance.outcome != InteractionOutcome.SUCCESSFUL else None
+        )
+        instance.closure_comment = comment
+        instance.closed_by_id = user.id
+        instance.closed_at = now
 
     await session.flush()
+    if target_stage.is_final:
+        await maybe_retire(session, instance.workflow_version_id)
     return event
+
+
+async def apply_stage_statuses(
+    session: AsyncSession, instance: WorkflowInstance, stage: WorkflowStage
+) -> None:
+    """Этап сам ставит статусы внедрения программ и передачи продуктов.
+
+    Приостановленные позиции не трогаются: пауза - решение человека.
+    Возврат назад статусы не откатывает.
+    """
+    if stage.program_status_on_enter:
+        await session.execute(
+            update(InteractionProgram)
+            .where(
+                InteractionProgram.workflow_instance_id == instance.id,
+                InteractionProgram.implementation_status
+                != ProgramImplementationStatus.SUSPENDED,
+            )
+            .values(implementation_status=stage.program_status_on_enter)
+        )
+    if stage.product_status_on_enter:
+        await session.execute(
+            update(InteractionProduct)
+            .where(
+                InteractionProduct.workflow_instance_id == instance.id,
+                InteractionProduct.transfer_status != ProductTransferStatus.SUSPENDED,
+            )
+            .values(transfer_status=stage.product_status_on_enter)
+        )
+    if stage.program_status_on_enter or stage.product_status_on_enter:
+        mark_changed(session)
 
 
 async def set_blocked(
@@ -271,26 +437,104 @@ async def set_blocked(
     reason: str,
     blocked: bool,
 ) -> WorkflowEvent:
-    """Блокирует или разблокирует процесс на текущем этапе."""
-    if blocked and instance.status != WorkflowInstanceStatus.IN_PROGRESS:
-        raise WorkflowError("Блокировать можно только процесс в работе")
-    if not blocked and instance.status != WorkflowInstanceStatus.BLOCKED:
-        raise WorkflowError("Процесс не заблокирован")
+    """Блокирует или разблокирует процесс на текущем этапе. Причина обязательна."""
+    if blocked and instance.status != InteractionStatus.IN_PROGRESS:
+        raise WorkflowError("Блокировать можно только взаимодействие в работе")
+    if not blocked and instance.status != InteractionStatus.BLOCKED:
+        raise WorkflowError("Взаимодействие не заблокировано")
 
-    instance.status = (
-        WorkflowInstanceStatus.BLOCKED if blocked else WorkflowInstanceStatus.IN_PROGRESS
-    )
-    event = WorkflowEvent(
-        workflow_instance_id=instance.id,
-        from_stage_id=instance.current_stage_id,
-        to_stage_id=instance.current_stage_id,
-        user_id=user.id,
-        event_type=(WorkflowEventType.BLOCKED if blocked else WorkflowEventType.UNBLOCKED),
+    now = _now()
+    instance.status = InteractionStatus.BLOCKED if blocked else InteractionStatus.IN_PROGRESS
+    instance.blocked_reason = reason if blocked else None
+    instance.blocked_at = now if blocked else None
+    event = _event(
+        instance,
+        user,
+        WorkflowEventType.BLOCKED if blocked else WorkflowEventType.UNBLOCKED,
+        from_stage=instance.current_stage_id,
+        to_stage=instance.current_stage_id,
         comment=reason,
     )
     session.add(event)
     await session.flush()
     return event
+
+
+async def cancel(
+    session: AsyncSession,
+    instance: WorkflowInstance,
+    user: User,
+    reason: ClosureReason,
+    comment: str | None,
+) -> WorkflowEvent:
+    """Досрочное прекращение: причина обязательна, результат - неуспех."""
+    if instance.status not in OPEN:
+        raise WorkflowError("Взаимодействие уже закрыто")
+    if reason is ClosureReason.OTHER and not comment:
+        raise WorkflowError("Для причины «Иное» нужен комментарий")
+    now = _now()
+    instance.status = InteractionStatus.CANCELLED
+    instance.outcome = InteractionOutcome.UNSUCCESSFUL
+    instance.closure_reason = reason
+    instance.closure_comment = comment
+    instance.closed_by_id = user.id
+    instance.closed_at = now
+    instance.blocked_reason = None
+    event = _event(
+        instance,
+        user,
+        WorkflowEventType.CANCELLED,
+        from_stage=instance.current_stage_id,
+        to_stage=instance.current_stage_id,
+        comment=comment,
+    )
+    session.add(event)
+    await session.flush()
+    await maybe_retire(session, instance.workflow_version_id)
+    return event
+
+
+async def reassign(
+    session: AsyncSession,
+    instance: WorkflowInstance,
+    user: User,
+    manager: User | None,
+    previous: User | None,
+) -> WorkflowEvent:
+    """Смена ответственного - событием в истории: видно, кто и когда передал."""
+    instance.manager_id = manager.id if manager else None
+    before = previous.full_name if previous else "не назначен"
+    after = manager.full_name if manager else "не назначен"
+    event = _event(
+        instance,
+        user,
+        WorkflowEventType.REASSIGNED,
+        from_stage=instance.current_stage_id,
+        to_stage=instance.current_stage_id,
+        comment=f"Ответственный: {before} → {after}",
+    )
+    session.add(event)
+    await session.flush()
+    return event
+
+
+async def maybe_retire(session: AsyncSession, version_id: uuid.UUID) -> None:
+    """Устаревшая версия без открытых взаимодействий выводится из использования."""
+    version = await session.get(WorkflowVersion, version_id)
+    if version is None or version.status != WorkflowVersionStatus.DEPRECATED:
+        return
+    open_count = await session.scalar(
+        select(func.count())
+        .select_from(WorkflowInstance)
+        .where(
+            WorkflowInstance.workflow_version_id == version_id,
+            WorkflowInstance.status.in_(OPEN),
+        )
+    )
+    if not open_count:
+        version.status = WorkflowVersionStatus.RETIRED
+        version.retired_at = _now()
+        await session.flush()
 
 
 async def get_instance(
@@ -299,23 +543,9 @@ async def get_instance(
     statement = (
         select(WorkflowInstance)
         .where(WorkflowInstance.id == instance_id)
-        .options(selectinload(WorkflowInstance.events).selectinload(WorkflowEvent.user))
-    )
-    return (await session.execute(statement)).scalar_one_or_none()
-
-
-async def get_contract_instance(
-    session: AsyncSession, contract_id: uuid.UUID
-) -> WorkflowInstance | None:
-    """Активный (или последний) процесс по договору.
-
-    В первой версии у договора один активный экземпляр процесса.
-    """
-    statement = (
-        select(WorkflowInstance)
-        .where(WorkflowInstance.contract_id == contract_id)
-        .order_by(WorkflowInstance.started_at.desc().nullslast())
-        .limit(1)
-        .options(selectinload(WorkflowInstance.events).selectinload(WorkflowEvent.user))
+        .options(
+            selectinload(WorkflowInstance.events).selectinload(WorkflowEvent.user),
+            selectinload(WorkflowInstance.university),
+        )
     )
     return (await session.execute(statement)).scalar_one_or_none()
