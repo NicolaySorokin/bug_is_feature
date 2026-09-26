@@ -3821,11 +3821,6 @@
             "minLength": 12,
             "title": "Password",
             "type": "string"
-          },
-          "temporary": {
-            "default": true,
-            "title": "Temporary",
-            "type": "boolean"
           }
         },
         "required": [
@@ -16603,7 +16598,7 @@
     },
     "/api/v1/users/{user_id}/reset-password": {
       "post": {
-        "description": "Пароль пишется в Keycloak. Временный (по умолчанию) Keycloak попросит сменить при первом входе, постоянный остаётся как есть.",
+        "description": "Пароль пишется в Keycloak временным: при первом входе Keycloak попросит сотрудника придумать свой. Постоянный пароль знает только сам сотрудник - администратор его не задаёт.",
         "operationId": "reset_password_api_v1_users__user_id__reset_password_post",
         "parameters": [
           {
@@ -16702,7 +16697,7 @@
             "description": "Запрос не прошёл проверку"
           }
         },
-        "summary": "Задать пароль",
+        "summary": "Выдать временный пароль",
         "tags": [
           "users"
         ]
