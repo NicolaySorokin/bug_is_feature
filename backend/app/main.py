@@ -17,9 +17,7 @@ from app.services import audit  # noqa: F401 - импорт включает з�
 DESCRIPTION = """
 API системы контроля взаимодействия ИТ Школы Ростелекома с вузами.
 
-**Авторизация.** В dev-режиме она заменена заглушкой: пользователя можно
-задать заголовками `X-Dev-User` и `X-Dev-Roles` (роли через запятую:
-`manager`, `head`, `admin`). В боевом режиме - Bearer-токен Keycloak.
+{auth}
 
 **Права на данные.** Менеджер видит договоры, где он ответственный или
 закреплён за вузом. Руководитель и администратор видят все договоры.
@@ -28,6 +26,20 @@ API системы контроля взаимодействия ИТ Школы
 `{"code": "not_found", "message": "...", "details": null}`; `code`
 машиночитаем и не меняется вместе с текстом сообщения.
 """
+
+# Описание входа зависит от схемы: про заглушку разработки на боевом стенде
+# рассказывать незачем.
+AUTH_DESCRIPTION = {
+    "keycloak": (
+        "**Авторизация.** Bearer-токен Keycloak (реалм `{realm}`): вход в систему "
+        "через веб-интерфейс, токен передаётся в заголовке `Authorization`."
+    ),
+    "dev": (
+        "**Авторизация.** Режим разработки: вместо Keycloak заглушка, пользователь "
+        "задаётся заголовками `X-Dev-User` и `X-Dev-Roles` (роли через запятую: "
+        "`manager`, `head`, `admin`)."
+    ),
+}
 
 TAGS = [
     {"name": "service", "description": "Проверка живости и служебные словари."},
@@ -75,7 +87,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title=settings.app_name,
-    description=DESCRIPTION,
+    # replace, а не format: в тексте есть фигурные скобки примера JSON.
+    description=DESCRIPTION.replace(
+        "{auth}",
+        AUTH_DESCRIPTION[settings.auth_backend].replace("{realm}", settings.keycloak_realm),
+    ),
     version="1.0.0",
     openapi_tags=TAGS,
     openapi_url=f"{settings.api_v1_prefix}/openapi.json",

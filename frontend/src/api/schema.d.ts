@@ -562,7 +562,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Состояние сервиса */
+        /**
+         * Состояние сервиса
+         * @description Отвечает `{"status": "ok"}`, если API работает и база доступна.
+         */
         get: operations["health_api_v1_health_get"];
         put?: never;
         post?: never;
