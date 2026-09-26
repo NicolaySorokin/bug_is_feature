@@ -107,6 +107,7 @@ test: dev-deps ## Тесты
 
 lint: dev-deps ## Проверка стиля
 	$(API) ruff check .
+	$(API) ruff format --check .
 
 fmt: dev-deps ## Автоисправление стиля
 	$(API) ruff check --fix .

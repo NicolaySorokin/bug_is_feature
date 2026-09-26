@@ -51,7 +51,9 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: Проверка стиля
-        run: ruff check .
+        run: |
+          ruff check .
+          ruff format --check .
 
       - name: Тесты
         run: pytest -q --junitxml=junit.xml
