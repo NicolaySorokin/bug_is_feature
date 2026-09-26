@@ -11,10 +11,14 @@
 
     python -m scripts.loadtest                              # dev-заглушка, localhost
     python -m scripts.loadtest --duration 120 --users 50 --reports 10
-    python -m scripts.loadtest --base-url https://стенд/api/v1 \\
-        --keycloak-url https://стенд/auth                   # токены по логину и паролю
+    python -m scripts.loadtest --keycloak-url http://keycloak:8080  # под Keycloak
 
-Под Keycloak входит каждый демонстрационный сотрудник с паролем, равным логину.
+Под Keycloak сотрудники входят по паролю через отдельный клиент
+edu-crm-loadtest: у клиента веб-интерфейса вход в обход страницы Keycloak
+выключен. Клиент нагрузки тоже выключен, его включают на время замера
+(python -m scripts.keycloak_setup --loadtest on, после - off). Пароли -
+из переменной KEYCLOAK_USER_PASSWORDS, в том же виде, что в секрете среды.
+Порядок целиком - cicd/README.md, «Нагрузочная проверка».
 Не запускайте на стенде во время показа: нагрузка настоящая.
 """
 
@@ -22,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import random
 import statistics
 import sys
@@ -32,6 +37,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from scripts.demo.people import EMPLOYEES, Employee
+from scripts.keycloak_setup import LOADTEST_CLIENT_ID, SetupError, parse_passwords
 
 INTERFACE_LIMIT = 1.0  # секунд, нефункциональное требование 1
 EXPORT = "Выгрузка отчёта"
@@ -51,12 +57,17 @@ async def _headers(
     response = await client.post(
         f"{args.keycloak_url.rstrip('/')}/realms/{args.realm}/protocol/openid-connect/token",
         data={
-            "client_id": "edu-crm-web",
+            "client_id": LOADTEST_CLIENT_ID,
             "grant_type": "password",
             "username": employee.username,
-            "password": employee.username,
+            "password": args.passwords[employee.username],
         },
     )
+    if response.status_code in (400, 401):
+        raise SystemExit(
+            f"Keycloak не выдал токен {employee.username}: {response.text[:200]}. "
+            f"Клиент {LOADTEST_CLIENT_ID} включён (keycloak_setup --loadtest on)?"
+        )
     response.raise_for_status()
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
@@ -197,6 +208,17 @@ def _fork(rng: random.Random) -> random.Random:
 
 async def main(args: argparse.Namespace) -> bool:
     rng = random.Random(args.seed)
+    args.passwords = {}
+    if args.keycloak_url:
+        try:
+            args.passwords = parse_passwords(os.environ.get("KEYCLOAK_USER_PASSWORDS", ""))
+        except SetupError as exc:
+            raise SystemExit(str(exc)) from exc
+        missing = [e.username for e in EMPLOYEES if e.username not in args.passwords]
+        if missing:
+            raise SystemExit(
+                "Нет паролей в KEYCLOAK_USER_PASSWORDS для: " + ", ".join(missing)
+            )
     stats = Stats()
     limits = httpx.Limits(max_connections=args.users + args.reports + 10)
     async with httpx.AsyncClient(

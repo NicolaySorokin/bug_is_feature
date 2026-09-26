@@ -9,6 +9,7 @@
 # Сервер - 4 ГБ. Под нагрузкой из ТЗ (make loadtest: 50 пользователей
 # и 10 отчётов) занято около 1,4 ГБ: API с 4 процессами ~550 МБ, Keycloak
 # ~560 МБ, PostgreSQL ~220 МБ. Лимиты ниже - потолок на случай утечки.
+# Keycloak хранит данные в своей базе того же PostgreSQL (keycloak).
 
 # Имя проекта не зависит от каталога: на сервере каждый релиз лежит
 # в своей папке, а контейнеры и тома должны оставаться теми же.
@@ -41,18 +42,26 @@ services:
              --forwarded-allow-ips '*'"
 
   keycloak:
+    # Образ собирается в CI и привозится на сервер готовым. Тег - по
+    # содержимому deploy/keycloak/image: пока тема и Dockerfile не менялись,
+    # образ и контейнер остаются прежними.
+    image: edu-crm-keycloak:${KEYCLOAK_IMAGE_TAG:-latest}
     expose:
       - "8080"
     restart: always
     # Без лимита JVM берёт кучу от памяти всего сервера (70%).
     mem_limit: 1g
     environment:
+      # Запросы приходят через Nginx: схему и адрес клиента Keycloak берёт
+      # из заголовков X-Forwarded-*.
       KC_PROXY_HEADERS: xforwarded
-      KC_HTTP_ENABLED: "true"
-    labels:
-      # Реалм импортируется только при создании контейнера: новая выгрузка
-      # меняет метку, и compose пересоздаёт Keycloak. Метку ставит деплой.
-      edu-crm.realm-sha: ${KEYCLOAK_REALM_SHA:-}
+
+  keycloak-setup:
+    environment:
+      # Боевая среда: пароли пользователей - только из секрета PROD_ENV,
+      # без пароля настройка реалма завершается ошибкой.
+      ENVIRONMENT: prod
+    mem_limit: 256m
 
   # Nginx с клиентской частью: образ edu-crm-web собирается в CI и
   # привозится на сервер готовым, тег - коммит (как у API).

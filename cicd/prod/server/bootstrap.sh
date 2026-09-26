@@ -12,7 +12,8 @@
 #   - certbot, его таймер продления и хук перезагрузки Nginx после продления;
 #   - make (для make logs ENV=prod на сервере), каталог приложения,
 #     каталог webroot для проверок Let's Encrypt;
-#   - swap-файл: на 4 ГБ без него всплеск памяти заканчивается OOM killer.
+#   - swap-файл: на 4 ГБ без него всплеск памяти заканчивается OOM killer;
+#   - ежедневная резервная копия базы и файлов (таймер edu-crm-backup).
 set -euo pipefail
 
 DEPLOY_USER=${DEPLOY_USER:-${SUDO_USER:-}}
@@ -120,6 +121,7 @@ install -m 0755 -d "$CERTBOT_WEBROOT"
 install -m 0750 -o "$DEPLOY_USER" -g "$DEPLOY_USER" -d "$APP_DIR"
 install -m 0750 -o "$DEPLOY_USER" -g "$DEPLOY_USER" -d "$APP_DIR/releases"
 install -m 0700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" -d "$APP_DIR/shared"
+install -m 0700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" -d "$APP_DIR/backups"
 
 # --- swap ------------------------------------------------------------------------
 if [ -z "$(swapon --show --noheadings)" ]; then
@@ -137,5 +139,39 @@ if [ ! -f /etc/sysctl.d/60-edu-crm-swap.conf ]; then
     echo 'vm.swappiness = 10' > /etc/sysctl.d/60-edu-crm-swap.conf
     sysctl -q -p /etc/sysctl.d/60-edu-crm-swap.conf
 fi
+
+# --- резервные копии -------------------------------------------------------------
+# Каждую ночь release.sh backup текущего релиза: база системы, база Keycloak,
+# файлы вложений - в $APP_DIR/backups, хранятся 14 дней. Копии стоит
+# забирать и за пределы сервера.
+backup_service="[Unit]
+Description=EDU CRM: резервная копия базы и файлов
+After=docker.service
+Requires=docker.service
+ConditionPathExists=$APP_DIR/current
+
+[Service]
+Type=oneshot
+User=$DEPLOY_USER
+Environment=APP_DIR=$APP_DIR
+ExecStart=/bin/bash $APP_DIR/current/cicd/prod/server/release.sh backup"
+backup_timer="[Unit]
+Description=EDU CRM: ежедневная резервная копия
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=20m
+Persistent=true
+
+[Install]
+WantedBy=timers.target"
+if [ "$(cat /etc/systemd/system/edu-crm-backup.service 2> /dev/null)" != "$backup_service" ] \
+    || [ "$(cat /etc/systemd/system/edu-crm-backup.timer 2> /dev/null)" != "$backup_timer" ]; then
+    log "Таймер резервного копирования: edu-crm-backup.timer, ежедневно в 03:30"
+    printf '%s\n' "$backup_service" > /etc/systemd/system/edu-crm-backup.service
+    printf '%s\n' "$backup_timer" > /etc/systemd/system/edu-crm-backup.timer
+    systemctl daemon-reload
+fi
+systemctl enable --quiet --now edu-crm-backup.timer
 
 log "Сервер готов: $(docker --version), $(docker compose version), $(certbot --version 2>&1)"

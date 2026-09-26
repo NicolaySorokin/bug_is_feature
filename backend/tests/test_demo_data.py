@@ -61,6 +61,27 @@ def test_realm_matches_demo_users() -> None:
         assert sorted(user["realmRoles"]) == sorted(employee.roles)
 
 
+def test_realm_keeps_no_secrets() -> None:
+    """Репозиторий публичный: паролей и секретов клиентов в выгрузке нет.
+
+    Пароли задаёт секрет среды (scripts/keycloak_setup.py), а войти можно
+    только через страницу Keycloak - выдача токена по паролю в обход неё
+    включена лишь у выключенного клиента нагрузочной проверки.
+    """
+    if not REALM.is_file():
+        pytest.skip("Реалм лежит вне каталога backend - в контейнере его нет")
+    realm = json.loads(REALM.read_text("utf-8"))
+
+    assert all("credentials" not in user for user in realm["users"])
+    assert "length(12)" in realm["passwordPolicy"]
+    assert realm["sslRequired"] == "external"
+    for client in realm["clients"]:
+        assert "secret" not in client, client["clientId"]
+        if client["directAccessGrantsEnabled"]:
+            assert client["clientId"] == "edu-crm-loadtest"
+            assert client["enabled"] is False
+
+
 def test_integration_fixtures_match_catalog() -> None:
     """Синхронизация обновляет демоданные, а не заводит их дубли."""
     lms = json.loads((FIXTURES / "lms.json").read_text("utf-8"))

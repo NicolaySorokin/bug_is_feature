@@ -21,6 +21,12 @@ services:
   keycloak:
     expose:
       - "8080"
+    environment:
+      KC_PROXY_HEADERS: xforwarded
+
+  keycloak-setup:
+    environment:
+      ENVIRONMENT: prod
 
   # Образ с клиентской частью (edu-crm-web) описан в docker-compose.yml.
   nginx:

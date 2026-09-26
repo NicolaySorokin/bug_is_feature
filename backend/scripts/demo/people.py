@@ -5,7 +5,8 @@
 не случайный, а выводится из логина: сид знает его заранее и привязывает
 договоры к тому, кто войдёт через Keycloak. Совпадение с реалмом проверяет
 tests/test_demo_data.py, а свежий список для реалма печатает
-``python -m scripts.demo.people``.
+``python -m scripts.demo.people``. Паролей в выгрузке нет: их задаёт
+секрет среды, см. scripts/keycloak_setup.py.
 
 Люди вымышленные, совпадения случайны. Почта - на зарезервированных
 доменах example.com и *.example, телефоны - из несуществующего диапазона.
@@ -83,7 +84,7 @@ EMPLOYEE_BY_USERNAME = {employee.username: employee for employee in EMPLOYEES}
 
 
 def realm_users() -> list[dict]:
-    """Пользователи в формате realm-export.json. Пароль совпадает с логином."""
+    """Пользователи в формате realm-export.json, без паролей."""
     return [
         {
             "id": employee.keycloak_id,
@@ -93,9 +94,6 @@ def realm_users() -> list[dict]:
             "lastName": employee.last_name,
             "enabled": True,
             "emailVerified": True,
-            "credentials": [
-                {"type": "password", "value": employee.username, "temporary": False}
-            ],
             "realmRoles": [str(role) for role in employee.roles],
         }
         for employee in EMPLOYEES
