@@ -205,9 +205,7 @@ def _apply_filters(
             )
         )
     if process is ProcessFilter.NONE:
-        statement = statement.where(
-            Contract.id.not_in(select(WorkflowInstance.contract_id))
-        )
+        statement = statement.where(Contract.id.not_in(select(WorkflowInstance.contract_id)))
     elif process is not None:
         statement = statement.where(
             Contract.id.in_(
@@ -282,9 +280,7 @@ async def list_contracts(
             _apply_filters(statement, **filters), principal, user
         )
 
-    total = (
-        await session.scalar(scoped(select(func.count()).select_from(Contract))) or 0
-    )
+    total = await session.scalar(scoped(select(func.count()).select_from(Contract))) or 0
     result = await session.execute(
         _order(scoped(select(Contract)), order)
         .options(

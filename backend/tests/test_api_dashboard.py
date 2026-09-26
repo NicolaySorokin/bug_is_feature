@@ -102,9 +102,7 @@ async def test_blocked_process_is_critical(
     assert blocked["contract_number"] == contract["number"]
 
 
-async def test_expiring_contract_and_license(
-    client: AsyncClient, university: dict
-) -> None:
+async def test_expiring_contract_and_license(client: AsyncClient, university: dict) -> None:
     product = (
         await client.post(
             "/api/v1/catalog/products", json={"name": "Платформа"}, headers=ADMIN
@@ -118,9 +116,7 @@ async def test_expiring_contract_and_license(
         valid_to=str(date.today() + timedelta(days=10)),
         product_ids=[product["id"]],
     )
-    detail = (
-        await client.get(f"/api/v1/contracts/{contract['id']}", headers=MANAGER)
-    ).json()
+    detail = (await client.get(f"/api/v1/contracts/{contract['id']}", headers=MANAGER)).json()
     await client.post(
         f"/api/v1/contracts/{contract['id']}/products/{detail['products'][0]['id']}/licenses",
         json={"valid_to": str(date.today() - timedelta(days=5))},

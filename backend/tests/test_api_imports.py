@@ -98,9 +98,7 @@ async def test_catalog_import_creates_contract_with_license(client: AsyncClient)
     assert contract["number"] == "ДГ-2026-100"
     assert contract["university"]["name"] == "Казанский университет"
 
-    detail = (
-        await client.get(f"/api/v1/contracts/{contract['id']}", headers=ADMIN)
-    ).json()
+    detail = (await client.get(f"/api/v1/contracts/{contract['id']}", headers=ADMIN)).json()
     assert detail["products"][0]["transfer_status"] == "implemented"
 
     licenses = (await client.get("/api/v1/licenses", headers=ADMIN)).json()
@@ -114,9 +112,7 @@ async def test_repeated_import_updates_instead_of_duplicating(
     content = book([CATALOG_HEADERS, row])
 
     first = await _upload(client, content, "catalog")
-    await client.post(
-        f"/api/v1/imports/{first['run']['id']}/commit", json={}, headers=ADMIN
-    )
+    await client.post(f"/api/v1/imports/{first['run']['id']}/commit", json={}, headers=ADMIN)
 
     second = await _upload(client, content, "catalog")
     result = (

@@ -170,9 +170,7 @@ async def read_version(
     response_model=InstanceView,
     summary="Процесс по договору",
 )
-async def read_contract_workflow(
-    contract: ContractDep, session: SessionDep
-) -> InstanceView:
+async def read_contract_workflow(contract: ContractDep, session: SessionDep) -> InstanceView:
     instance = await workflow_service.get_contract_instance(session, contract.id)
     if instance is None:
         raise NotFoundError("По договору нет запущенного процесса")

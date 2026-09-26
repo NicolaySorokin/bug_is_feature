@@ -30,9 +30,7 @@ async def test_report_rows_and_charts_match_selection(
     )
     await make_contract(client, university["id"], MANAGER, status="draft")
 
-    report = (
-        await client.post("/api/v1/reports/preview", json={}, headers=MANAGER)
-    ).json()
+    report = (await client.post("/api/v1/reports/preview", json={}, headers=MANAGER)).json()
 
     assert report["totals"]["contracts"] == 2
     assert report["totals"]["rows"] == 2  # один договор с программой, один без
@@ -65,9 +63,7 @@ async def test_report_respects_record_level_rights(
     assert all_rows["totals"]["contracts"] == 2
 
 
-async def test_period_filter_uses_signing_date(
-    client: AsyncClient, university: dict
-) -> None:
+async def test_period_filter_uses_signing_date(client: AsyncClient, university: dict) -> None:
     await make_contract(
         client, university["id"], MANAGER, signed_at="2026-03-01", number="ДГ-МАРТ"
     )
@@ -88,9 +84,7 @@ async def test_period_filter_uses_signing_date(
 async def test_exports_return_files(client: AsyncClient, university: dict) -> None:
     await make_contract(client, university["id"], MANAGER)
 
-    xlsx = await client.post(
-        "/api/v1/reports/export?format=xlsx", json={}, headers=MANAGER
-    )
+    xlsx = await client.post("/api/v1/reports/export?format=xlsx", json={}, headers=MANAGER)
     assert xlsx.status_code == 200
     assert xlsx.content[:2] == b"PK"  # книга Excel - это zip-архив
     assert "attachment" in xlsx.headers["content-disposition"]
@@ -111,9 +105,7 @@ async def test_exports_return_files(client: AsyncClient, university: dict) -> No
     assert result_json.json()["totals"]["contracts"] == 1
 
 
-async def test_charts_render_in_png_and_pdf(
-    client: AsyncClient, university: dict
-) -> None:
+async def test_charts_render_in_png_and_pdf(client: AsyncClient, university: dict) -> None:
     await make_contract(client, university["id"], MANAGER)
 
     png = await client.post(
