@@ -8,7 +8,6 @@ from app.api.deps import SessionDep
 from app.core.config import settings
 from app.core.errors import ErrorCode
 from app.models.user import User
-from app.services import cache
 from app.services.labels import ENUM_LABELS
 from app.services.storage import ALLOWED_TYPES
 
@@ -36,14 +35,16 @@ class AuthConfig(BaseModel):
     demo_accounts: list[DemoAccount] = []
 
 
-@router.get("/health", summary="Состояние сервиса")
+@router.get(
+    "/health",
+    summary="Состояние сервиса",
+    description='Отвечает `{"status": "ok"}`, если API работает и база доступна.',
+)
 async def health(session: SessionDep) -> dict[str, str]:
+    # Метод открыт без входа, поэтому ничего, кроме статуса, не сообщает:
+    # среда, версии и схема входа снаружи не нужны.
     await session.execute(text("SELECT 1"))
-    return {
-        "status": "ok",
-        "environment": settings.environment,
-        "auth_backend": settings.auth_backend,
-    }
+    return {"status": "ok"}
 
 
 @router.get(
@@ -102,8 +103,3 @@ async def meta_enums() -> dict[str, object]:
             "expiring_days": settings.alert_expiring_days,
         },
     }
-
-
-@router.get("/meta/cache", summary="Состояние кэша выборок", include_in_schema=False)
-async def cache_state(session: SessionDep) -> dict[str, object]:
-    return {"version": await cache.current_version(session), **cache.stats()}
