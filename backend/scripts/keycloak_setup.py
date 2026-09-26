@@ -304,7 +304,7 @@ def apply_passwords(
     if missing:
         raise SetupError(
             "Нет пароля для пользователей " + ", ".join(missing) + ": добавьте их в "
-            "KEYCLOAK_USER_PASSWORDS (секрет PROD_ENV), иначе под ними не войти"
+            "KEYCLOAK_USER_PASSWORDS (секрет репозитория), иначе под ними не войти"
         )
     log(f"Пароли: установлено {changed}, остальные без изменений")
     if generated:
