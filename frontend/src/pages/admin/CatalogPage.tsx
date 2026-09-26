@@ -6,7 +6,20 @@
  * прошлых периодов.
  */
 import { useQuery } from "@tanstack/react-query";
-import { FileSpreadsheet, Mail, Pencil, Phone, Plus, Trash2, UserPlus } from "lucide-react";
+import {
+  Boxes,
+  Compass,
+  Factory,
+  FileSpreadsheet,
+  GraduationCap,
+  Mail,
+  Pencil,
+  Phone,
+  Plus,
+  Trash2,
+  UserPlus,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -58,6 +71,13 @@ interface EditState {
   kind: Kind;
   item: Item | null;
 }
+
+const TAB_ICONS: Record<Kind, LucideIcon> = {
+  programs: GraduationCap,
+  directions: Compass,
+  products: Boxes,
+  vendors: Factory,
+};
 
 const TITLES: Record<Kind, [string, string]> = {
   directions: ["ИТ-направления", "направление"],
@@ -344,7 +364,8 @@ export default function CatalogPage() {
   const links = useQuery({ queryKey: keys.programProducts, queryFn: listProgramProducts });
   usePageTitle("Справочники");
 
-  const source = { directions, programs, vendors, products }[kind];
+  const sources = { directions, programs, vendors, products };
+  const source = sources[kind];
   const directionName = useMemo(
     () => Object.fromEntries((directions.data || []).map((item) => [item.id, item.name])),
     [directions.data],
@@ -390,7 +411,13 @@ export default function CatalogPage() {
       <Tabs
         value={kind}
         onChange={(key) => setParams({ tab: key }, { replace: true })}
-        items={(["programs", "directions", "products", "vendors"] as Kind[]).map((key) => ({ key, label: TITLES[key][0] }))}
+        label="Справочники"
+        items={(["programs", "directions", "products", "vendors"] as Kind[]).map((key) => ({
+          key,
+          label: TITLES[key][0],
+          icon: TAB_ICONS[key],
+          count: sources[key].data?.length,
+        }))}
       />
       <div className="toolbar">
         <Field label="Поиск" className="field--grow">

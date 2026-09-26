@@ -7,6 +7,7 @@
  * и обучающимся из LMS и с сайта. «Заявки» - список заявок с сайта
  * (с персональными данными - только руководителю и администратору).
  */
+import { GraduationCap, Handshake, Inbox } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useSession } from "../../auth/session";
 import { PageHeader, Tabs } from "../../components/ui";
@@ -26,10 +27,11 @@ export default function ReportsPage() {
       <Tabs
         value={tab}
         onChange={(key) => setParams({ tab: key }, { replace: true })}
+        label="Разделы отчётов"
         items={[
-          { key: "interaction", label: "Взаимодействие с вузами" },
-          { key: "learning", label: "Статистика обучения" },
-          { key: "applications", label: "Заявки с сайта", hidden: !can("view_personal_data") },
+          { key: "interaction", label: "Взаимодействие с вузами", icon: Handshake },
+          { key: "learning", label: "Статистика обучения", icon: GraduationCap },
+          { key: "applications", label: "Заявки с сайта", icon: Inbox, hidden: !can("view_personal_data") },
         ]}
       />
       {tab === "interaction" && <InteractionReport />}

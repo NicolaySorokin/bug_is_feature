@@ -233,11 +233,8 @@ export default function ContractPage() {
           { key: "contacts", label: "Контакты вуза" },
           {
             key: "comments",
-            label: `Комментарии и файлы${
-              (comments.data?.length || 0) + (attachments.data?.length || 0)
-                ? ` (${(comments.data?.length || 0) + (attachments.data?.length || 0)})`
-                : ""
-            }`,
+            label: "Комментарии и файлы",
+            count: (comments.data?.length || 0) + (attachments.data?.length || 0) || undefined,
           },
           { key: "history", label: "История" },
         ]}

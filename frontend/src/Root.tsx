@@ -15,6 +15,7 @@ import { initAuth, login, logout, type AuthSession } from "./auth/auth";
 import { SessionProvider } from "./auth/session";
 import { ConfirmProvider } from "./components/Confirm";
 import { ToastProvider } from "./components/Toasts";
+import { RtMark } from "./components/Brand";
 import { Button, ErrorState } from "./components/ui";
 import { App } from "./App";
 import { LoginPage } from "./pages/LoginPage";
@@ -25,9 +26,7 @@ type BootState = { status: "loading" } | { status: "failed"; error: string } | {
 function Boot({ text }: { text: string }) {
   return (
     <div className="boot" role="status">
-      <span className="brand-mark" aria-hidden="true">
-        РТ
-      </span>
+      <RtMark size={48} />
       <Loader size="s" variant="primary" />
       <span>{text}…</span>
     </div>
