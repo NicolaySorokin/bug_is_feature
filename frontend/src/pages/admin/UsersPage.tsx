@@ -1,55 +1,90 @@
 /**
- * Пользователи и права (раздел «Роли» ТЗ: администратор управляет правами
- * и доступом к данным).
+ * Пользователи и права (раздел 12 «Решений по бизнес-модели»).
  *
- * Роли живут в Keycloak: изменение здесь сразу записывается туда, так что
- * источник прав один. Доступ к данным: «свои вузы» (где сотрудник
- * ответственный, плюс открытые ему вузы) или «все договоры».
+ * Роль, функциональные права и область данных разделены:
+ *
+ * * роли живут в Keycloak и не наследуются - совмещение задаётся
+ *   несколькими ролями явно;
+ * * дополнительные права (запуск обмена, журнал обмена, персональные
+ *   данные студентов, представление схемы процесса) выдаются отдельно;
+ * * область данных (свои, команда, все, никаких) по умолчанию следует из
+ *   ролей; расширить её можно с основанием и, если нужно, со сроком;
+ * * точечный доступ к вузу - со сроком, основанием и отметкой, кто выдал;
+ *   отзыв не удаляет запись.
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { KeyRound, RefreshCw, UserPlus } from "lucide-react";
-import { useEffect, useState } from "react";
-import { createUser, getUser, listUsers, resetPassword, syncRoles, updateUser } from "../../api/endpoints";
+import { KeyRound, RefreshCw, ShieldCheck, UserPlus, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  createUser,
+  getUser,
+  grantUniversity,
+  listUsers,
+  resetPassword,
+  revokeUniversity,
+  syncRoles,
+  updateUser,
+} from "../../api/endpoints";
 import { useApiMutation } from "../../api/mutations";
-import { keys, queryClient, useLabel, useUniversities } from "../../api/queries";
-import type { DataScope, Role, User } from "../../api/types";
+import { keys, queryClient, useLabel, useUniversities, useUsers } from "../../api/queries";
+import type { DataScope, Role, User, UserPermission } from "../../api/types";
 import { useSession } from "../../auth/session";
 import { DataTable, type Column } from "../../components/DataTable";
 import { Drawer, Modal } from "../../components/Modal";
-import { MultiSelect } from "../../components/MultiSelect";
 import {
   Avatar,
   Button,
+  Card,
   Checkbox,
   DescriptionList,
   EmptyState,
   ErrorState,
+  Field,
   Loading,
   PageHeader,
   SearchInput,
   SelectField,
   StatusBadge,
   Switch,
-  Card,
+  Tag,
   TextField,
-  Field,
 } from "../../components/ui";
-import { formatDateTime } from "../../lib/format";
+import { formatDate, formatDateTime } from "../../lib/format";
 import { usePageTitle } from "../../lib/usePageTitle";
 
 const ROLES: Role[] = ["manager", "head", "admin"];
+const SCOPES: DataScope[] = ["default", "own", "team", "all", "none"];
+const PERMISSIONS: UserPermission[] = [
+  "view_personal_data",
+  "sync_integrations",
+  "view_integration_log",
+  "edit_workflow_presentation",
+];
 
 // Политика паролей реалма Keycloak: короче Keycloak пароль не примет.
 const PASSWORD_MIN_LENGTH = 12;
 const PASSWORD_HINT = "Не короче 12 знаков: строчные и заглавные буквы, цифры, не совпадает с логином";
 const ROLE_HINTS: Record<Role, string> = {
-  manager: "Ведёт свои вузы и договоры",
-  head: "Видит все вузы, назначает ответственных",
-  admin: "Права, справочники, настройки",
+  manager: "ведёт свои взаимодействия с вузами",
+  head: "команда, назначение ответственных, исключения, проверка вузов",
+  admin: "пользователи, справочники, шаблоны, интеграции; без бизнес-данных",
 };
+const SCOPE_HINTS: Record<DataScope, string> = {
+  default: "по ролям: менеджер - свои, руководитель - команда, администратор - никаких",
+  own: "свои взаимодействия, свои вузы и открытые ему вузы",
+  team: "плюс взаимодействия команды и те, что ждут ответственного",
+  all: "все бизнес-данные организации",
+  none: "только административные функции",
+};
+
+/** Конец выбранного дня в UTC - срок временного доступа. */
+function endOfDay(value: string): string | null {
+  return value ? new Date(`${value}T23:59:59`).toISOString() : null;
+}
 
 function refreshUsers() {
   void queryClient.invalidateQueries({ queryKey: keys.users });
+  void queryClient.invalidateQueries({ queryKey: keys.directory });
   void queryClient.invalidateQueries({ queryKey: ["user"] });
   void queryClient.invalidateQueries({ queryKey: ["users-page"] });
 }
@@ -57,7 +92,10 @@ function refreshUsers() {
 function RolesPicker({ value, onChange }: { value: Role[]; onChange: (value: Role[]) => void }) {
   const label = useLabel();
   return (
-    <Field label="Роли" hint="Роли хранятся в Keycloak и действуют со следующего входа пользователя">
+    <Field
+      label="Роли"
+      hint="Роли не наследуются: руководителю, который сам ведёт вузы, нужна и роль менеджера. Хранятся в Keycloak, действуют со следующего входа"
+    >
       <div className="stack-s">
         {ROLES.map((role) => (
           <Checkbox
@@ -76,15 +114,120 @@ function RolesPicker({ value, onChange }: { value: Role[]; onChange: (value: Rol
   );
 }
 
+/** Точечный доступ к вузам: выдача со сроком и основанием, отзыв с отметкой. */
+function Grants({ userId, grants }: { userId: string; grants: NonNullable<import("../../api/types").UserDetail["grants"]> }) {
+  const universities = useUniversities();
+  const [universityId, setUniversityId] = useState("");
+  const [reason, setReason] = useState("");
+  const [expires, setExpires] = useState("");
+  const grant = useApiMutation(
+    () => grantUniversity(userId, { university_id: universityId, reason: reason.trim(), expires_at: endOfDay(expires) }),
+    {
+      success: "Доступ к вузу открыт",
+      onSuccess: (saved) => {
+        queryClient.setQueryData(["user", userId], saved);
+        setUniversityId("");
+        setReason("");
+        setExpires("");
+        refreshUsers();
+      },
+    },
+  );
+  const revoke = useApiMutation((id: string) => revokeUniversity(userId, id), {
+    success: "Доступ отозван",
+    onSuccess: (saved) => {
+      queryClient.setQueryData(["user", userId], saved);
+      refreshUsers();
+    },
+  });
+  const active = grants.filter((item) => item.is_active);
+  const past = grants.filter((item) => !item.is_active);
+  return (
+    <Card title="Доступ к отдельным вузам" description="Сверх области данных - например, на время отпуска коллеги.">
+      <div className="stack">
+        {active.length === 0 && <p className="muted">Открытых вузов нет.</p>}
+        {active.map((item) => (
+          <div key={item.university_id} className="row-between" style={{ alignItems: "flex-start" }}>
+            <div className="cell-title">
+              <strong>{item.university_name}</strong>
+              <small>
+                {item.reason || "без основания"} · {item.expires_at ? `до ${formatDate(item.expires_at)}` : "бессрочно"}
+                {item.granted_by ? ` · выдал ${item.granted_by.full_name}` : ""}
+              </small>
+            </div>
+            <Button
+              variant="ghost"
+              size="s"
+              icon={X}
+              loading={revoke.isPending}
+              onClick={() => revoke.mutate(item.university_id)}
+            >
+              Отозвать
+            </Button>
+          </div>
+        ))}
+        {past.length > 0 && (
+          <details>
+            <summary className="muted">Отозванные и истёкшие: {past.length}</summary>
+            <div className="stack-s" style={{ marginTop: 8 }}>
+              {past.map((item) => (
+                <small key={item.university_id} className="muted">
+                  {item.university_name} ·{" "}
+                  {item.revoked_at
+                    ? `отозван ${formatDate(item.revoked_at)}${item.revoked_by ? ` (${item.revoked_by.full_name})` : ""}`
+                    : `истёк ${formatDate(item.expires_at)}`}
+                </small>
+              ))}
+            </div>
+          </details>
+        )}
+        <div className="form-grid" style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+          <SelectField
+            className="span-2"
+            label="Вуз"
+            value={universityId}
+            onChange={setUniversityId}
+            placeholder="Выберите вуз"
+            options={(universities.data || []).map((item) => ({ value: item.id, label: item.short_name || item.name }))}
+          />
+          <TextField
+            label="Основание"
+            required
+            value={reason}
+            onChange={setReason}
+            maxLength={1000}
+            placeholder="Замещает коллегу"
+          />
+          <TextField label="До (включительно)" type="date" value={expires} onChange={setExpires} hint="Пусто - бессрочно" />
+          <div className="span-2">
+            <Button
+              variant="secondary"
+              disabled={!universityId || !reason.trim()}
+              loading={grant.isPending}
+              onClick={() => grant.mutate(undefined)}
+            >
+              Открыть доступ
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () => void }) {
   const { me, mode } = useSession();
-  const universities = useUniversities();
+  const label = useLabel();
+  const everyone = useUsers();
   const user = useQuery({ queryKey: ["user", userId], queryFn: () => getUser(userId!), enabled: Boolean(userId) });
   const [roles, setRoles] = useState<Role[]>([]);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [headId, setHeadId] = useState("");
   const [scope, setScope] = useState<DataScope>("default");
-  const [grants, setGrants] = useState<string[]>([]);
+  const [scopeReason, setScopeReason] = useState("");
+  const [scopeExpires, setScopeExpires] = useState("");
+  const [permissions, setPermissions] = useState<UserPermission[]>([]);
   const [active, setActive] = useState(true);
   const [password, setPassword] = useState<string | null>(null);
 
@@ -93,10 +236,21 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
     setRoles((user.data.roles || []).filter((role): role is Role => ROLES.includes(role as Role)));
     setFullName(user.data.full_name);
     setEmail(user.data.email || "");
-    setScope(user.data.data_scope);
-    setGrants(user.data.university_ids || []);
+    setHeadId(user.data.head_id || "");
+    setScope(user.data.data_scope || "default");
+    setScopeReason(user.data.data_scope_reason || "");
+    setScopeExpires(user.data.data_scope_expires_at ? user.data.data_scope_expires_at.slice(0, 10) : "");
+    setPermissions((user.data.permissions || []) as UserPermission[]);
     setActive(user.data.is_active);
   }, [user.data]);
+
+  const heads = useMemo(
+    () =>
+      (everyone.data || [])
+        .filter((item) => item.is_active && (item.roles || []).includes("head") && item.id !== userId)
+        .map((item) => ({ value: item.id, label: item.full_name })),
+    [everyone.data, userId],
+  );
 
   const save = useApiMutation(
     () =>
@@ -104,8 +258,11 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
         roles,
         full_name: fullName.trim(),
         email: email.trim() || null,
+        head_id: headId || null,
         data_scope: scope,
-        university_ids: grants,
+        data_scope_reason: scope === "default" ? null : scopeReason.trim() || null,
+        data_scope_expires_at: scope === "default" ? null : endOfDay(scopeExpires),
+        permissions,
         is_active: active,
       }),
     {
@@ -125,6 +282,7 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
 
   const self = userId === me.id;
   const managed = new Set(user.data?.managed_university_ids || []);
+  const needsReason = scope !== "default" && !scopeReason.trim();
 
   return (
     <Drawer
@@ -139,7 +297,7 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
           </Button>
           <Button
             loading={save.isPending}
-            disabled={!user.data || roles.length === 0 || !fullName.trim()}
+            disabled={!user.data || roles.length === 0 || !fullName.trim() || needsReason}
             onClick={() => save.mutate(undefined)}
           >
             Сохранить
@@ -157,8 +315,10 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
             items={[
               ["Последняя активность", formatDateTime(user.data.last_seen_at, "не заходил")],
               ["В системе с", formatDateTime(user.data.created_at)],
-              ["Договоров", user.data.contracts_count ?? 0],
-              ["Ответственный за вузы", managed.size ? `${managed.size}` : "нет"],
+              ["Действующая область", label("data_scope", user.data.effective_scope || "none")],
+              ["Ведёт взаимодействий", user.data.interactions_count ?? 0],
+              ["Менеджер по умолчанию у вузов", managed.size ? `${managed.size}` : "нет"],
+              ["Команда", (user.data.team || []).length ? (user.data.team || []).map((item) => item.full_name).join(", ") : null],
             ]}
           />
           <TextField label="ФИО" value={fullName} onChange={setFullName} maxLength={255} required />
@@ -166,26 +326,61 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
           <RolesPicker value={roles} onChange={setRoles} />
           {self && !roles.includes("admin") && <span className="field__error">Нельзя снять с себя роль администратора</span>}
           <SelectField
-            label="Доступ к данным"
-            value={scope}
-            onChange={(value) => setScope(value as DataScope)}
-            options={[
-              { value: "default", label: "По роли: свои вузы (руководитель и администратор видят всё)" },
-              { value: "all", label: "Все договоры и вузы" },
-            ]}
+            label="Руководитель"
+            value={headId}
+            onChange={setHeadId}
+            placeholder="Не указан"
+            options={heads}
+            hint="Команда руководителя - его область данных «Команда» и кого он может назначать"
           />
-          <MultiSelect
-            label="Дополнительно открытые вузы"
-            placeholder="Нет"
-            value={grants}
-            onChange={setGrants}
-            options={(universities.data || []).map((item) => ({
-              value: item.id,
-              label: item.short_name || item.name,
-              hint: managed.has(item.id) ? "ответственный" : undefined,
-            }))}
-            hint="Вузы коллег, договоры которых сотрудник видит и ведёт (например, на время отпуска)"
-          />
+          <Card title="Область данных" description={SCOPE_HINTS[scope]}>
+            <div className="stack">
+              <SelectField
+                label="Какие взаимодействия и вузы видит"
+                value={scope}
+                onChange={(value) => setScope(value as DataScope)}
+                options={SCOPES.map((value) => ({ value, label: label("data_scope", value) }))}
+              />
+              {scope !== "default" && (
+                <div className="form-grid">
+                  <TextField
+                    className="span-2"
+                    label="Основание"
+                    required
+                    value={scopeReason}
+                    onChange={setScopeReason}
+                    maxLength={1000}
+                    placeholder="Например: подготовка годового отчёта"
+                    error={needsReason ? "Укажите основание" : undefined}
+                  />
+                  <TextField
+                    label="Действует до"
+                    type="date"
+                    value={scopeExpires}
+                    onChange={setScopeExpires}
+                    hint="Пусто - бессрочно; по истечении - область по ролям"
+                  />
+                </div>
+              )}
+            </div>
+          </Card>
+          <Field label="Дополнительные права" hint="Из роли не следуют - выдаются отдельно">
+            <div className="stack-s">
+              {PERMISSIONS.map((permission) => (
+                <Checkbox
+                  key={permission}
+                  label={label("permission", permission)}
+                  checked={permissions.includes(permission)}
+                  onChange={(checked) =>
+                    setPermissions((current) =>
+                      checked ? [...current, permission] : current.filter((item) => item !== permission),
+                    )
+                  }
+                />
+              ))}
+            </div>
+          </Field>
+          <Grants userId={userId!} grants={user.data.grants || []} />
           <Switch label="Учётная запись активна" checked={active} disabled={self} onChange={setActive} />
           {mode === "keycloak" && (
             <Card title="Пароль">
@@ -337,6 +532,10 @@ export default function UsersPage() {
     limit: 500,
   };
   const users = useQuery({ queryKey: ["users-page", query], queryFn: () => listUsers(query), placeholderData: keepPreviousData });
+  const names = useMemo(
+    () => Object.fromEntries((users.data?.items || []).map((item) => [item.id, item.full_name])),
+    [users.data],
+  );
 
   const sync = useApiMutation(() => syncRoles(), {
     success: (result) =>
@@ -379,6 +578,37 @@ export default function UsersPage() {
       ),
     },
     {
+      key: "scope",
+      title: "Область данных",
+      render: (row) =>
+        row.data_scope && row.data_scope !== "default" ? (
+          <Tag tone="accent">{label("data_scope", row.data_scope)}</Tag>
+        ) : (
+          <span className="muted">по ролям</span>
+        ),
+    },
+    {
+      key: "extra",
+      title: "Доп. права",
+      render: (row) =>
+        (row.permissions || []).length ? (
+          <span
+            className="row"
+            style={{ gap: 4 }}
+            title={(row.permissions || []).map((item) => label("permission", item)).join(", ")}
+          >
+            <ShieldCheck size={14} /> {(row.permissions || []).length}
+          </span>
+        ) : (
+          <span className="muted">—</span>
+        ),
+    },
+    {
+      key: "head",
+      title: "Руководитель",
+      render: (row) => (row.head_id ? names[row.head_id] || "—" : <span className="muted">—</span>),
+    },
+    {
       key: "status",
       title: "Состояние",
       render: (row) =>
@@ -390,6 +620,7 @@ export default function UsersPage() {
     <div className="page">
       <PageHeader
         title="Пользователи и права"
+        description="Роль задаёт действия, область данных - какие взаимодействия видны, отдельные права выдаются сверх роли."
         actions={
           <>
             {mode === "keycloak" && (

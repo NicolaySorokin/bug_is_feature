@@ -21,11 +21,17 @@ const OUT = path.resolve(__dirname, "../public/help");
 const DESKTOP = { viewport: { width: 1440, height: 900 }, locale: "ru-RU" };
 const MOBILE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: "ru-RU" };
 
+// Роли не наследуются: у каждого ровно те, что в демоданных. Орлова -
+// руководитель, который и сам ведёт вузы.
 const ACCOUNTS = {
   manager: { username: "petrov", roles: "manager" },
-  head: { username: "fedorov", roles: "head,manager" },
-  admin: { username: "admin", roles: "admin,head,manager" },
+  head: { username: "orlova", roles: "manager,head" },
+  admin: { username: "admin", roles: "admin" },
 };
+
+// Взаимодействие Петрова в середине процесса: внедрение продукта, две
+// программы, продукты с лицензиями.
+const SHOWCASE = "Подготовка инженеров по тестированию";
 
 async function session(browser, role, options = DESKTOP) {
   const context = await browser.newContext(options);
@@ -39,13 +45,17 @@ async function session(browser, role, options = DESKTOP) {
   return page;
 }
 
-async function contractId(page, role, number) {
+function headers(role) {
   const account = ACCOUNTS[role];
-  const response = await page.request.get(`${BASE}/api/v1/contracts?search=${encodeURIComponent(number)}`, {
-    headers: { "X-Dev-User": account.username, "X-Dev-Roles": account.roles },
+  return { "X-Dev-User": account.username, "X-Dev-Roles": account.roles };
+}
+
+async function interactionId(page, role, title) {
+  const response = await page.request.get(`${BASE}/api/v1/interactions?search=${encodeURIComponent(title)}`, {
+    headers: headers(role),
   });
   const body = await response.json();
-  if (!body.items.length) throw new Error(`договор ${number} не найден`);
+  if (!body.items || !body.items.length) throw new Error(`взаимодействие «${title}» не найдено`);
   return body.items[0].id;
 }
 
@@ -84,23 +94,29 @@ async function shot(page, name) {
     return;
   }
 
+  // --- Менеджер ---------------------------------------------------------------
   const manager = await session(browser, "manager");
-  const processContract = await contractId(manager, "manager", "ДГ-2026-132");
-  const composition = await contractId(manager, "manager", "ДГ-2026-047");
-  await open(manager, "/contracts");
-  await shot(manager, "contracts.png");
-  await open(manager, `/contracts/${processContract}?tab=process`);
-  await manager.evaluate(() => window.scrollTo(0, 470));
-  await shot(manager, "contract-process.png");
-  await manager.locator(".stage-panel").getByRole("button", { name: "Преподаватели обучены" }).click();
+  const showcase = await interactionId(manager, "manager", SHOWCASE);
+  await open(manager, "/");
+  await shot(manager, "dashboard-manager.png");
+  await open(manager, "/interactions");
+  await shot(manager, "interactions.png");
+  await manager.getByRole("button", { name: "Новое взаимодействие" }).first().click();
   await manager.waitForSelector(".modal");
-  await manager.locator(".modal textarea").fill("Провели обучение для 12 преподавателей кафедры, протокол во вложении");
   await manager.waitForTimeout(600); // окно появляется с анимацией
+  await shot(manager, "interaction-new.png");
+  await open(manager, `/interactions/${showcase}?tab=process`);
+  await shot(manager, "interaction-process.png");
+  await manager.locator(".stage-panel").getByRole("button", { name: "Продукт развёрнут" }).click();
+  await manager.waitForSelector(".modal");
+  await manager.locator(".modal textarea").fill("Развернули песочницу для автотестов, доступы выданы кафедре; акт во вложении");
+  await manager.waitForTimeout(600);
   await shot(manager, "transition.png");
-  await open(manager, `/contracts/${composition}?tab=composition`);
-  await manager.evaluate(() => window.scrollTo(0, 520));
+  await open(manager, `/interactions/${showcase}?tab=composition`);
+  await manager.evaluate(() => window.scrollTo(0, 560));
   await shot(manager, "composition.png");
 
+  // --- Руководитель -------------------------------------------------------------
   const head = await session(browser, "head");
   await open(head, "/");
   await shot(head, "dashboard.png");
@@ -112,9 +128,8 @@ async function shot(page, name) {
   await open(head, "/reports?tab=learning");
   await head.evaluate(() => window.scrollTo(0, 250));
   await shot(head, "statistics.png");
-  await open(head, "/integrations");
-  await shot(head, "integrations.png");
 
+  // --- Администратор -----------------------------------------------------------
   const admin = await session(browser, "admin");
   await open(admin, "/admin/users");
   await admin.getByRole("button", { name: "Петров Пётр Алексеевич" }).click();
@@ -129,24 +144,29 @@ async function shot(page, name) {
   await shot(admin, "admin-imports.png");
   await open(admin, "/admin/workflows");
   await shot(admin, "admin-workflows.png");
-  // Журнал пуст на свежих демоданных: руководитель снимает ответственного
-  // за вуз и назначает снова - оба изменения попадут в журнал.
-  const headers = { "X-Dev-User": ACCOUNTS.head.username, "X-Dev-Roles": ACCOUNTS.head.roles };
-  const universities = await (await admin.request.get(`${BASE}/api/v1/universities?limit=1`, { headers })).json();
+  await open(admin, "/integrations");
+  await shot(admin, "integrations.png");
+  await open(admin, "/integrations?tab=mappings");
+  await admin.evaluate(() => window.scrollTo(0, 420));
+  await shot(admin, "mappings.png");
+  // Журнал пуст на свежих демоданных: руководитель снимает менеджера по
+  // умолчанию у вуза и назначает снова - оба изменения попадут в журнал.
+  const universities = await (await admin.request.get(`${BASE}/api/v1/universities?limit=1`, { headers: headers("head") })).json();
   const university = universities.items[0];
   if (university) {
     const url = `${BASE}/api/v1/universities/${university.id}`;
-    await admin.request.patch(url, { headers, data: { manager_id: null } });
-    await admin.request.patch(url, { headers, data: { manager_id: university.manager_id } });
+    await admin.request.patch(url, { headers: headers("head"), data: { manager_id: null } });
+    await admin.request.patch(url, { headers: headers("head"), data: { manager_id: university.manager_id } });
   }
   await open(admin, "/admin/audit");
   await admin.locator(".list-item button").first().click();
   await admin.waitForTimeout(300);
   await shot(admin, "admin-audit.png");
 
+  // --- Телефон -------------------------------------------------------------------
   const phone = await session(browser, "manager", MOBILE);
-  await open(phone, `/contracts/${processContract}?tab=process`);
-  await phone.evaluate(() => window.scrollTo(0, 900));
+  await open(phone, `/interactions/${showcase}?tab=process`);
+  await phone.evaluate(() => window.scrollTo(0, 1450));
   await shot(phone, "mobile.png");
 
   await browser.close();

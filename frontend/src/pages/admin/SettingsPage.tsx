@@ -4,7 +4,7 @@ import { RotateCcw, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getSettings, saveSettings } from "../../api/endpoints";
 import { useApiMutation } from "../../api/mutations";
-import { invalidateContractData, keys, queryClient } from "../../api/queries";
+import { invalidateInteractionData, keys, queryClient } from "../../api/queries";
 import { Button, Card, ErrorState, Loading, PageHeader, TextField } from "../../components/ui";
 import { usePageTitle } from "../../lib/usePageTitle";
 
@@ -23,7 +23,7 @@ export default function SettingsPage() {
       success: "Настройки сохранены",
       onSuccess: (saved) => {
         queryClient.setQueryData(keys.settings, saved);
-        invalidateContractData();
+        invalidateInteractionData();
       },
     },
   );

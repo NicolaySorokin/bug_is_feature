@@ -7,14 +7,14 @@
  */
 import { lazy, Suspense, type ReactNode } from "react";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
-import { useSession, type Permission } from "./auth/session";
+import { useSession, type Action } from "./auth/session";
 import { EmptyState, Loading } from "./components/ui";
 import { AppShell } from "./layout/AppShell";
 import { ShieldOff } from "lucide-react";
 
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
-const ContractsPage = lazy(() => import("./pages/ContractsPage"));
-const ContractPage = lazy(() => import("./pages/contract/ContractPage"));
+const InteractionsPage = lazy(() => import("./pages/InteractionsPage"));
+const InteractionPage = lazy(() => import("./pages/interaction/InteractionPage"));
 const UniversitiesPage = lazy(() => import("./pages/UniversitiesPage"));
 const UniversityPage = lazy(() => import("./pages/UniversityPage"));
 const ReportsPage = lazy(() => import("./pages/reports/ReportsPage"));
@@ -33,14 +33,28 @@ function Page({ children }: { children: ReactNode }) {
   return <Suspense fallback={<Loading text="Открываем раздел" />}>{children}</Suspense>;
 }
 
-/** Раздел только для ролей с правом: остальные видят объяснение, а не пустую страницу. */
-function Guard({ permission, children }: { permission: Permission; children: ReactNode }) {
-  const { can } = useSession();
-  if (!can(permission)) {
+/**
+ * Раздел только для тех, у кого есть одно из действий (или доступ к
+ * бизнес-данным): остальные видят объяснение, а не пустую страницу.
+ */
+function Guard({ any, business, children }: { any?: Action[]; business?: boolean; children: ReactNode }) {
+  const session = useSession();
+  const allowed = (!any || any.some((action) => session.can(action))) && (!business || session.business);
+  if (!allowed) {
+    // Администратору не советуем «обратиться к администратору»: бизнес-доступ ему
+    // выдаётся отдельно, временно и с основанием (пункт 7 перечня исправлений).
+    const admin = session.can("manage_users");
+    const noBusiness = business && !session.business;
     return (
       <div className="page">
         <EmptyState icon={ShieldOff} title="Раздел недоступен">
-          Для этого раздела нужна другая роль. Если доступ нужен для работы, обратитесь к администратору системы.
+          {noBusiness && admin
+            ? "Роль администратора не даёт доступа к бизнес-данным: взаимодействиям, договорам и отчётам. Если он нужен для работы, область данных выдаётся отдельно - временно, с основанием и отметкой в журнале изменений."
+            : noBusiness
+              ? "У вашей учётной записи нет доступа к бизнес-данным: взаимодействиям, договорам и отчётам. Если он нужен для работы, администратор может выдать область данных - в том числе временно."
+              : admin
+                ? "Для этого раздела нужна другая роль или отдельное право. Роли и права сотрудников назначаются в разделе «Пользователи и права»."
+                : "Для этого раздела нужна другая роль или отдельное право. Если доступ нужен для работы, обратитесь к администратору системы."}
         </EmptyState>
       </div>
     );
@@ -63,21 +77,28 @@ const router = createBrowserRouter(
           ),
         },
         {
-          path: "contracts",
+          path: "interactions",
           element: (
-            <Page>
-              <ContractsPage />
-            </Page>
+            <Guard business>
+              <Page>
+                <InteractionsPage />
+              </Page>
+            </Guard>
           ),
         },
         {
-          path: "contracts/:contractId",
+          path: "interactions/:interactionId",
           element: (
-            <Page>
-              <ContractPage />
-            </Page>
+            <Guard business>
+              <Page>
+                <InteractionPage />
+              </Page>
+            </Guard>
           ),
         },
+        // Старые ссылки на реестр договоров ведут в реестр взаимодействий.
+        { path: "contracts", element: <Navigate to="/interactions?has_contract=true" replace /> },
+        { path: "contracts/*", element: <Navigate to="/interactions" replace /> },
         {
           path: "universities",
           element: (
@@ -97,24 +118,28 @@ const router = createBrowserRouter(
         {
           path: "reports",
           element: (
-            <Page>
-              <ReportsPage />
-            </Page>
+            <Guard any={["view_reports", "view_statistics"]}>
+              <Page>
+                <ReportsPage />
+              </Page>
+            </Guard>
           ),
         },
         {
           path: "integrations",
           element: (
-            <Page>
-              <IntegrationsPage />
-            </Page>
+            <Guard any={["view_integration_log", "sync_integrations", "resolve_mappings"]}>
+              <Page>
+                <IntegrationsPage />
+              </Page>
+            </Guard>
           ),
         },
         { path: "admin", element: <Navigate to="/admin/users" replace /> },
         {
           path: "admin/users",
           element: (
-            <Guard permission="manage_users">
+            <Guard any={["manage_users"]}>
               <Page>
                 <UsersPage />
               </Page>
@@ -124,7 +149,7 @@ const router = createBrowserRouter(
         {
           path: "admin/catalog",
           element: (
-            <Guard permission="edit_catalog">
+            <Guard any={["edit_catalog", "edit_program_products"]}>
               <Page>
                 <CatalogPage />
               </Page>
@@ -134,7 +159,7 @@ const router = createBrowserRouter(
         {
           path: "admin/imports",
           element: (
-            <Guard permission="import">
+            <Guard any={["import"]}>
               <Page>
                 <ImportsPage />
               </Page>
@@ -144,7 +169,7 @@ const router = createBrowserRouter(
         {
           path: "admin/workflows",
           element: (
-            <Guard permission="edit_templates">
+            <Guard any={["edit_templates"]}>
               <Page>
                 <WorkflowsPage />
               </Page>
@@ -154,7 +179,7 @@ const router = createBrowserRouter(
         {
           path: "admin/audit",
           element: (
-            <Guard permission="view_audit">
+            <Guard any={["view_audit"]}>
               <Page>
                 <AuditPage />
               </Page>
@@ -164,7 +189,7 @@ const router = createBrowserRouter(
         {
           path: "admin/settings",
           element: (
-            <Guard permission="edit_settings">
+            <Guard any={["edit_settings"]}>
               <Page>
                 <SettingsPage />
               </Page>

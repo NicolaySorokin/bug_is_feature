@@ -1,19 +1,22 @@
 /**
- * Встроенные руководства (нефункциональное требование 4 ТЗ): пользователя,
- * администратора и системного администратора, со снимками экранов.
+ * Встроенные руководства (нефункциональное требование 4 ТЗ) со снимками
+ * экранов. Сценарии разделены по ролям (пункт 29 перечня исправлений):
+ * менеджер, руководитель, администратор; техническое руководство
+ * системного администратора - отдельно.
  *
  * Снимки лежат в public/help и пересобираются скриптом
  * frontend/scripts/help-screenshots.cjs по живому стенду.
  */
-import { BookOpen, Info, ShieldCheck, TriangleAlert, Wrench } from "lucide-react";
+import { BookOpen, Info, ShieldCheck, TriangleAlert, Users, Wrench } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useSession } from "../../auth/session";
 import { Card, PageHeader, Tabs } from "../../components/ui";
 import { usePageTitle } from "../../lib/usePageTitle";
 import { AdminGuide } from "./AdminGuide";
+import { HeadGuide } from "./HeadGuide";
+import { ManagerGuide } from "./ManagerGuide";
 import { SysadminGuide } from "./SysadminGuide";
-import { UserGuide } from "./UserGuide";
 
 export interface Section {
   id: string;
@@ -84,18 +87,31 @@ function Guide({ sections }: { sections: Section[] }) {
   );
 }
 
+const GUIDES = {
+  manager: ManagerGuide,
+  head: HeadGuide,
+  admin: AdminGuide,
+  sysadmin: SysadminGuide,
+};
+
 export default function HelpPage() {
-  const { guide = "user" } = useParams();
+  const { guide } = useParams();
   const navigate = useNavigate();
-  const { can } = useSession();
+  const { can, roles } = useSession();
   usePageTitle("Руководства");
 
+  const admin = can("manage_users");
   const guides = [
-    { key: "user", label: "Пользователю", icon: BookOpen, hidden: false },
-    { key: "admin", label: "Администратору", icon: ShieldCheck, hidden: !can("manage_users") },
-    { key: "sysadmin", label: "Системному администратору", icon: Wrench, hidden: !can("manage_users") },
-  ];
-  const current = guides.find((item) => item.key === guide && !item.hidden)?.key || "user";
+    { key: "manager", label: "Менеджеру", icon: BookOpen, hidden: false },
+    { key: "head", label: "Руководителю", icon: Users, hidden: !(roles.includes("head") || admin) },
+    { key: "admin", label: "Администратору", icon: ShieldCheck, hidden: !admin },
+    { key: "sysadmin", label: "Системному администратору", icon: Wrench, hidden: !admin },
+  ] as const;
+  // Без выбора открывается руководство своей роли; старая ссылка /help/user - руководство менеджера.
+  const own = roles.includes("head") ? "head" : roles.includes("manager") || !admin ? "manager" : "admin";
+  const requested = guide === "user" ? "manager" : guide;
+  const current = guides.find((item) => item.key === requested && !item.hidden)?.key || own;
+  const sections = GUIDES[current]();
 
   return (
     <div className="page">
@@ -103,8 +119,8 @@ export default function HelpPage() {
         title="Руководства"
         description={
           <>
-            Вопросы по доступу - к администратору системы
-            {can("manage_users") ? "" : " (раздел «Пользователи и права» у него в меню)"}. Описание API - в{" "}
+            {admin ? "" : "Вопросы по доступу - к администратору системы (раздел «Пользователи и права» у него в меню). "}
+            Описание API - в{" "}
             <Link to="/docs" target="_blank" reloadDocument>
               Swagger UI
             </Link>
@@ -118,9 +134,7 @@ export default function HelpPage() {
         label="Руководства"
         items={guides.map((item) => ({ key: item.key, label: item.label, icon: item.icon, hidden: item.hidden }))}
       />
-      {current === "user" && <Guide sections={UserGuide()} />}
-      {current === "admin" && <Guide sections={AdminGuide()} />}
-      {current === "sysadmin" && <Guide sections={SysadminGuide()} />}
+      <Guide key={current} sections={sections} />
     </div>
   );
 }

@@ -11,6 +11,7 @@ export function MultiSelect({
   placeholder = "Все",
   hint,
   searchPlaceholder = "Найти",
+  className = "",
 }: {
   label?: ReactNode;
   options: Option[];
@@ -19,6 +20,7 @@ export function MultiSelect({
   placeholder?: string;
   hint?: ReactNode;
   searchPlaceholder?: string;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -59,7 +61,7 @@ export function MultiSelect({
   const summary = labels.length === 0 ? null : labels.length === 1 ? labels[0] : `${labels[0]} и ещё ${labels.length - 1}`;
 
   return (
-    <Field label={label} hint={hint} htmlFor={id}>
+    <Field label={label} hint={hint} htmlFor={id} className={className}>
       <div className="multi" ref={rootRef}>
         <button
           id={id}

@@ -23,9 +23,20 @@ def ident(key: str) -> str:
 # Элементы: ключ -> (тип ArchiMate, имя, папка, документация)
 ELEMENTS: dict[str, tuple[str, str, str, str]] = {
     # --- Бизнес ---
-    "kam": ("BusinessActor", "Пользователь / КАМ", "business", "Ведёт свои вузы и договоры"),
-    "head": ("BusinessActor", "Руководитель", "business", "Видит все вузы, назначает ответственных"),
-    "admin": ("BusinessActor", "Администратор", "business", "Права, справочники, шаблоны процессов"),
+    # Роли не наследуются; ключ "kam" оставлен, чтобы Archi узнал тот же элемент.
+    "kam": ("BusinessActor", "Менеджер", "business", "Ведёт свои взаимодействия с вузами"),
+    "head": (
+        "BusinessActor",
+        "Руководитель",
+        "business",
+        "Команда менеджеров: ответственные, блокировки, исключения, проверка вузов",
+    ),
+    "admin": (
+        "BusinessActor",
+        "Администратор",
+        "business",
+        "Права, справочники, шаблоны процессов, обмен; без бизнес-данных",
+    ),
     "sysadmin": ("BusinessActor", "Системный администратор", "business", "Установка, обновление, резервные копии"),
     "university": ("BusinessActor", "Вуз / школа", "business", "Партнёр ИТ Школы"),
     "proc": (
@@ -35,7 +46,14 @@ ELEMENTS: dict[str, tuple[str, str, str, str]] = {
         "Поиск контактов → ... → Итоговый контроль; шаблон процесса с версиями",
     ),
     "reporting": ("BusinessProcess", "Отчётность по взаимодействию и обучению", "business", ""),
-    "contract": ("BusinessObject", "Договор", "business", "Статус, сроки, ответственный, состав"),
+    "interaction": (
+        "BusinessObject",
+        "Взаимодействие с вузом",
+        "business",
+        "Центральный объект: вуз, ответственный, статус и результат, процесс, "
+        "программы и продукты, контакты, файлы",
+    ),
+    "contract": ("BusinessObject", "Договор (0..1)", "business", "Необязательная часть взаимодействия: подписание, сроки, статус, лицензии"),
     "program": ("BusinessObject", "ИТ-программа", "business", ""),
     "product": ("BusinessObject", "ИТ-продукт и лицензия", "business", ""),
     "application": ("BusinessObject", "Заявка на обучение", "business", "С сайта ИТ Школы"),
@@ -46,7 +64,7 @@ ELEMENTS: dict[str, tuple[str, str, str, str]] = {
     "kc": ("ApplicationComponent", "Keycloak (реалм edu-crm)", "application", "OIDC, PKCE, роли manager/head/admin"),
     "lms": ("ApplicationComponent", "LMS ИТ Школы", "application", "Внешняя система"),
     "site": ("ApplicationComponent", "Сайт ИТ Школы", "application", "Внешняя система"),
-    "svc_contracts": ("ApplicationService", "Договоры, вузы, состав, лицензии", "application", ""),
+    "svc_contracts": ("ApplicationService", "Взаимодействия, вузы, программы и продукты, договоры", "application", ""),
     "svc_workflow": ("ApplicationService", "Рабочий процесс: переходы, комментарии, файлы", "application", ""),
     "svc_reports": ("ApplicationService", "Отчёты и диаграммы (XLSX, XLS, PDF, PNG, JSON)", "application", ""),
     "svc_stats": ("ApplicationService", "Статистика обучения", "application", ""),
@@ -54,7 +72,7 @@ ELEMENTS: dict[str, tuple[str, str, str, str]] = {
     "svc_sync": ("ApplicationService", "Обмен с LMS и сайтом", "application", ""),
     "svc_admin": ("ApplicationService", "Пользователи, права, журнал, настройки", "application", ""),
     "svc_auth": ("ApplicationService", "Вход и роли", "application", ""),
-    "data_crm": ("DataObject", "Данные CRM", "application", "Договоры, процессы, справочники, журнал изменений"),
+    "data_crm": ("DataObject", "Данные CRM", "application", "Взаимодействия, процессы, договоры, справочники, журнал изменений"),
     "data_files": ("DataObject", "Файлы вложений", "application", "PNG, JPEG, PDF, ZIP, GZIP, RAR, DOC(X), XLS(X)"),
     # --- Технологии ---
     "server": ("Node", "Сервер Linux (4 ГБ, Docker Compose)", "technology", ""),
@@ -76,9 +94,10 @@ RELATIONS: list[tuple[str, str, str, str]] = [
     ("Assignment", "head", "proc", ""),
     ("Assignment", "head", "reporting", ""),
     ("Association", "university", "proc", ""),
-    ("Access", "proc", "contract", ""),
-    ("Access", "proc", "program", ""),
-    ("Access", "proc", "product", ""),
+    ("Access", "proc", "interaction", ""),
+    ("Aggregation", "interaction", "contract", "0..1"),
+    ("Aggregation", "interaction", "program", ""),
+    ("Aggregation", "interaction", "product", ""),
     ("Access", "reporting", "application", ""),
     ("Access", "reporting", "learner", ""),
     ("Serving", "svc_contracts", "proc", ""),
@@ -130,8 +149,8 @@ VIEWS: dict[str, dict[str, tuple[int, int]]] = {
     "1. Бизнес-контекст": {
         "kam": (20, 20), "head": (220, 20), "admin": (420, 20), "university": (620, 20),
         "proc": (120, 140), "reporting": (420, 140),
-        "contract": (20, 270), "program": (220, 270), "product": (420, 270),
-        "application": (620, 270), "learner": (820, 270),
+        "interaction": (120, 270), "application": (620, 270), "learner": (820, 270),
+        "contract": (20, 390), "program": (220, 390), "product": (420, 390),
     },
     "2. Приложения": {
         "kam": (20, 20), "head": (220, 20), "admin": (420, 20),

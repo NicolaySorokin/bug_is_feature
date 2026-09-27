@@ -3,9 +3,9 @@
 ТЗ требует: отклик интерфейса не дольше секунды, 50 параллельных
 пользователей и не меньше 10 параллельных отчётов разной сложности.
 Скрипт так и нагружает стенд: 50 «пользователей» ходят по сценарию
-менеджера (главная, реестр, карточка договора, процесс, предпросмотр
-отчёта), а 10 «аналитиков» параллельно выгружают отчёты в XLSX и PDF
-с разными фильтрами. В конце - времена отклика и вывод по каждому пункту.
+менеджера (главная, реестр взаимодействий, карточка взаимодействия,
+процесс, предпросмотр отчёта), а 10 «аналитиков» параллельно выгружают
+отчёты в XLSX и PDF с разными фильтрами. В конце - времена отклика и вывод по каждому пункту.
 
 Запуск - при поднятом стенде; объём лучше добавить заранее (make seed-load):
 
@@ -101,12 +101,14 @@ def _report_body(rng: random.Random) -> dict:
     if rng.random() < 0.6:
         filters["date_from"] = rng.choice(("2024-09-01", "2025-01-01", "2025-09-01"))
     if rng.random() < 0.3:
-        filters["period_basis"] = rng.choice(("signed", "created", "activity"))
+        filters["period_basis"] = rng.choice(("signed", "created", "activity", "closed"))
     if rng.random() < 0.3:
-        filters["statuses"] = rng.sample(["draft", "active", "suspended", "closed"], 2)
-    columns = ["university", "direction", "program", "product", "contract_status", "manager"]
+        filters["statuses"] = rng.sample(["draft", "in_progress", "blocked", "completed"], 2)
+    if rng.random() < 0.2:
+        filters["outcomes"] = [rng.choice(["successful", "partial", "unsuccessful"])]
+    columns = ["university", "direction", "program", "product", "status", "manager"]
     if rng.random() < 0.5:
-        columns += ["contract_number", "stage", "days_on_stage", "valid_to"]
+        columns += ["interaction", "stage", "days_on_stage", "contract_number", "valid_to"]
     return {"filters": filters, "columns": columns}
 
 
@@ -117,24 +119,29 @@ async def _user(
     deadline: float,
     rng: random.Random,
 ) -> None:
-    """Сценарий менеджера: главная, реестр, договор, процесс, отчёт."""
+    """Сценарий менеджера: главная, реестр, взаимодействие, процесс, отчёт."""
     while time.monotonic() < deadline:
         await _hit(client, stats, "Главная", "GET", "/dashboard", headers)
         page = await _hit(
-            client, stats, "Реестр договоров", "GET", "/contracts?limit=50", headers
+            client, stats, "Реестр взаимодействий", "GET", "/interactions?limit=50", headers
         )
         items = page.json().get("items", []) if page is not None else []
         if items:
-            contract_id = rng.choice(items)["id"]
+            interaction_id = rng.choice(items)["id"]
             await _hit(
-                client, stats, "Карточка договора", "GET", f"/contracts/{contract_id}", headers
+                client,
+                stats,
+                "Карточка взаимодействия",
+                "GET",
+                f"/interactions/{interaction_id}",
+                headers,
             )
             await _hit(
                 client,
                 stats,
-                "Процесс по договору",
+                "Процесс взаимодействия",
                 "GET",
-                f"/contracts/{contract_id}/workflow",
+                f"/interactions/{interaction_id}/workflow",
                 headers,
             )
         await _hit(
@@ -170,14 +177,14 @@ async def _reporter(
 
 
 def _print(stats: Stats, args: argparse.Namespace) -> bool:
-    print(f"\n{'Действие':<26}{'запросов':>9}{'медиана':>9}{'p95':>8}{'макс':>8}{'≤1 с':>8}")
+    print(f"\n{'Действие':<28}{'запросов':>9}{'медиана':>9}{'p95':>8}{'макс':>8}{'≤1 с':>8}")
     ok = True
     for label, values in sorted(stats.samples.items()):
         ordered = sorted(values)
         p95 = ordered[min(len(ordered) - 1, int(len(ordered) * 0.95))]
         fast = sum(value <= INTERFACE_LIMIT for value in ordered) / len(ordered)
         print(
-            f"{label:<26}{len(ordered):>9}{statistics.median(ordered):>8.2f}с"
+            f"{label:<28}{len(ordered):>9}{statistics.median(ordered):>8.2f}с"
             f"{p95:>7.2f}с{ordered[-1]:>7.2f}с{fast:>8.0%}"
         )
         if not label.startswith(EXPORT) and p95 > INTERFACE_LIMIT:

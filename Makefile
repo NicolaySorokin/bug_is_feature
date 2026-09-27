@@ -15,7 +15,7 @@ API := $(DC) exec -T api
 # Разовый контейнер из собранного образа: нужен, когда стенд не поднят.
 RUN_API := $(DC) run --rm --no-deps -T api
 
-# Сколько договоров добавить для нагрузочной проверки: make seed-load N=5000
+# Сколько взаимодействий добавить для нагрузочной проверки: make seed-load N=5000
 N ?= 3000
 
 .PHONY: help build up down restart logs seed seed-load loadtest testdata migrate makemigration \
@@ -29,7 +29,7 @@ help: ## Показать список команд
 	@echo restart        - перезапустить API
 	@echo logs           - логи API
 	@echo seed           - загрузить демонстрационные данные
-	@echo seed-load      - добавить договоры для нагрузки, вызов: make seed-load N=3000
+	@echo seed-load      - добавить взаимодействия для нагрузки, вызов: make seed-load N=3000
 	@echo loadtest       - нагрузочная проверка по ТЗ: 50 пользователей и 10 отчётов
 	@echo testdata       - пересобрать файлы для ручных проверок в testdata/
 	@echo migrate        - применить миграции
@@ -80,7 +80,7 @@ logs: ## Логи API
 seed: ## Загрузить демонстрационные данные
 	$(API) python -m scripts.seed
 
-seed-load: ## Добавить договоры для нагрузочной проверки: make seed-load N=3000
+seed-load: ## Добавить взаимодействия для нагрузочной проверки: make seed-load N=3000
 	$(API) python -m scripts.seed --load $(N)
 
 # Параметры скрипта передаются через ARGS: make loadtest ARGS="--duration 120".

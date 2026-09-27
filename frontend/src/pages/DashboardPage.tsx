@@ -1,23 +1,30 @@
 /**
- * Главная страница - своя для каждой роли.
+ * Главная страница - своя для каждой роли (пункты 32-35 перечня исправлений).
  *
- * КАМ видит свои договоры: что сделать дальше, где процесс стоит дольше
- * нормы, какие проблемы. Руководитель - картину по всем вузам и нагрузку
- * ответственных. Администратор дополнительно - пользователей, обмен с
- * LMS и сайтом, последние загрузки справочников.
+ * Менеджер - «Следующие шаги» по своим взаимодействиям: отдельно статус,
+ * текущий этап со следующим действием и срок этапа. Руководитель -
+ * состояние команды: показатели, очередь решений (без ответственного,
+ * заблокированные, просроченные), нагрузка менеджеров и диаграммы; если он
+ * сам ведёт вузы - ещё и свои шаги. Администратор - технические сводки:
+ * обмен, загрузки, пользователи, очереди проверки.
+ *
+ * Главное действие - «Новое взаимодействие»: договор заводится внутри
+ * взаимодействия, когда до него дойдёт.
  */
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowRight,
+  Ban,
   Building2,
   CheckCircle2,
   Clock,
-  FileText,
-  Hourglass,
+  FileQuestion,
+  Handshake,
   Lock,
   PlayCircle,
   Plus,
+  UserX,
   Users,
 } from "lucide-react";
 import { useState } from "react";
@@ -25,12 +32,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { exportReportChart, getDashboard } from "../api/endpoints";
 import { useDownload } from "../api/mutations";
 import { keys, useLabel } from "../api/queries";
-import type { Alert, Dashboard, NextAction } from "../api/types";
+import type { Alert, ControlItem, Dashboard, NextStep } from "../api/types";
 import { useSession } from "../auth/session";
 import { ChartCard } from "../charts/ChartCard";
 import { Button, Card, EmptyState, ErrorState, Kpi, Loading, PageHeader, StatusBadge } from "../components/ui";
-import { countLabel, DAYS, formatDateTime, formatLongDate, formatNumber } from "../lib/format";
-import { IMPORT_TYPE_LABELS, SEVERITY_TONE, WORKFLOW_TONE } from "../lib/labels";
+import { interactionTitle, SlaBlock, StatusCell, UniversityName } from "../features/interaction/parts";
+import { countLabel, formatDateTime, formatLongDate, formatNumber } from "../lib/format";
+import { IMPORT_TYPE_LABELS, RUN_TONE, SEVERITY_TONE } from "../lib/labels";
 import { usePageTitle } from "../lib/usePageTitle";
 
 function greeting(): string {
@@ -46,56 +54,74 @@ function firstName(fullName: string): string {
   return parts[1] || parts[0];
 }
 
-function SlaMeter({ days, sla }: { days?: number | null; sla?: number | null }) {
-  if (days === null || days === undefined || !sla) return null;
-  const ratio = Math.min(days / sla, 1);
-  const tone = days > sla ? "meter--bad" : ratio >= 0.75 ? "meter--warn" : "";
+/** Строка шага: три независимых блока - статус, этап со следующим действием, срок. */
+function StepRow({ item, reason }: { item: NextStep | ControlItem; reason?: string }) {
+  const next = (item.next_actions || [])[0];
   return (
-    <div className={`meter ${tone}`} role="img" aria-label={`${days} из ${sla} дней нормы`}>
-      <div className="meter__fill" style={{ width: `${Math.max(ratio * 100, 4)}%` }} />
-    </div>
+    <Link className="step-row" to={`/interactions/${item.interaction_id}?tab=process`}>
+      <div className="step-row__who">
+        <strong>
+          <UniversityName university={item.university} link={false} />
+        </strong>
+        <small className="muted">{interactionTitle(item)}</small>
+        {reason && <small className="field__error">{reason}</small>}
+      </div>
+      <div className="step-row__status">
+        <span className="step-row__label">Статус</span>
+        <StatusCell status={item.status} />
+        {item.status === "blocked" && item.blocked_reason && (
+          <small className="muted clamp-2" title={item.blocked_reason}>
+            {item.blocked_reason}
+          </small>
+        )}
+      </div>
+      <div className="step-row__stage">
+        <span className="step-row__label">Этап</span>
+        <span>{item.status === "draft" ? "Процесс не запущен" : item.stage_name || "—"}</span>
+        {next && item.status === "in_progress" && <small className="muted">Дальше: {next}</small>}
+      </div>
+      <div className="step-row__sla">
+        <span className="step-row__label">Срок этапа</span>
+        <SlaBlock sla={item.sla} status={item.status} />
+      </div>
+    </Link>
   );
 }
 
-function NextActions({ items }: { items: NextAction[] }) {
-  const label = useLabel();
+function NextSteps({ items }: { items: NextStep[] }) {
   if (items.length === 0) {
     return (
       <EmptyState icon={CheckCircle2} title="Срочных шагов нет">
-        Все ваши процессы идут в пределах нормы. Новые договоры можно завести в разделе «Договоры».
+        Ваши взаимодействия идут в пределах нормы.
       </EmptyState>
     );
   }
   return (
-    <div className="list">
+    <div className="steps-list">
       {items.map((item) => (
-        <Link key={item.contract_id} className="list-item" to={`/contracts/${item.contract_id}?tab=process`}>
-          <div className="list-item__main">
-            <strong>{item.university_name}</strong>
-            <small>
-              {item.contract_number} · этап «{item.stage_name}»
-            </small>
-            {item.actions && item.actions.length > 0 && <small>Дальше: {item.actions.join(" или ")}</small>}
-            <div style={{ maxWidth: 260, marginTop: 4 }}>
-              <SlaMeter days={item.days_on_stage} sla={item.sla_days} />
-            </div>
-          </div>
-          <div className="list-item__side">
-            {item.process_status === "blocked" ? (
-              <StatusBadge tone="error">{label("workflow_status", item.process_status)}</StatusBadge>
-            ) : item.overdue ? (
-              <StatusBadge tone="warning">Дольше нормы</StatusBadge>
-            ) : (
-              <StatusBadge tone={WORKFLOW_TONE[item.process_status]}>{label("workflow_status", item.process_status)}</StatusBadge>
-            )}
-            {item.days_on_stage !== null && item.days_on_stage !== undefined && (
-              <small className="muted">
-                {countLabel(item.days_on_stage, DAYS)} на этапе
-                {item.sla_days ? ` из ${item.sla_days}` : ""}
-              </small>
-            )}
-          </div>
-        </Link>
+        <StepRow key={item.interaction_id} item={item} />
+      ))}
+    </div>
+  );
+}
+
+function ControlQueue({ items }: { items: ControlItem[] }) {
+  if (items.length === 0) {
+    return (
+      <EmptyState icon={CheckCircle2} title="Решений не ждут">
+        Все взаимодействия команды с ответственными, без блокировок и просрочек.
+      </EmptyState>
+    );
+  }
+  return (
+    <div className="steps-list">
+      {items.map((item) => (
+        // Блокировку и так видно по статусу - причину очереди повторяем только для остальных.
+        <StepRow
+          key={`${item.reason}-${item.interaction_id}`}
+          item={item}
+          reason={item.reason === "blocked" ? undefined : item.reason_label}
+        />
       ))}
     </div>
   );
@@ -105,7 +131,7 @@ function AlertList({ alerts, limit = 8 }: { alerts: Alert[]; limit?: number }) {
   if (alerts.length === 0) {
     return (
       <EmptyState icon={CheckCircle2} title="Проблем нет">
-        Сроки, лицензии и процессы в норме.
+        Сроки договоров и лицензий, документы и данные в порядке.
       </EmptyState>
     );
   }
@@ -122,15 +148,18 @@ function AlertList({ alerts, limit = 8 }: { alerts: Alert[]; limit?: number }) {
             <div className="list-item__main">
               <strong style={{ whiteSpace: "normal" }}>{alert.kind_label}</strong>
               <small>{alert.message}</small>
-              <small>{[alert.university_name, alert.contract_number, alert.manager_name].filter(Boolean).join(" · ")}</small>
+              <small title={alert.university_full_name || undefined}>
+                {[alert.university_name, alert.contract_number, alert.manager_name].filter(Boolean).join(" · ")}
+              </small>
               <span style={{ marginTop: 4 }}>
                 <StatusBadge tone={SEVERITY_TONE[alert.severity]}>{alert.severity_label}</StatusBadge>
               </span>
             </div>
           </>
         );
-        return alert.contract_id ? (
-          <Link key={index} className="list-item" to={`/contracts/${alert.contract_id}`}>
+        const target = alert.interaction_id ? `/interactions/${alert.interaction_id}` : alert.link;
+        return target ? (
+          <Link key={index} className="list-item" to={target}>
             {content}
           </Link>
         ) : (
@@ -152,21 +181,26 @@ function Recent({ data }: { data: Dashboard }) {
         <li key={index} className="timeline__item">
           <span
             className={`timeline__dot ${
-              item.event_type === "blocked" ? "timeline__dot--bad" : item.event_type === "completed" ? "timeline__dot--good" : ""
+              item.event_type === "blocked" || item.event_type === "cancelled"
+                ? "timeline__dot--bad"
+                : item.event_type === "completed"
+                  ? "timeline__dot--good"
+                  : ""
             }`}
           >
             {item.event_type === "blocked" ? <Lock size={14} /> : <ArrowRight size={14} />}
           </span>
           <div className="timeline__body">
-            <Link to={`/contracts/${item.contract_id}?tab=history`}>
-              <strong>{item.university_name}</strong>
+            <Link to={`/interactions/${item.interaction_id}?tab=history`} title={item.university.name}>
+              <strong>{item.university.short_name || item.university.name}</strong>
             </Link>
             <span>
-              {item.event_type_label}: «{item.stage}»
+              {item.event_type_label}
+              {item.stage ? `: «${item.stage}»` : ""}
             </span>
             {item.comment && <span className="quote">{item.comment}</span>}
             <span className="timeline__meta">
-              {item.user_name} · {formatDateTime(item.created_at)} · {item.contract_number}
+              {item.user_name} · {formatDateTime(item.created_at)}
             </span>
           </div>
         </li>
@@ -175,23 +209,23 @@ function Recent({ data }: { data: Dashboard }) {
   );
 }
 
-function ManagerLoadTable({ data }: { data: Dashboard }) {
+function TeamLoadTable({ data }: { data: Dashboard }) {
   const [all, setAll] = useState(false);
-  const everyone = data.manager_load || [];
+  const everyone = data.team_load || [];
   const rows = all ? everyone : everyone.slice(0, 8);
   const navigate = useNavigate();
-  if (rows.length === 0) return <p className="muted">Ответственные ещё не назначены.</p>;
+  if (rows.length === 0) return <p className="muted">В команде пока нет взаимодействий.</p>;
   return (
     <div className="table-wrap">
       <table className="data-table data-table--cards">
         <thead>
           <tr>
-            <th scope="col">Ответственный</th>
+            <th scope="col">Менеджер</th>
             <th scope="col" className="col-num">
-              Договоры
+              Активные
             </th>
             <th scope="col" className="col-num">
-              В работе
+              Просрочено
             </th>
             <th scope="col" className="col-num">
               Заблокировано
@@ -206,16 +240,18 @@ function ManagerLoadTable({ data }: { data: Dashboard }) {
             <tr
               key={row.manager_id || "none"}
               className="clickable"
-              onClick={() => navigate(row.manager_id ? `/contracts?manager_id=${row.manager_id}` : "/contracts?unassigned=true")}
+              onClick={() =>
+                navigate(row.manager_id ? `/interactions?manager_id=${row.manager_id}` : "/interactions?unassigned=true")
+              }
             >
               <td className="cell-primary">
                 <strong>{row.manager_name}</strong>
               </td>
-              <td className="col-num" data-label="Договоры">
-                {formatNumber(row.contracts)}
+              <td className="col-num" data-label="Активные">
+                {formatNumber(row.open)}
               </td>
-              <td className="col-num" data-label="В работе">
-                {formatNumber(row.active ?? 0)}
+              <td className="col-num" data-label="Просрочено">
+                {row.overdue ? <StatusBadge tone="warning">{row.overdue}</StatusBadge> : "0"}
               </td>
               <td className="col-num" data-label="Заблокировано">
                 {row.blocked ? <StatusBadge tone="error">{row.blocked}</StatusBadge> : "0"}
@@ -244,15 +280,44 @@ function ManagerLoadTable({ data }: { data: Dashboard }) {
 function AdminBlock({ data }: { data: Dashboard }) {
   const admin = data.admin;
   const label = useLabel();
+  const navigate = useNavigate();
   if (!admin) return null;
   return (
-    <div className="grid-3">
-      <Card title="Пользователи" actions={<Link to="/admin/users">Управление</Link>}>
-        <div className="stack-s">
-          <span className="kpi__value">{formatNumber(admin.users_active)}</span>
-          <span className="muted">
-            активных из {formatNumber(admin.users_total)}; заходили за неделю: {formatNumber(admin.users_seen_recently)}
-          </span>
+    <>
+      <div className="kpi-row">
+        <Kpi
+          label="Пользователи"
+          icon={Users}
+          value={formatNumber(admin.users_active)}
+          detail={`активных из ${formatNumber(admin.users_total)} · заходили за неделю: ${formatNumber(admin.users_seen_recently)}`}
+          onClick={() => navigate("/admin/users")}
+        />
+        <Kpi
+          label="Ждут сопоставления"
+          icon={FileQuestion}
+          tone={admin.mappings_pending ? "alert" : undefined}
+          value={formatNumber(admin.mappings_pending)}
+          detail="записи LMS и сайта без пары"
+          onClick={() => navigate("/integrations?tab=mappings")}
+        />
+        <Kpi
+          label="Вузы на проверке"
+          icon={Building2}
+          tone={admin.universities_pending ? "alert" : undefined}
+          value={formatNumber(admin.universities_pending)}
+          detail="заведены импортом, обменом или менеджером"
+          onClick={() => navigate("/universities?status=pending")}
+        />
+        <Kpi
+          label="Временный доступ"
+          icon={Clock}
+          value={formatNumber(admin.temporary_access)}
+          detail="области и доступы к вузам со сроком"
+          onClick={() => navigate("/admin/users")}
+        />
+      </div>
+      <div className="grid-3">
+        <Card title="Пользователи по ролям" actions={<Link to="/admin/users">Управление</Link>}>
           <div className="tags">
             {Object.entries(admin.users_by_role || {}).map(([role, count]) => (
               <span key={role} className="tag">
@@ -260,59 +325,60 @@ function AdminBlock({ data }: { data: Dashboard }) {
               </span>
             ))}
           </div>
-        </div>
-      </Card>
-      <Card title="Обмен с LMS и сайтом" actions={<Link to="/integrations">Открыть</Link>}>
-        <div className="stack-s">
-          {(admin.integrations || []).map((item) => (
-            <div key={item.code} className="stack-s" style={{ gap: 2 }}>
-              <div className="row-between">
-                <strong>{item.name}</strong>
-                {item.last_status ? (
-                  <StatusBadge
-                    tone={item.last_status === "success" ? "success" : item.last_status === "failed" ? "error" : "info"}
-                  >
-                    {label("integration_run_status", item.last_status)}
+          <p className="muted" style={{ marginTop: 12 }}>
+            Роли не наследуются: совмещение задаётся несколькими ролями явно.
+          </p>
+        </Card>
+        <Card title="Обмен с LMS и сайтом" actions={<Link to="/integrations">Открыть</Link>}>
+          <div className="stack-s">
+            {(admin.integrations || []).map((item) => (
+              <div key={item.code} className="stack-s" style={{ gap: 2 }}>
+                <div className="row-between">
+                  <strong>{item.name}</strong>
+                  {item.last_status ? (
+                    <StatusBadge tone={RUN_TONE[item.last_status]}>
+                      {label("integration_run_status", item.last_status)}
+                    </StatusBadge>
+                  ) : (
+                    <StatusBadge>Не запускался</StatusBadge>
+                  )}
+                </div>
+                <small className="muted">
+                  {item.last_started_at ? `Последний запуск ${formatDateTime(item.last_started_at)}` : "Запусков ещё не было"}
+                  {item.uses_fixture ? " · тестовые данные" : ""}
+                </small>
+                {item.last_error && <small className="field__error">{item.last_error}</small>}
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card title="Загрузки из Excel" actions={<Link to="/admin/imports">Загрузить</Link>}>
+          <div className="stack-s">
+            {(admin.imports || []).length === 0 && <span className="muted">Загрузок не было</span>}
+            {(admin.imports || []).map((item) => (
+              <div key={item.id} className="stack-s" style={{ gap: 2 }}>
+                <div className="row-between">
+                  <strong style={{ overflowWrap: "anywhere" }}>{item.filename}</strong>
+                  <StatusBadge tone={item.status === "completed" ? "success" : item.status === "failed" ? "error" : "info"}>
+                    {label("import_run_status", item.status)}
                   </StatusBadge>
-                ) : (
-                  <StatusBadge>Не запускался</StatusBadge>
-                )}
+                </div>
+                <small className="muted">
+                  {IMPORT_TYPE_LABELS[item.import_type] || item.import_type} · {formatDateTime(item.created_at)} · добавлено{" "}
+                  {item.rows_created}, обновлено {item.rows_updated}
+                  {item.rows_failed ? `, ошибок ${item.rows_failed}` : ""}
+                </small>
               </div>
-              <small className="muted">
-                {item.last_started_at ? `Последний запуск ${formatDateTime(item.last_started_at)}` : "Запусков ещё не было"}
-                {item.uses_fixture ? " · демонстрационный режим" : ""}
-              </small>
-              {item.last_error && <small className="field__error">{item.last_error}</small>}
-            </div>
-          ))}
-        </div>
-      </Card>
-      <Card title="Загрузки из Excel" actions={<Link to="/admin/imports">Загрузить</Link>}>
-        <div className="stack-s">
-          {(admin.imports || []).length === 0 && <span className="muted">Загрузок не было</span>}
-          {(admin.imports || []).map((item) => (
-            <div key={item.id} className="stack-s" style={{ gap: 2 }}>
-              <div className="row-between">
-                <strong style={{ overflowWrap: "anywhere" }}>{item.filename}</strong>
-                <StatusBadge tone={item.status === "completed" ? "success" : item.status === "failed" ? "error" : "info"}>
-                  {label("import_run_status", item.status)}
-                </StatusBadge>
-              </div>
-              <small className="muted">
-                {IMPORT_TYPE_LABELS[item.import_type] || item.import_type} · {formatDateTime(item.created_at)} · добавлено{" "}
-                {item.rows_created}, обновлено {item.rows_updated}
-                {item.rows_failed ? `, ошибок ${item.rows_failed}` : ""}
-              </small>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </>
   );
 }
 
 export default function DashboardPage() {
-  const { me, primaryRole, can } = useSession();
+  const { me, can } = useSession();
   const navigate = useNavigate();
   const [download] = useDownload();
   const dashboard = useQuery({ queryKey: keys.dashboard, queryFn: getDashboard, refetchInterval: 5 * 60_000 });
@@ -333,138 +399,187 @@ export default function DashboardPage() {
   }
 
   const data = dashboard.data;
-  const counters = data.counters;
-  const isManagerView = primaryRole === "manager" && !me.sees_all_contracts;
-  // Нагрузка ответственных: руководителю - таблицей выше, менеджеру ни к
-  // чему (в ней только он сам). Диаграмма есть в разделе «Отчёты».
-  const charts = (data.charts || []).filter((chart) => chart.key !== "by_manager");
+  // Показатели с сервера приходят без нулевых полей - дополняем их нулями.
+  const counters: Required<Dashboard["counters"]> = {
+    open: 0,
+    drafts: 0,
+    in_progress: 0,
+    blocked: 0,
+    overdue: 0,
+    near_deadline: 0,
+    unassigned: 0,
+    completed: 0,
+    cancelled: 0,
+    successful: 0,
+    partial: 0,
+    unsuccessful: 0,
+    universities: 0,
+    mine_open: 0,
+    alerts: 0,
+    ...data.counters,
+  };
+  const role = data.role;
+  const business = data.scope !== "none";
+  const head = can("assign_responsible");
+  const canCreate = can("create_interaction");
+  // Нагрузку показывает таблица команды - диаграмма по менеджерам не дублирует её.
+  const charts = (data.charts || []).filter((chart) => chart.key !== "by_manager").slice(0, head ? 4 : 2);
+  const listByStatus = (status: string) => navigate(`/interactions?status=${status}`);
 
   return (
     <div className="page">
       <PageHeader
         eyebrow={formatLongDate()}
         title={`${greeting()}, ${firstName(me.full_name)}`}
+        description={
+          business ? `Сводка ${data.scope_label}.` : "Технические сводки: обмен, загрузки, пользователи и очереди проверки."
+        }
         actions={
-          <>
-            <Button variant="outline" icon={FileText} onClick={() => navigate("/reports")}>
-              Отчёт
+          canCreate && (
+            <Button icon={Plus} onClick={() => navigate("/interactions?create=1")}>
+              Новое взаимодействие
             </Button>
-            <Button icon={Plus} onClick={() => navigate("/contracts?create=1")}>
-              Новый договор
-            </Button>
-          </>
+          )
         }
       />
 
       <div className="stack" style={{ gap: 20 }}>
-        <div className="kpi-row">
-          {isManagerView ? (
+        {business && (
+          <div className="kpi-row">
             <Kpi
-              label="Мои договоры"
-              icon={FileText}
-              value={formatNumber(counters.my_contracts)}
-              detail={`действует ${formatNumber(counters.contracts_active)}`}
-              onClick={() => navigate(`/contracts?manager_id=${me.id}`)}
+              label={role === "manager" ? "Мои активные" : "Активные"}
+              icon={Handshake}
+              value={formatNumber(counters.open)}
+              detail={`в работе ${formatNumber(counters.in_progress)} · черновиков ${formatNumber(counters.drafts)}`}
+              onClick={() => listByStatus("draft,in_progress,blocked")}
             />
-          ) : (
             <Kpi
-              label="Договоры"
-              icon={FileText}
-              value={formatNumber(counters.contracts)}
-              detail={`действует ${formatNumber(counters.contracts_active)} · черновиков ${formatNumber(counters.contracts_draft)}`}
-              onClick={() => navigate("/contracts")}
+              label="Заблокированы"
+              icon={Lock}
+              tone={counters.blocked ? "alert" : undefined}
+              value={formatNumber(counters.blocked)}
+              detail="ждут решения"
+              onClick={() => listByStatus("blocked")}
             />
-          )}
-          <Kpi
-            label="Вузы"
-            icon={Building2}
-            value={formatNumber(counters.universities)}
-            detail={isManagerView ? "за которые вы отвечаете" : "в работе ИТ Школы"}
-            onClick={() => navigate("/universities")}
-          />
-          <Kpi
-            label="Процессы в работе"
-            icon={PlayCircle}
-            value={formatNumber(counters.processes_in_progress)}
-            detail={`завершено ${formatNumber(counters.processes_completed)}`}
-            onClick={() => navigate("/contracts?process=in_progress")}
-          />
-          <Kpi
-            label="Заблокировано"
-            icon={Lock}
-            tone={counters.processes_blocked ? "alert" : undefined}
-            value={formatNumber(counters.processes_blocked)}
-            detail="процессов ждут решения"
-            onClick={() => navigate("/contracts?process=blocked")}
-          />
-          <Kpi
-            label="Требует внимания"
-            icon={AlertTriangle}
-            tone={counters.alerts ? "alert" : undefined}
-            value={formatNumber(counters.alerts)}
-            detail="сроки, лицензии, процессы"
-          />
-        </div>
+            <Kpi
+              label="Просрочен этап"
+              icon={Clock}
+              tone={counters.overdue ? "alert" : undefined}
+              value={formatNumber(counters.overdue)}
+              detail={`скоро срок: ${formatNumber(counters.near_deadline)}`}
+              onClick={() => navigate("/interactions?overdue=true")}
+            />
+            {head ? (
+              <Kpi
+                label="Без ответственного"
+                icon={UserX}
+                tone={counters.unassigned ? "alert" : undefined}
+                value={formatNumber(counters.unassigned)}
+                detail="назначьте менеджера"
+                onClick={() => navigate("/interactions?unassigned=true")}
+              />
+            ) : (
+              <Kpi
+                label="Вузы"
+                icon={Building2}
+                value={formatNumber(counters.universities)}
+                detail="в вашей работе"
+                onClick={() => navigate("/universities")}
+              />
+            )}
+            <Kpi
+              label="Завершены"
+              icon={CheckCircle2}
+              value={formatNumber(counters.completed + counters.cancelled)}
+              detail={`успешно ${formatNumber(counters.successful)} · частично ${formatNumber(counters.partial)} · без успеха ${formatNumber(counters.unsuccessful)}`}
+              onClick={() => listByStatus("completed,cancelled")}
+            />
+          </div>
+        )}
 
-        <div className="grid-main-side">
-          <div className="stack" style={{ gap: 20 }}>
-            {(isManagerView || (data.next_actions || []).length > 0) && (
+        {business && (
+          <div className="grid-main-side">
+            <div className="stack" style={{ gap: 20 }}>
+              {head && (
+                <Card
+                  title="Очередь решений"
+                  description="Взаимодействия команды, где нужно решение руководителя: назначить, снять блокировку, разобраться со сроком."
+                  flush
+                >
+                  <ControlQueue items={data.control_queue || []} />
+                </Card>
+              )}
+              {role === "manager" || (data.next_steps || []).length > 0 ? (
+                <Card
+                  title={head ? "Мои шаги" : "Следующие шаги"}
+                  description="Ваши взаимодействия: статус, этап со следующим действием и срок этапа. Сначала заблокированные и просроченные."
+                  flush
+                >
+                  <NextSteps items={data.next_steps || []} />
+                </Card>
+              ) : null}
+              {head && (
+                <Card
+                  title="Нагрузка команды"
+                  description="Активные взаимодействия менеджеров, просрочки, блокировки и проблемы. Нажмите на строку, чтобы открыть список."
+                  flush
+                >
+                  <TeamLoadTable data={data} />
+                </Card>
+              )}
+              {charts.length > 0 && (
+                <div className="grid-2">
+                  {charts.map((chart) => (
+                    <ChartCard
+                      key={chart.key}
+                      chart={chart}
+                      refreshing={dashboard.isFetching}
+                      onExport={(format) => download(() => exportReportChart({ filters: {} }, chart.key, format))}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="stack" style={{ gap: 20 }}>
               <Card
-                title="Следующие шаги"
-                description="Договоры, по которым пора действовать: этап дольше нормы или процесс остановлен."
+                title="Требует внимания"
+                description={`${countLabel(counters.alerts, ["повод", "повода", "поводов"])} ${data.scope_label}`}
                 flush
               >
-                <NextActions items={data.next_actions || []} />
+                <AlertList alerts={data.alerts || []} />
               </Card>
-            )}
-            {can("assign_responsible") && (
-              <Card
-                title="Нагрузка ответственных"
-                description="Нажмите на строку, чтобы открыть договоры сотрудника."
-                flush
-                actions={
-                  <Button variant="ghost" size="s" icon={Users} onClick={() => navigate("/universities?unassigned=true")}>
-                    Вузы без ответственного
+              <Card title="Последние изменения" actions={<Clock size={16} className="muted" />}>
+                <Recent data={data} />
+              </Card>
+              {role === "head" && counters.cancelled > 0 && (
+                <Card title="Закрыто без успеха">
+                  <p className="muted" style={{ marginBottom: 12 }}>
+                    {countLabel(counters.unsuccessful, ["взаимодействие", "взаимодействия", "взаимодействий"])} с причиной
+                    закрытия - разберите в отчётах.
+                  </p>
+                  <Button variant="secondary" icon={Ban} onClick={() => navigate("/interactions?outcome=unsuccessful")}>
+                    Показать
                   </Button>
-                }
-              >
-                <ManagerLoadTable data={data} />
-              </Card>
-            )}
-            <div className="grid-2">
-              {charts.map((chart) => (
-                <ChartCard
-                  key={chart.key}
-                  chart={chart}
-                  refreshing={dashboard.isFetching}
-                  onExport={(format) => download(() => exportReportChart({ filters: {} }, chart.key, format))}
-                />
-              ))}
+                </Card>
+              )}
             </div>
           </div>
-          <div className="stack" style={{ gap: 20 }}>
-            <Card
-              title="Требует внимания"
-              description={`${countLabel((data.alerts || []).length, ["проблема", "проблемы", "проблем"])} по вашим данным`}
-              flush
-            >
-              <AlertList alerts={data.alerts || []} />
-            </Card>
-            <Card title="Последние изменения" actions={<Clock size={16} className="muted" />}>
-              <Recent data={data} />
-            </Card>
-            {counters.processes_blocked > 0 && !isManagerView && (
-              <Card title="Заблокированные процессы">
-                <p className="muted" style={{ marginBottom: 12 }}>
-                  {countLabel(counters.processes_blocked, ["процесс ждёт", "процесса ждут", "процессов ждут"])} решения.
-                </p>
-                <Button variant="secondary" icon={Hourglass} onClick={() => navigate("/contracts?process=blocked")}>
-                  Показать
-                </Button>
-              </Card>
-            )}
-          </div>
-        </div>
+        )}
+
+        {!business && !data.admin && (
+          <Card>
+            <EmptyState icon={PlayCircle} title="Бизнес-данные недоступны">
+              У вашей учётной записи нет области данных. Если доступ нужен для работы, администратор может выдать его, в том числе
+              временно.
+            </EmptyState>
+          </Card>
+        )}
+
+        {!business && data.alerts && data.alerts.length > 0 && (
+          <Card title="Требует внимания" flush>
+            <AlertList alerts={data.alerts} />
+          </Card>
+        )}
 
         <AdminBlock data={data} />
         <p className="muted" style={{ fontSize: 12 }}>

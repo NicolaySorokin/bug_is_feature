@@ -18,7 +18,7 @@ import {
   validateImport,
 } from "../../api/endpoints";
 import { useApiMutation, useDownload } from "../../api/mutations";
-import { invalidateContractData, keys, queryClient, useLabel } from "../../api/queries";
+import { invalidateInteractionData, keys, queryClient, useLabel } from "../../api/queries";
 import type { ImportPreview, ImportResult, ImportType } from "../../api/types";
 import { FilePicker } from "../../components/FilePicker";
 import { Button, Card, EmptyState, ErrorState, Loading, PageHeader, StatusBadge } from "../../components/ui";
@@ -150,7 +150,7 @@ export default function ImportsPage() {
       setCommitted(true);
       void queryClient.invalidateQueries({ queryKey: keys.imports });
       void queryClient.invalidateQueries({ queryKey: ["catalog"] });
-      invalidateContractData();
+      invalidateInteractionData();
     },
     errorTitle: "Загрузка не выполнена",
   });

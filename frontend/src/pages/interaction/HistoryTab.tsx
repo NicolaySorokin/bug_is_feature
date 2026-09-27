@@ -1,6 +1,21 @@
-/** История процесса: все переходы, блокировки, комментарии и файлы по времени. */
+/**
+ * История взаимодействия: заведение, запуск, переходы, блокировки, смена
+ * ответственного, закрытие - с комментариями и файлами по времени.
+ */
 import type { UseQueryResult } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Paperclip, Play, SkipForward, Unlock } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Ban,
+  CheckCircle2,
+  FilePlus2,
+  Lock,
+  Paperclip,
+  Play,
+  SkipForward,
+  Unlock,
+  UserRoundCog,
+} from "lucide-react";
 import { downloadAttachment } from "../../api/endpoints";
 import { useDownload } from "../../api/mutations";
 import { useLabel } from "../../api/queries";
@@ -9,6 +24,7 @@ import { Card, EmptyState, ErrorState, Loading } from "../../components/ui";
 import { fileSize, formatDateTime } from "../../lib/format";
 
 const ICONS = {
+  created: FilePlus2,
   started: Play,
   forward: ArrowRight,
   backward: ArrowLeft,
@@ -16,6 +32,8 @@ const ICONS = {
   blocked: Lock,
   unblocked: Unlock,
   completed: CheckCircle2,
+  cancelled: Ban,
+  reassigned: UserRoundCog,
   commented: ArrowRight,
 } as const;
 
@@ -33,19 +51,19 @@ export function HistoryTab({
   if (workflow.isPending) return <Loading />;
   if (workflow.isError) return <ErrorState error={workflow.error} onRetry={() => void workflow.refetch()} />;
   const view = workflow.data;
-  if (!view) return <EmptyState title="Истории пока нет">Она появится, когда запустится рабочий процесс.</EmptyState>;
+  if (!view) return <EmptyState title="Истории пока нет">Она появится, когда взаимодействие заведут.</EmptyState>;
 
   const stages = view.version.stages || [];
   const name = (id?: string | null) => stages.find((stage) => stage.id === id)?.name || "—";
   const events = [...(view.events || [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   return (
-    <Card title="История процесса" description="Кто, когда и почему менял этап. Самые новые события сверху.">
+    <Card title="История взаимодействия" description="Кто, когда и почему менял этап. Самые новые события сверху.">
       <ol className="timeline">
         {events.map((event) => {
           const Icon = ICONS[event.event_type] || ArrowRight;
           const tone =
-            event.event_type === "blocked"
+            event.event_type === "blocked" || event.event_type === "cancelled"
               ? "timeline__dot--bad"
               : event.event_type === "completed" ||
                   (event.event_type === "forward" && stages.find((s) => s.id === event.to_stage_id)?.is_final)
@@ -63,11 +81,17 @@ export function HistoryTab({
               <div className="timeline__body">
                 <strong>{label("workflow_event_type", event.event_type)}</strong>
                 <span>
-                  {event.event_type === "blocked" || event.event_type === "unblocked"
-                    ? `На этапе «${name(event.to_stage_id)}»`
-                    : event.from_stage_id
-                      ? `«${name(event.from_stage_id)}» → «${name(event.to_stage_id)}»`
-                      : `Этап «${name(event.to_stage_id)}»`}
+                  {event.event_type === "created"
+                    ? "Черновик взаимодействия"
+                    : event.from_stage_id && event.from_stage_id === event.to_stage_id
+                      ? `На этапе «${name(event.to_stage_id)}»`
+                      : event.from_stage_id && event.to_stage_id
+                        ? `«${name(event.from_stage_id)}» → «${name(event.to_stage_id)}»`
+                        : event.to_stage_id
+                          ? `Этап «${name(event.to_stage_id)}»`
+                          : event.from_stage_id
+                            ? `На этапе «${name(event.from_stage_id)}»`
+                            : ""}
                 </span>
                 {event.comment && <div className="quote">{event.comment}</div>}
                 {eventComments.map((item) => (

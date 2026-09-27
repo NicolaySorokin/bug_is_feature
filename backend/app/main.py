@@ -13,6 +13,7 @@ from app.core.errors import register_error_handlers
 from app.core.security import build_auth_backend
 from app.db.session import engine
 from app.services import audit  # noqa: F401 - импорт включает запись журнала изменений
+from app.services.integrations import scheduler
 
 DESCRIPTION = """
 API системы контроля взаимодействия ИТ Школы Ростелекома с вузами.
@@ -96,7 +97,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # чтобы её можно было подменить в тестах.
     app.state.auth_backend = build_auth_backend(settings)
     settings.storage_dir.mkdir(parents=True, exist_ok=True)
-    yield
+    # Обмен с LMS и сайтом по расписанию; интервал - в «Настройках», по
+    # умолчанию выключен.
+    async with scheduler.running():
+        yield
     await engine.dispose()
 
 

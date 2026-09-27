@@ -238,3 +238,46 @@ async def test_template_is_downloadable(client: AsyncClient) -> None:
 async def test_import_is_closed_for_manager(client: AsyncClient) -> None:
     response = await client.get("/api/v1/imports/types", headers=MANAGER)
     assert response.status_code == 403
+
+
+async def test_university_import_matches_by_inn(client: AsyncClient) -> None:
+    """ИНН - стабильный ключ вуза: по нему запись узнаётся даже под другим
+    названием, а одноимённый вуз с другим ИНН не подменяет существующий."""
+    created = await client.post(
+        "/api/v1/universities",
+        json={"name": "Томский университет", "inn": "7018012345", "city": "Томск"},
+        headers=ADMIN,
+    )
+    assert created.status_code == 201, created.text
+    university_id = created.json()["id"]
+
+    content = book(
+        [
+            ["Название ВУЗа", "ИНН", "Сайт"],
+            ["Национальный исследовательский ТГУ", "7018012345", "https://tsu.example"],
+            ["Томский университет", "7000000001", ""],
+            ["Новый вуз", "12345", ""],
+        ]
+    )
+    preview = await _upload(client, content, "universities")
+    assert preview["suggested_mapping"]["inn"] == "ИНН"
+    result = (
+        await client.post(
+            f"/api/v1/imports/{preview['run']['id']}/commit",
+            json={"mapping": preview["suggested_mapping"]},
+            headers=ADMIN,
+        )
+    ).json()
+    assert result["run"]["rows_updated"] == 1
+    assert result["run"]["rows_created"] == 1
+    assert result["run"]["rows_failed"] == 1
+    assert any("ИНН" in (error["message"] or "") for error in result["errors"])
+
+    same = (await client.get(f"/api/v1/universities/{university_id}", headers=ADMIN)).json()
+    assert same["name"] == "Томский университет"
+    assert same["website"] == "https://tsu.example"
+
+    pending = (
+        await client.get("/api/v1/universities", params={"status": "pending"}, headers=ADMIN)
+    ).json()
+    assert [item["inn"] for item in pending["items"]] == ["7000000001"]

@@ -2,7 +2,12 @@
  * Справочники: ИТ-направления, ИТ-программы, вендоры с контактами,
  * ИТ-продукты. Массовое обновление - через «Загрузку из Excel».
  *
- * Запись не удаляется, а выключается: на неё ссылаются договоры и отчёты
+ * Права разделены (пункты 6 и 7 перечня исправлений): записи справочников
+ * ведёт администратор, а какие ИТ-продукты используются в программе -
+ * бизнес-решение руководителя. Каждый видит справочники целиком, но
+ * меняет только своё.
+ *
+ * Запись не удаляется, а выключается: на неё ссылаются взаимодействия и отчёты
  * прошлых периодов.
  */
 import { useQuery } from "@tanstack/react-query";
@@ -34,6 +39,7 @@ import {
 import { useApiMutation } from "../../api/mutations";
 import { keys, queryClient, useDirections, usePrograms, useProducts, useVendors } from "../../api/queries";
 import type { Vendor, VendorContact } from "../../api/types";
+import { useSession } from "../../auth/session";
 import { useConfirm } from "../../components/Confirm";
 import { Modal } from "../../components/Modal";
 import { MultiSelect } from "../../components/MultiSelect";
@@ -92,7 +98,7 @@ function refreshCatalog() {
   void queryClient.invalidateQueries({ queryKey: ["statistics"] });
 }
 
-function ItemModal({ edit, onClose }: { edit: EditState | null; onClose: () => void }) {
+function ItemModal({ edit, onClose, canLink }: { edit: EditState | null; onClose: () => void; canLink: boolean }) {
   const directions = useDirections();
   const vendors = useVendors();
   const products = useProducts();
@@ -123,7 +129,10 @@ function ItemModal({ edit, onClose }: { edit: EditState | null; onClose: () => v
     }
   }, [edit, links.data]);
 
-  const vendorContacts = (vendors.data || []).find((vendor) => vendor.id === vendorId)?.contacts || [];
+  // Новые связи - только с действующими записями; уже выбранная остаётся в списке.
+  const vendorContacts = ((vendors.data || []).find((vendor) => vendor.id === vendorId)?.contacts || []).filter(
+    (item) => item.is_active !== false || item.id === contactId,
+  );
 
   const save = useApiMutation(
     async () => {
@@ -138,7 +147,7 @@ function ItemModal({ edit, onClose }: { edit: EditState | null; onClose: () => v
       const saved = edit.item
         ? await updateCatalogItem<Item>(edit.kind, edit.item.id, body)
         : await createCatalogItem<Item>(edit.kind, body);
-      if (edit.kind === "programs") await setProgramProducts(saved.id, productIds);
+      if (edit.kind === "programs" && canLink) await setProgramProducts(saved.id, productIds);
       return saved;
     },
     {
@@ -177,16 +186,33 @@ function ItemModal({ edit, onClose }: { edit: EditState | null; onClose: () => v
               value={directionId}
               onChange={setDirectionId}
               placeholder="Не указано"
-              options={(directions.data || []).map((item) => ({ value: item.id, label: item.name }))}
+              options={(directions.data || [])
+                .filter((item) => item.is_active || item.id === directionId)
+                .map((item) => ({ value: item.id, label: item.name }))}
             />
-            <MultiSelect
-              label="ИТ-продукты программы"
-              placeholder="Не выбраны"
-              value={productIds}
-              onChange={setProductIds}
-              options={(products.data || []).map((item) => ({ value: item.id, label: item.name }))}
-              hint="Продукты, на которых ведётся обучение по программе"
-            />
+            {canLink ? (
+              <MultiSelect
+                label="ИТ-продукты программы"
+                placeholder="Не выбраны"
+                value={productIds}
+                onChange={setProductIds}
+                options={(products.data || [])
+                  .filter((item) => item.is_active || productIds.includes(item.id))
+                  .map((item) => ({ value: item.id, label: item.name }))}
+                hint="Продукты, на которых ведётся обучение по программе"
+              />
+            ) : (
+              <Field label="ИТ-продукты программы" hint="Соответствие программ и продуктов задаёт руководитель">
+                <span className={productIds.length ? undefined : "muted"}>
+                  {productIds.length
+                    ? (products.data || [])
+                        .filter((item) => productIds.includes(item.id))
+                        .map((item) => item.name)
+                        .join(", ")
+                    : "Не выбраны"}
+                </span>
+              </Field>
+            )}
           </>
         )}
         {edit.kind === "products" && (
@@ -199,7 +225,9 @@ function ItemModal({ edit, onClose }: { edit: EditState | null; onClose: () => v
                 setContactId("");
               }}
               placeholder="Не указан"
-              options={(vendors.data || []).map((item) => ({ value: item.id, label: item.name }))}
+              options={(vendors.data || [])
+                .filter((item) => item.is_active || item.id === vendorId)
+                .map((item) => ({ value: item.id, label: item.name }))}
             />
             <SelectField
               label="Контакт вендора по продукту"
@@ -218,7 +246,58 @@ function ItemModal({ edit, onClose }: { edit: EditState | null; onClose: () => v
   );
 }
 
-function VendorContacts({ vendor, onClose }: { vendor: Vendor | null; onClose: () => void }) {
+/** Продукты программы - бизнес-связь, её задаёт руководитель. */
+function ProgramProductsModal({ program, onClose }: { program: Item | null; onClose: () => void }) {
+  const products = useProducts();
+  const links = useQuery({ queryKey: keys.programProducts, queryFn: listProgramProducts, enabled: program !== null });
+  const [productIds, setProductIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (program && links.data) {
+      setProductIds(links.data.filter((link) => link.program_id === program.id).map((link) => link.product_id));
+    }
+  }, [program, links.data]);
+
+  const save = useApiMutation(() => setProgramProducts(program!.id, productIds), {
+    success: "Продукты программы сохранены",
+    onSuccess: () => {
+      refreshCatalog();
+      onClose();
+    },
+  });
+
+  if (!program) return null;
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={program.name}
+      description="Какие ИТ-продукты используются в программе. Во взаимодействии продукт добавляется к программе, с которой он связан; иной продукт - только как исключение с обоснованием."
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button loading={save.isPending} disabled={links.isPending} onClick={() => save.mutate(undefined)}>
+            Сохранить
+          </Button>
+        </>
+      }
+    >
+      <MultiSelect
+        label="ИТ-продукты программы"
+        placeholder="Не выбраны"
+        value={productIds}
+        onChange={setProductIds}
+        options={(products.data || [])
+          .filter((item) => item.is_active || productIds.includes(item.id))
+          .map((item) => ({ value: item.id, label: item.is_active ? item.name : `${item.name} (выключен)` }))}
+      />
+    </Modal>
+  );
+}
+
+function VendorContacts({ vendor, onClose, readOnly }: { vendor: Vendor | null; onClose: () => void; readOnly: boolean }) {
   const confirm = useConfirm();
   const [editing, setEditing] = useState<VendorContact | null | undefined>(undefined);
   const [form, setForm] = useState({ full_name: "", phone: "", email: "", contact_channel: "" });
@@ -286,28 +365,32 @@ function VendorContacts({ vendor, onClose }: { vendor: Vendor | null; onClose: (
                   {item.contact_channel && <span>Связь: {item.contact_channel}</span>}
                 </small>
               </div>
-              <button type="button" className="icon-btn" aria-label="Изменить" onClick={() => setEditing(item)}>
-                <Pencil size={16} />
-              </button>
-              <button
-                type="button"
-                className="icon-btn"
-                aria-label="Удалить"
-                onClick={async () => {
-                  const ok = await confirm({
-                    title: `Удалить контакт ${item.full_name}?`,
-                    confirmLabel: "Удалить",
-                    danger: true,
-                  });
-                  if (ok !== null) remove.mutate(item.id);
-                }}
-              >
-                <Trash2 size={16} />
-              </button>
+              {!readOnly && (
+                <>
+                  <button type="button" className="icon-btn" aria-label="Изменить" onClick={() => setEditing(item)}>
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    aria-label="Удалить"
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: `Удалить контакт ${item.full_name}?`,
+                        confirmLabel: "Удалить",
+                        danger: true,
+                      });
+                      if (ok !== null) remove.mutate(item.id);
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </>
+              )}
             </div>
           ))}
         </div>
-        {editing === undefined ? (
+        {readOnly ? null : editing === undefined ? (
           <div>
             <Button variant="secondary" icon={UserPlus} onClick={() => setEditing(null)}>
               Добавить контакт
@@ -351,12 +434,16 @@ function VendorContacts({ vendor, onClose }: { vendor: Vendor | null; onClose: (
 export default function CatalogPage() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
+  const { can } = useSession();
+  const canEdit = can("edit_catalog");
+  const canLink = can("edit_program_products");
   const kind = (
     ["directions", "programs", "vendors", "products"].includes(params.get("tab") || "") ? params.get("tab") : "programs"
   ) as Kind;
   const [search, setSearch] = useState("");
   const [edit, setEdit] = useState<EditState | null>(null);
   const [contactsOf, setContactsOf] = useState<Vendor | null>(null);
+  const [linksOf, setLinksOf] = useState<Item | null>(null);
   const directions = useDirections();
   const programs = usePrograms();
   const vendors = useVendors();
@@ -402,10 +489,19 @@ export default function CatalogPage() {
     <div className="page">
       <PageHeader
         title="Справочники"
+        description={
+          canEdit
+            ? canLink
+              ? undefined
+              : "Записи справочников ведёт администратор; какие продукты используются в программе, задаёт руководитель."
+            : "Справочники ведёт администратор. Вы задаёте, какие ИТ-продукты используются в каждой ИТ-программе."
+        }
         actions={
-          <Button variant="outline" icon={FileSpreadsheet} onClick={() => navigate("/admin/imports")}>
-            Загрузить из Excel
-          </Button>
+          can("import") && (
+            <Button variant="outline" icon={FileSpreadsheet} onClick={() => navigate("/admin/imports")}>
+              Загрузить из Excel
+            </Button>
+          )
         }
       />
       <Tabs
@@ -423,11 +519,13 @@ export default function CatalogPage() {
         <Field label="Поиск" className="field--grow">
           <SearchInput value={search} onChange={setSearch} placeholder="Название" />
         </Field>
-        <div className="toolbar__actions">
-          <Button icon={Plus} onClick={() => setEdit({ kind, item: null })}>
-            Добавить {accusative}
-          </Button>
-        </div>
+        {canEdit && (
+          <div className="toolbar__actions">
+            <Button icon={Plus} onClick={() => setEdit({ kind, item: null })}>
+              Добавить {accusative}
+            </Button>
+          </div>
+        )}
       </div>
       <Card flush title={`${title}: ${items.length}`}>
         {source.isPending ? (
@@ -454,9 +552,17 @@ export default function CatalogPage() {
                   <tr key={item.id}>
                     <td className="cell-primary">
                       <div className="cell-title">
-                        <button type="button" className="link-btn" onClick={() => setEdit({ kind, item })}>
-                          {item.name}
-                        </button>
+                        {canEdit || (canLink && kind === "programs") ? (
+                          <button
+                            type="button"
+                            className="link-btn"
+                            onClick={() => (canEdit ? setEdit({ kind, item }) : setLinksOf(item))}
+                          >
+                            {item.name}
+                          </button>
+                        ) : (
+                          <strong>{item.name}</strong>
+                        )}
                         {item.description && <small>{item.description}</small>}
                       </div>
                     </td>
@@ -474,14 +580,21 @@ export default function CatalogPage() {
                           Контакты
                         </Button>
                       )}
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        aria-label={`Изменить ${item.name}`}
-                        onClick={() => setEdit({ kind, item })}
-                      >
-                        <Pencil size={16} />
-                      </button>
+                      {kind === "programs" && canLink && (
+                        <Button variant="ghost" size="s" icon={Boxes} onClick={() => setLinksOf(item)}>
+                          Продукты
+                        </Button>
+                      )}
+                      {canEdit && (
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label={`Изменить ${item.name}`}
+                          onClick={() => setEdit({ kind, item })}
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -490,8 +603,9 @@ export default function CatalogPage() {
           </div>
         )}
       </Card>
-      <ItemModal edit={edit} onClose={() => setEdit(null)} />
-      <VendorContacts vendor={contactsOf} onClose={() => setContactsOf(null)} />
+      {canEdit && <ItemModal edit={edit} onClose={() => setEdit(null)} canLink={canLink} />}
+      {canLink && <ProgramProductsModal program={linksOf} onClose={() => setLinksOf(null)} />}
+      <VendorContacts vendor={contactsOf} onClose={() => setContactsOf(null)} readOnly={!canEdit} />
     </div>
   );
 }

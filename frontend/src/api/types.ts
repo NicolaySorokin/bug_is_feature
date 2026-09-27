@@ -10,23 +10,35 @@ import type { components } from "./schema";
 
 type S = components["schemas"];
 
-export type Role = "manager" | "head" | "admin";
+export type Role = S["Role"];
+export type DataScope = S["DataScope"];
+export type UserPermission = S["Permission"];
+export type UniversityStatus = S["UniversityStatus"];
+export type InteractionStatus = S["InteractionStatus"];
+export type InteractionOutcome = S["InteractionOutcome"];
+export type InteractionSource = S["InteractionSource"];
+export type ClosureReason = S["ClosureReason"];
 export type ContractStatus = S["ContractStatus"];
-export type ImplementationStatus = S["ImplementationStatus"];
+export type ContractClosureReason = S["ContractClosureReason"];
+export type ProgramStatus = S["ProgramImplementationStatus"];
+export type ProductStatus = S["ProductTransferStatus"];
 export type LicenseStatus = S["LicenseStatus"];
 export type StageState = S["StageState"];
-export type WorkflowStatus = S["WorkflowInstanceStatus"];
+export type SlaState = S["SlaState"];
+export type DocumentType = S["DocumentType"];
 export type WorkflowEventType = S["WorkflowEventType"];
+export type WorkflowVersionStatus = S["WorkflowVersionStatus"];
 export type AlertKind = S["AlertKind"];
 export type AlertSeverity = S["AlertSeverity"];
 export type ImportType = S["ImportType"];
 export type ImportRunStatus = S["ImportRunStatus"];
 export type IntegrationRunStatus = S["IntegrationRunStatus"];
-export type DataScope = S["DataScope"];
+export type MappingStatus = S["MappingStatus"];
 export type ReportColumn = S["ReportColumn"];
 export type ChartKey = S["ChartKey"];
 export type PeriodBasis = S["PeriodBasis"];
 export type ExportFormat = S["ExportFormat"];
+export type InteractionOrder = S["InteractionOrder"];
 
 export type Page<T> = { items: T[]; total: number; limit: number; offset: number };
 
@@ -34,18 +46,22 @@ export type AuthConfig = S["AuthConfig"];
 export type DemoAccount = S["DemoAccount"];
 export type Me = S["MeRead"];
 export type User = S["UserRead"];
+export type UserBrief = S["UserBrief"];
 export type UserDetail = S["UserDetail"];
 export type UserCreate = S["UserCreate"];
 export type UserUpdate = S["UserUpdate"];
+export type AccessGrant = S["AccessGrantRead"];
+export type AccessGrantWrite = S["AccessGrantWrite"];
 export type RoleSyncResult = S["RoleSyncResult"];
 
-export type University = S["UniversityRead"];
+export type UniversityBrief = S["UniversityBrief"];
 export type UniversityListItem = S["UniversityListItem"];
 export type UniversityDetail = S["UniversityDetail"];
 export type UniversityContact = S["UniversityContactRead"];
 export type UniversityCreate = S["UniversityCreate"];
 export type UniversityUpdate = S["UniversityUpdate"];
 export type UniversityContactCreate = S["UniversityContactCreate"];
+export type DuplicateCandidate = S["DuplicateCandidate"];
 
 export type Direction = S["ItDirectionRead"];
 export type Program = S["ItProgramRead"];
@@ -54,14 +70,20 @@ export type Vendor = S["VendorRead"];
 export type VendorContact = S["VendorContactRead"];
 export type ProgramProductLink = S["ProgramProductLink"];
 
-export type ContractListItem = S["ContractListItem"];
-export type ContractDetail = S["ContractDetail"];
-export type ContractCreate = S["ContractCreate"];
-export type ContractUpdate = S["ContractUpdate"];
-export type ContractProgram = S["ContractProgramRead"];
-export type ContractProduct = S["ContractProductRead"];
-export type ContractContact = S["ContractContactRead"];
-export type ProcessSummary = S["ProcessSummary"];
+export type InteractionListItem = S["InteractionListItem"];
+export type InteractionDetail = S["InteractionDetail"];
+export type InteractionCreate = S["InteractionCreate"];
+export type InteractionUpdate = S["InteractionUpdate"];
+export type InteractionProgram = S["InteractionProgramRead"];
+export type InteractionProduct = S["InteractionProductRead"];
+export type InteractionContact = S["InteractionContactRead"];
+export type ProgramProductLinkRead = S["ProgramProductLinkRead"];
+export type StageSummary = S["StageSummary"];
+export type StageSla = S["StageSla"];
+
+export type Contract = S["ContractRead"];
+export type ContractBrief = S["ContractBrief"];
+export type ContractWrite = S["ContractWrite"];
 export type License = S["LicenseRead"];
 export type LicenseCreate = S["LicenseCreate"];
 export type LicenseListItem = S["LicenseListItem"];
@@ -82,7 +104,9 @@ export type Attachment = S["AttachmentRead"];
 
 export type Alert = S["AlertRead"];
 export type Dashboard = S["DashboardResponse"];
-export type NextAction = S["NextAction"];
+export type DashboardCounters = S["DashboardCounters"];
+export type NextStep = S["NextStep"];
+export type ControlItem = S["ControlItem"];
 export type ManagerLoad = S["ManagerLoad"];
 export type RecentChange = S["RecentChange"];
 export type AdminSummary = S["AdminSummary"];
@@ -101,6 +125,7 @@ export type Application = S["ApplicationRead"];
 
 export type IntegrationSource = S["IntegrationSourceRead"];
 export type IntegrationRun = S["IntegrationRunRead"];
+export type IntegrationMapping = S["MappingRead"];
 
 export type ImportTypeInfo = S["ImportTypeInfo"];
 export type ImportPreview = S["ImportPreview"];

@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     site_base_url: str = ""
     site_token: str = ""
     integration_timeout_seconds: float = 15.0
+    # Обмен по расписанию: раз в сколько часов опрашивать источники.
+    # 0 - только вручную; администратор меняет значение в «Настройках».
+    integration_sync_interval_hours: int = 0
 
     # --- Файлы ---
     storage_dir: Path = Path("storage")

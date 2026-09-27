@@ -57,6 +57,9 @@ services:
       LMS_TOKEN: ${LMS_TOKEN:-}
       SITE_BASE_URL: ${SITE_BASE_URL:-}
       SITE_TOKEN: ${SITE_TOKEN:-}
+      # Обмен по расписанию, раз в N часов; 0 - только вручную (значение по
+      # умолчанию, администратор меняет его в «Настройках»).
+      INTEGRATION_SYNC_INTERVAL_HOURS: ${INTEGRATION_SYNC_INTERVAL_HOURS:-0}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
       # Сколько выгрузок (PDF, XLSX, диаграммы) один процесс API собирает
       # одновременно; остальные ждут в очереди, не задерживая интерфейс.

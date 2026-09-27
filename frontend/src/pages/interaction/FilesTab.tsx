@@ -1,42 +1,62 @@
 /**
- * Комментарии и файлы договора.
+ * Файлы и комментарии взаимодействия.
  *
- * По умолчанию новое сообщение привязывается к текущему этапу процесса,
- * тогда оно видно и в карточке этапа. Черновик комментария сохраняется,
- * если уйти со страницы (кэш действий пользователя, требование 13 ТЗ).
+ * Рабочие материалы принадлежат взаимодействию, а не договору: переписка
+ * и документы появляются задолго до подписания. У файла - тип документа:
+ * по нему проверяются обязательные документы этапа. По умолчанию новое
+ * сообщение привязывается к текущему этапу процесса, тогда оно видно
+ * и в карточке этапа. Черновик комментария сохраняется, если уйти со
+ * страницы (кэш действий пользователя, требование 13 ТЗ).
  */
 import type { UseQueryResult } from "@tanstack/react-query";
 import { MessageSquare, Paperclip, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { createComment, deleteAttachment, downloadAttachment, uploadAttachment } from "../../api/endpoints";
 import { useApiMutation, useDownload } from "../../api/mutations";
-import { invalidateContractData } from "../../api/queries";
-import type { Attachment, Comment, ContractDetail, WorkflowView } from "../../api/types";
+import { invalidateInteractionData, useLabel } from "../../api/queries";
+import type { Attachment, Comment, DocumentType, InteractionDetail, WorkflowView } from "../../api/types";
 import { useSession } from "../../auth/session";
 import { useConfirm } from "../../components/Confirm";
 import { FilePicker } from "../../components/FilePicker";
 import { useToast } from "../../components/Toasts";
-import { Avatar, Button, Card, Checkbox, EmptyState, ErrorState, Loading, TextAreaField } from "../../components/ui";
+import {
+  Avatar,
+  Button,
+  Card,
+  Checkbox,
+  EmptyState,
+  ErrorState,
+  Loading,
+  SelectField,
+  Tag,
+  TextAreaField,
+} from "../../components/ui";
 import { fileSize, formatDateTime } from "../../lib/format";
+import { DOCUMENT_TYPES } from "../../lib/labels";
 import { usePersistentState } from "../../lib/storage";
 
-export function CommentsTab({
-  contract,
+export function FilesTab({
+  interaction,
   workflow,
   comments,
   attachments,
 }: {
-  contract: ContractDetail;
+  interaction: InteractionDetail;
   workflow: WorkflowView | null;
   comments: UseQueryResult<Comment[]>;
   attachments: UseQueryResult<Attachment[]>;
 }) {
   const { me, can } = useSession();
+  const label = useLabel();
   const toast = useToast();
   const confirm = useConfirm();
   const [download] = useDownload();
-  const [draft, setDraft, clearDraft] = usePersistentState(`draft.comment.${contract.id}`, "");
+  const [draft, setDraft, clearDraft] = usePersistentState(`draft.comment.${interaction.id}`, "");
   const [files, setFiles] = useState<File[]>([]);
+  const [documentType, setDocumentType] = useState<DocumentType>(
+    (interaction.missing_documents?.[0] as DocumentType | undefined) || "other",
+  );
+  const canWork = can("work_interaction");
   const [toStage, setToStage] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -55,19 +75,19 @@ export function CommentsTab({
 
   const remove = useApiMutation((id: string) => deleteAttachment(id), {
     success: "Файл удалён",
-    onSuccess: () => invalidateContractData(contract.id),
+    onSuccess: () => invalidateInteractionData(interaction.id),
   });
 
   const send = async () => {
     setBusy(true);
     const eventId = toStage ? arrival?.id : undefined;
     try {
-      if (draft.trim()) await createComment(contract.id, draft.trim(), eventId);
-      for (const file of files) await uploadAttachment(contract.id, file, eventId);
+      if (draft.trim()) await createComment(interaction.id, draft.trim(), eventId);
+      for (const file of files) await uploadAttachment(interaction.id, file, eventId, documentType);
       toast.success(draft.trim() ? "Комментарий добавлен" : "Файлы загружены");
       clearDraft();
       setFiles([]);
-      invalidateContractData(contract.id);
+      invalidateInteractionData(interaction.id);
     } catch (error) {
       toast.error(error, "Не удалось отправить");
     } finally {
@@ -78,28 +98,39 @@ export function CommentsTab({
   return (
     <div className="grid-main-side">
       <div className="stack">
-        <Card title="Новое сообщение">
-          <div className="stack">
-            <TextAreaField
-              label="Комментарий"
-              value={draft}
-              onChange={setDraft}
-              rows={3}
-              maxLength={4000}
-              placeholder="Договорённости, вопросы, что осталось сделать"
-              hint="Черновик сохраняется автоматически"
-            />
-            <FilePicker files={files} onChange={setFiles} />
-            {arrival && currentStage && (
-              <Checkbox label={`Привязать к текущему этапу «${currentStage.name}»`} checked={toStage} onChange={setToStage} />
-            )}
-            <div>
-              <Button loading={busy} disabled={!draft.trim() && files.length === 0} onClick={() => void send()}>
-                Отправить
-              </Button>
+        {canWork && (
+          <Card title="Новое сообщение">
+            <div className="stack">
+              <TextAreaField
+                label="Комментарий"
+                value={draft}
+                onChange={setDraft}
+                rows={3}
+                maxLength={4000}
+                placeholder="Договорённости, вопросы, что осталось сделать"
+                hint="Черновик сохраняется автоматически"
+              />
+              <FilePicker files={files} onChange={setFiles} />
+              {files.length > 0 && (
+                <SelectField
+                  label="Тип документа"
+                  value={documentType}
+                  onChange={(value) => setDocumentType(value as DocumentType)}
+                  options={DOCUMENT_TYPES.map((value) => ({ value, label: label("document_type", value) }))}
+                  hint="По типу проверяются обязательные документы этапа"
+                />
+              )}
+              {arrival && currentStage && (
+                <Checkbox label={`Привязать к текущему этапу «${currentStage.name}»`} checked={toStage} onChange={setToStage} />
+              )}
+              <div>
+                <Button loading={busy} disabled={!draft.trim() && files.length === 0} onClick={() => void send()}>
+                  Отправить
+                </Button>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        )}
 
         <Card title="Комментарии">
           {comments.isPending ? (
@@ -158,7 +189,10 @@ export function CommentsTab({
                       {stageOfEvent(file.workflow_event_id) ? ` · «${stageOfEvent(file.workflow_event_id)}»` : ""}
                     </small>
                   </div>
-                  {(file.uploaded_by === me.id || can("assign_responsible")) && (
+                  {file.document_type && file.document_type !== "other" && (
+                    <Tag>{label("document_type", file.document_type)}</Tag>
+                  )}
+                  {canWork && (file.uploaded_by === me.id || can("assign_responsible")) && (
                     <button
                       type="button"
                       className="icon-btn"

@@ -51,6 +51,14 @@ SPECS: tuple[SettingSpec, ...] = (
         1,
         365,
     ),
+    SettingSpec(
+        "integration_sync_interval_hours",
+        "Обмен с LMS и сайтом по расписанию, часов",
+        "Раз в сколько часов система сама запускает обмен с включёнными "
+        "источниками. 0 - только ручной запуск и загрузка ответа файлом.",
+        0,
+        168,
+    ),
 )
 SPEC_BY_KEY = {spec.key: spec for spec in SPECS}
 

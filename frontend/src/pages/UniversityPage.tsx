@@ -1,23 +1,41 @@
 /**
- * Карточка вуза: ответственный от ИТ Школы, контакты вуза, договоры
- * и (для администратора) журнал изменений.
+ * Карточка вуза: статус записи, менеджер по умолчанию, контакты вуза,
+ * взаимодействия с ним и (для администратора) журнал изменений.
+ *
+ * Руководитель подтверждает вуз, переводит в архив и объединяет дубль
+ * с итоговой записью: контакты, взаимодействия и доступы переходят к ней.
  */
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ExternalLink, Mail, Pencil, Phone, Plus, Trash2, UserPlus } from "lucide-react";
+import {
+  Archive,
+  ArrowLeft,
+  CheckCircle2,
+  ExternalLink,
+  GitMerge,
+  Mail,
+  Pencil,
+  Phone,
+  Plus,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../api/client";
 import {
+  archiveUniversity,
+  confirmUniversity,
   createContact,
   deleteContact,
   deleteUniversity,
   getUniversity,
   listAudit,
-  listContracts,
+  listInteractions,
+  mergeUniversity,
   updateContact,
 } from "../api/endpoints";
 import { useApiMutation } from "../api/mutations";
-import { invalidateContractData, keys, useLabel } from "../api/queries";
+import { invalidateInteractionData, keys, useLabel, useUniversities } from "../api/queries";
 import type { UniversityContact } from "../api/types";
 import { useSession } from "../auth/session";
 import { useConfirm } from "../components/Confirm";
@@ -30,17 +48,25 @@ import {
   ErrorState,
   Loading,
   PageHeader,
+  SelectField,
   StatusBadge,
   Tag,
   TextField,
 } from "../components/ui";
+import { InteractionFormModal } from "../features/interaction/InteractionForm";
+import { ContractCell, interactionTitle, SlaChip, StageCell, StatusCell } from "../features/interaction/parts";
 import { formatDateTime } from "../lib/format";
-import { CONTRACT_STATUS_TONE } from "../lib/labels";
+import { UNIVERSITY_TONE } from "../lib/labels";
 import { usePageTitle } from "../lib/usePageTitle";
-import { ContractFormModal } from "./contract/ContractForm";
-import { StageCell, ValidTo } from "./ContractsPage";
 import { UniversityFormModal } from "./UniversityForm";
 import { AuditEntries } from "./admin/AuditPage";
+
+const ORIGIN: Record<string, string> = {
+  manual: "Заведён вручную",
+  import: "Загрузка из Excel",
+  site: "Сайт ИТ Школы",
+  lms: "LMS",
+};
 
 interface ContactState {
   full_name: string;
@@ -85,7 +111,7 @@ function ContactModal({
     {
       success: contact ? "Контакт сохранён" : "Контакт добавлен",
       onSuccess: () => {
-        invalidateContractData();
+        invalidateInteractionData();
         onClose();
       },
     },
@@ -96,7 +122,7 @@ function ContactModal({
       open={open}
       onClose={onClose}
       title={contact ? contact.full_name : "Новый контакт вуза"}
-      description="Сотрудник вуза, с которым ведётся работа. Персональные данные видят только сотрудники с доступом к вузу."
+      description="Сотрудник вуза, с которым ведётся работа. Контакт хранится у вуза и назначается во взаимодействиях - без дублей."
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -147,20 +173,77 @@ function ContactModal({
   );
 }
 
+/** Объединение дубля с итоговой записью. */
+function MergeDialog({
+  open,
+  onClose,
+  sourceId,
+  sourceName,
+}: {
+  open: boolean;
+  onClose: () => void;
+  sourceId: string;
+  sourceName: string;
+}) {
+  const navigate = useNavigate();
+  const universities = useUniversities();
+  const [targetId, setTargetId] = useState("");
+  useEffect(() => setTargetId(""), [open]);
+  const merge = useApiMutation(() => mergeUniversity(sourceId, targetId), {
+    success: "Записи объединены",
+    onSuccess: (target) => {
+      invalidateInteractionData();
+      onClose();
+      navigate(`/universities/${target.id}`);
+    },
+  });
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Объединить «${sourceName}» с другой записью`}
+      description="Контакты, взаимодействия и доступы перейдут к итоговой записи, а эта останется в архиве со ссылкой на неё."
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button icon={GitMerge} disabled={!targetId} loading={merge.isPending} onClick={() => merge.mutate(undefined)}>
+            Объединить
+          </Button>
+        </>
+      }
+    >
+      <SelectField
+        label="Итоговая запись"
+        required
+        value={targetId}
+        onChange={setTargetId}
+        placeholder="Выберите вуз"
+        options={(universities.data || [])
+          .filter((item) => item.id !== sourceId && item.status !== "archived")
+          .map((item) => ({ value: item.id, label: item.short_name ? `${item.short_name} — ${item.name}` : item.name }))}
+      />
+    </Modal>
+  );
+}
+
 export default function UniversityPage() {
   const { universityId = "" } = useParams();
   const navigate = useNavigate();
   const label = useLabel();
   const confirm = useConfirm();
-  const { can, me } = useSession();
+  const { can, me, roles, business } = useSession();
   const [editing, setEditing] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [contact, setContact] = useState<UniversityContact | null | undefined>(undefined);
-  const [creatingContract, setCreatingContract] = useState(false);
+  const [creatingInteraction, setCreatingInteraction] = useState(false);
 
   const university = useQuery({ queryKey: keys.university(universityId), queryFn: () => getUniversity(universityId) });
-  const contracts = useQuery({
-    queryKey: [...keys.contracts, { university_id: universityId, limit: 100 }],
-    queryFn: () => listContracts({ university_id: universityId, limit: 100 }),
+  const interactions = useQuery({
+    queryKey: [...keys.interactions, { university_id: universityId, limit: 100 }],
+    queryFn: () => listInteractions({ university_id: universityId, limit: 100 }),
+    enabled: business,
   });
   const audit = useQuery({
     queryKey: ["audit", "university", universityId],
@@ -171,14 +254,22 @@ export default function UniversityPage() {
 
   const removeContact = useApiMutation((id: string) => deleteContact(universityId, id), {
     success: "Контакт удалён",
-    onSuccess: () => invalidateContractData(),
+    onSuccess: () => invalidateInteractionData(),
   });
   const remove = useApiMutation(() => deleteUniversity(universityId), {
     success: "Вуз удалён",
     onSuccess: () => {
-      invalidateContractData();
+      invalidateInteractionData();
       navigate("/universities");
     },
+  });
+  const confirmRecord = useApiMutation(() => confirmUniversity(universityId), {
+    success: "Вуз подтверждён",
+    onSuccess: () => invalidateInteractionData(),
+  });
+  const archive = useApiMutation(() => archiveUniversity(universityId), {
+    success: "Вуз переведён в архив",
+    onSuccess: () => invalidateInteractionData(),
   });
 
   if (university.isPending)
@@ -199,7 +290,11 @@ export default function UniversityPage() {
     );
   }
   const data = university.data;
-  const manageContacts = can("edit_university") || data.manager_id === me.id;
+  const manages = can("manage_universities");
+  const manageContacts =
+    data.in_scope !== false && (roles.includes("head") || (data.manager_id === me.id && can("edit_university_contacts")));
+  const merged = Boolean(data.merged_into_id);
+  const canCreate = can("create_interaction") && data.status === "confirmed" && data.in_scope !== false;
 
   return (
     <div className="page">
@@ -212,27 +307,73 @@ export default function UniversityPage() {
         title={
           <span className="row" style={{ gap: 12 }}>
             {data.short_name || data.name}
-            {!data.is_active && <StatusBadge>Не активен</StatusBadge>}
+            <StatusBadge tone={UNIVERSITY_TONE[data.status]}>{label("university_status", data.status)}</StatusBadge>
           </span>
+        }
+        description={
+          merged ? (
+            <>
+              Запись объединена с <Link to={`/universities/${data.merged_into_id}`}>итоговой</Link> - работайте с ней.
+            </>
+          ) : data.status === "pending" ? (
+            "Вуз ждёт проверки: пока его не подтвердят, взаимодействие с ним не завести."
+          ) : undefined
         }
         actions={
           <>
-            <Button variant="outline" icon={Plus} onClick={() => setCreatingContract(true)}>
-              Новый договор
-            </Button>
-            {can("edit_university") && (
+            {canCreate && (
+              <Button icon={Plus} onClick={() => setCreatingInteraction(true)}>
+                Новое взаимодействие
+              </Button>
+            )}
+            {manages && !merged && data.status !== "confirmed" && (
+              <Button
+                variant="outline"
+                icon={CheckCircle2}
+                loading={confirmRecord.isPending}
+                onClick={() => confirmRecord.mutate(undefined)}
+              >
+                {data.status === "archived" ? "Вернуть из архива" : "Подтвердить"}
+              </Button>
+            )}
+            {manages && !merged && (
+              <Button variant="outline" icon={GitMerge} onClick={() => setMerging(true)}>
+                Объединить с…
+              </Button>
+            )}
+            {manages && !merged && (
               <Button variant="outline" icon={Pencil} onClick={() => setEditing(true)}>
                 Изменить
               </Button>
             )}
-            {can("delete_contract") && (
+            {manages && !merged && data.status !== "archived" && (
+              <Button
+                variant="outline"
+                icon={Archive}
+                loading={archive.isPending}
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: `Перевести «${data.short_name || data.name}» в архив?`,
+                    message: "Начатые взаимодействия продолжатся, новые с вузом заводиться не будут.",
+                    confirmLabel: "В архив",
+                  });
+                  if (ok !== null) archive.mutate(undefined);
+                }}
+              >
+                В архив
+              </Button>
+            )}
+            {manages && (data.interactions_count || 0) === 0 && (
               <Button
                 variant="danger"
                 icon={Trash2}
-                disabled={(data.contracts_count || 0) > 0}
-                title={(data.contracts_count || 0) > 0 ? "У вуза есть договоры - удалить нельзя" : undefined}
                 onClick={async () => {
-                  const ok = await confirm({ title: `Удалить вуз «${data.name}»?`, confirmLabel: "Удалить", danger: true });
+                  const ok = await confirm({
+                    title: `Удалить вуз «${data.name}»?`,
+                    message: "Удаляется только ошибочная запись без взаимодействий. Вуз с историей переводят в архив.",
+                    confirmLabel: "Удалить",
+                    danger: true,
+                  });
                   if (ok !== null) remove.mutate(undefined);
                 }}
               >
@@ -245,70 +386,78 @@ export default function UniversityPage() {
 
       <div className="grid-main-side">
         <div className="stack">
-          <Card
-            title="Договоры"
-            description={`Всего ${data.contracts_count || 0}, действует ${data.active_contracts_count || 0}`}
-            flush
-          >
-            {contracts.isPending ? (
-              <Loading />
-            ) : contracts.isError ? (
-              <ErrorState error={contracts.error} onRetry={() => void contracts.refetch()} />
-            ) : contracts.data.items.length === 0 ? (
-              <EmptyState
-                title="Договоров нет"
-                action={
-                  <Button icon={Plus} onClick={() => setCreatingContract(true)}>
-                    Новый договор
-                  </Button>
-                }
-              />
-            ) : (
-              <div className="table-wrap">
-                <table className="data-table data-table--cards">
-                  <thead>
-                    <tr>
-                      <th scope="col">Договор</th>
-                      <th scope="col">Статус</th>
-                      <th scope="col">Этап</th>
-                      <th scope="col">Ответственный</th>
-                      <th scope="col">Действует по</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {contracts.data.items.map((row) => (
-                      <tr key={row.id} className="clickable" onClick={() => navigate(`/contracts/${row.id}`)}>
-                        <td className="cell-primary">
-                          <div className="cell-title">
-                            <Link to={`/contracts/${row.id}`}>
-                              <strong>{row.number}</strong>
-                            </Link>
-                            <small>{row.title || "Без предмета"}</small>
-                          </div>
-                        </td>
-                        <td data-label="Статус">
-                          <StatusBadge tone={CONTRACT_STATUS_TONE[row.status]}>
-                            {label("contract_status", row.status)}
-                          </StatusBadge>
-                        </td>
-                        <td data-label="Этап">
-                          <StageCell row={row} />
-                        </td>
-                        <td data-label="Ответственный">{row.manager?.full_name || "—"}</td>
-                        <td data-label="Действует по">
-                          <ValidTo value={row.valid_to} status={row.status} />
-                        </td>
+          {business && data.in_scope !== false && (
+            <Card
+              title="Взаимодействия"
+              description={`Всего ${data.interactions_count || 0}, активных ${data.active_interactions_count || 0}`}
+              flush
+            >
+              {interactions.isPending ? (
+                <Loading />
+              ) : interactions.isError ? (
+                <ErrorState error={interactions.error} onRetry={() => void interactions.refetch()} />
+              ) : interactions.data.items.length === 0 ? (
+                <EmptyState
+                  title="Взаимодействий нет"
+                  action={
+                    canCreate ? (
+                      <Button icon={Plus} onClick={() => setCreatingInteraction(true)}>
+                        Новое взаимодействие
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                <div className="table-wrap">
+                  <table className="data-table data-table--cards">
+                    <thead>
+                      <tr>
+                        <th scope="col">Взаимодействие</th>
+                        <th scope="col">Статус</th>
+                        <th scope="col">Этап</th>
+                        <th scope="col">Срок этапа</th>
+                        <th scope="col">Договор</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+                    </thead>
+                    <tbody>
+                      {interactions.data.items.map((row) => (
+                        <tr key={row.id} className="clickable" onClick={() => navigate(`/interactions/${row.id}`)}>
+                          <td className="cell-primary">
+                            <div className="cell-title">
+                              <Link to={`/interactions/${row.id}`}>
+                                <strong>{interactionTitle(row)}</strong>
+                              </Link>
+                              <small>{row.manager?.full_name || "Ответственный не назначен"}</small>
+                            </div>
+                          </td>
+                          <td data-label="Статус">
+                            <StatusCell status={row.status} outcome={row.outcome} />
+                          </td>
+                          <td data-label="Этап">
+                            <StageCell
+                              stageName={row.stage?.stage_name}
+                              nextActions={row.stage?.next_actions}
+                              status={row.status}
+                            />
+                          </td>
+                          <td data-label="Срок этапа">
+                            <SlaChip sla={row.stage?.sla} status={row.status} />
+                          </td>
+                          <td data-label="Договор">
+                            <ContractCell contract={row.contract} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          )}
 
           <Card
             title="Контакты вуза"
-            description="Сотрудники вуза, с которыми ведётся работа по договорам."
+            description="Сотрудники вуза, с которыми ведётся работа. Во взаимодействии их назначают на вкладке «Контакты»."
             flush
             actions={
               manageContacts && (
@@ -320,7 +469,7 @@ export default function UniversityPage() {
           >
             {(data.contacts || []).length === 0 ? (
               <EmptyState title="Контактов нет">
-                Добавьте ответственных от вуза - их можно будет закрепить за договорами.
+                Добавьте ответственных от вуза - их можно будет назначить во взаимодействиях.
               </EmptyState>
             ) : (
               <div className="list">
@@ -359,7 +508,7 @@ export default function UniversityPage() {
                           onClick={async () => {
                             const ok = await confirm({
                               title: `Удалить контакт ${item.full_name}?`,
-                              message: "Контакт открепится от всех договоров вуза.",
+                              message: "Контакт снимется со всех взаимодействий вуза.",
                               confirmLabel: "Удалить",
                               danger: true,
                             });
@@ -382,6 +531,7 @@ export default function UniversityPage() {
             <DescriptionList
               items={[
                 ["Полное название", data.name],
+                ["ИНН", data.inn],
                 ["Город", data.city],
                 [
                   "Сайт",
@@ -392,15 +542,17 @@ export default function UniversityPage() {
                   ) : null,
                 ],
                 ["Описание", data.description],
+                ["Источник записи", ORIGIN[data.origin || "manual"] || data.origin],
                 ["В системе с", formatDateTime(data.created_at)],
+                ["Подтверждён", data.confirmed_at ? formatDateTime(data.confirmed_at) : null],
               ]}
             />
           </Card>
-          <Card title="Ответственный от ИТ Школы">
+          <Card title="Менеджер по умолчанию">
             {data.manager ? (
               <div className="stack-s">
                 <strong>{data.manager.full_name}</strong>
-                {data.manager.email && <a href={`mailto:${data.manager.email}`}>{data.manager.email}</a>}
+                <small className="muted">Становится ответственным за новые взаимодействия вуза.</small>
               </div>
             ) : (
               <Tag tone="warn">Не назначен</Tag>
@@ -421,7 +573,21 @@ export default function UniversityPage() {
         universityId={universityId}
         contact={contact || null}
       />
-      <ContractFormModal open={creatingContract} onClose={() => setCreatingContract(false)} universityId={universityId} />
+      {canCreate && (
+        <InteractionFormModal
+          open={creatingInteraction}
+          onClose={() => setCreatingInteraction(false)}
+          universityId={universityId}
+        />
+      )}
+      {manages && (
+        <MergeDialog
+          open={merging}
+          onClose={() => setMerging(false)}
+          sourceId={universityId}
+          sourceName={data.short_name || data.name}
+        />
+      )}
     </div>
   );
 }

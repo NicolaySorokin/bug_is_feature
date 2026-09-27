@@ -125,9 +125,13 @@ CATALOG_SPEC = ImportSpec(
 UNIVERSITY_SPEC = ImportSpec(
     import_type=ImportType.UNIVERSITIES,
     title="Вузы",
-    description="Справочник вузов с городом и закреплённым менеджером.",
+    description=(
+        "Справочник вузов с городом и менеджером по умолчанию. Вуз узнаётся по ИНН, "
+        "а без ИНН - по полному или краткому названию; новый вуз ждёт проверки."
+    ),
     fields=(
         FieldSpec("name", "Название ВУЗа", ("Вуз", "Наименование"), required=True),
+        FieldSpec("inn", "ИНН", ("ИНН вуза",)),
         FieldSpec("short_name", "Сокращение", ("Краткое название",)),
         FieldSpec("city", "Город", ()),
         FieldSpec("website", "Сайт", ("Веб-сайт",)),
@@ -520,7 +524,18 @@ def split_products(value: Any) -> list[str]:
 
 
 # Проверка значения по ключу поля: бросает ValueError с понятным текстом.
+def parse_inn(value: Any) -> str | None:
+    """ИНН: 10 цифр у организации, 12 - у физического лица и ИП (как в форме вуза)."""
+    text = _text(value)
+    if not text:
+        return None
+    if not re.fullmatch(r"\d{10}|\d{12}", text):
+        raise ValueError("ИНН - 10 или 12 цифр")
+    return text
+
+
 PARSERS: dict[str, Callable[[Any], object]] = {
+    "inn": parse_inn,
     "license_signed_at": parse_date,
     "license_valid_to": lambda value: parse_license_valid_to(value, None),
     "transfer_status": parse_transfer_status,
@@ -570,19 +585,26 @@ async def _get_or_create_by_name(session: AsyncSession, model, name: str, **extr
     return created, True
 
 
-async def _find_university(session: AsyncSession, name: str) -> University | None:
-    """Вуз по полному или краткому названию: в файлах пишут по-разному."""
+async def _find_university(
+    session: AsyncSession, name: str, inn: str | None = None
+) -> University | None:
+    """Вуз по ИНН - стабильному ключу, а без него - по полному или краткому
+    названию: в файлах пишут по-разному. Одноимённый вуз с другим ИНН - это
+    другой вуз, он не подменяется."""
+    if inn:
+        found = await session.scalar(select(University).where(University.inn == inn))
+        if found is not None:
+            return found
     value = name.lower()
-    return await session.scalar(
-        select(University)
-        .where(
-            or_(
-                func.lower(University.name) == value,
-                func.lower(University.short_name) == value,
-            )
+    statement = select(University).where(
+        or_(
+            func.lower(University.name) == value,
+            func.lower(University.short_name) == value,
         )
-        .limit(1)
     )
+    if inn:
+        statement = statement.where(University.inn.is_(None))
+    return await session.scalar(statement.limit(1))
 
 
 async def _find_user(session: AsyncSession, full_name: str) -> User | None:
@@ -801,15 +823,26 @@ async def _import_product_and_license(
     if vendor is not None and product.vendor_id is None:
         product.vendor_id = vendor.id
 
-    program_links = await _program_links_for(
-        session, instance, product, _text(value(row, "program"))
-    )
-
+    program_name = _text(value(row, "program"))
     link = await session.scalar(
         select(InteractionProduct).where(
             InteractionProduct.workflow_instance_id == instance.id,
             InteractionProduct.product_id == product.id,
         )
+    )
+    linked = link is not None and bool(
+        await session.scalar(
+            select(func.count())
+            .select_from(InteractionProgramProduct)
+            .where(InteractionProgramProduct.interaction_product_id == link.id)
+        )
+    )
+    # Продукт уже во взаимодействии и связан с программой - строка обновляет
+    # его статус и лицензию, программу заново определять не нужно.
+    program_links = (
+        []
+        if linked and not program_name
+        else await _program_links_for(session, instance, product, program_name)
     )
     if link is None:
         link = InteractionProduct(workflow_instance_id=instance.id, product_id=product.id)
@@ -861,12 +894,14 @@ async def _import_product_and_license(
 
 async def _university_row(session, row, value, number, warnings) -> bool:  # noqa: ANN001
     name = _text(value(row, "name"))
-    university = await _find_university(session, name)
+    inn = parse_inn(value(row, "inn"))
+    university = await _find_university(session, name, inn)
     created = university is None
     if university is None:
         # Вуз из файла - на проверку руководителю (единый путь создания вуза).
         university = University(name=name, status=UniversityStatus.PENDING, origin="import")
         session.add(university)
+    university.inn = inn or university.inn
     university.short_name = _text(value(row, "short_name")) or university.short_name
     university.city = _text(value(row, "city")) or university.city
     university.website = _text(value(row, "website")) or university.website
