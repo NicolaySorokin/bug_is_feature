@@ -908,8 +908,18 @@ async def _university_row(session, row, value, number, warnings) -> bool:  # noq
 
     manager_name = _text(value(row, "manager_name"))
     manager = await _find_user(session, manager_name)
-    if manager is not None:
+    if manager is not None and Role.MANAGER in (manager.roles or []):
         university.manager_id = manager.id
+    elif manager is not None:
+        # Как и в карточке вуза: менеджер по умолчанию - сотрудник с ролью «Менеджер».
+        warnings.append(
+            RowError(
+                number,
+                "ФИО Менеджера",
+                f"Предупреждение: у сотрудника «{manager_name}» нет роли «Менеджер», "
+                "менеджер по умолчанию не изменён",
+            )
+        )
     elif manager_name:
         warnings.append(
             RowError(

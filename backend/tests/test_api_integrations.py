@@ -215,3 +215,13 @@ async def test_external_errors_are_readable(
     assert expected in error.value.message
     assert "lms.internal.example" not in error.value.message
     assert error.value.code == ErrorCode.INTEGRATION_FAILED
+
+
+async def test_sync_all_skips_disabled_source(client: AsyncClient) -> None:
+    """«Синхронизировать всё» обменивается с включёнными источниками, а не падает."""
+    await client.patch(
+        "/api/v1/integrations/sources/lms", json={"is_enabled": False}, headers=ADMIN
+    )
+    response = await client.post("/api/v1/integrations/sync", headers=ADMIN)
+    assert response.status_code == 200, response.text
+    assert [run["source_code"] for run in response.json()] == ["site"]

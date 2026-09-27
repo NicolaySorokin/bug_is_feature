@@ -200,3 +200,63 @@ async def test_broken_period_is_rejected(client: AsyncClient) -> None:
     )
     assert response.status_code == 422
     assert response.json()["code"] == "validation_error"
+    assert response.json()["message"] == "Начало периода позже его окончания"
+
+
+async def test_report_rows_follow_composition_filters(
+    client: AsyncClient, university: dict
+) -> None:
+    """Фильтр по программе, направлению или продукту сужает и строки: другие
+    программы того же взаимодействия в отчёт и диаграммы не попадают."""
+
+    async def post(url: str, body: dict, headers: dict = ADMIN) -> dict:
+        response = await client.post(url, json=body, headers=headers)
+        assert response.status_code == 201, response.text
+        return response.json()
+
+    development = await post("/api/v1/catalog/directions", {"name": "Разработка"})
+    testing = await post("/api/v1/catalog/directions", {"name": "Тестирование"})
+    python = await post(
+        "/api/v1/catalog/programs",
+        {"name": "Python-разработчик", "direction_id": development["id"]},
+    )
+    qa = await post(
+        "/api/v1/catalog/programs", {"name": "Тестировщик", "direction_id": testing["id"]}
+    )
+    sandbox = await post("/api/v1/catalog/products", {"name": "Песочница"})
+    await client.put(
+        f"/api/v1/catalog/programs/{python['id']}/products",
+        json={"product_ids": [sandbox["id"]]},
+        headers=HEAD,
+    )
+    interaction = await make_interaction(
+        client, university["id"], MANAGER, program_ids=[python["id"], qa["id"]]
+    )
+    detail = (
+        await client.get(f"/api/v1/interactions/{interaction['id']}", headers=MANAGER)
+    ).json()
+    python_link = next(
+        item["id"] for item in detail["program_links"] if item["program_id"] == python["id"]
+    )
+    await post(
+        f"/api/v1/interactions/{interaction['id']}/products",
+        {"product_id": sandbox["id"], "program_link_ids": [python_link]},
+        MANAGER,
+    )
+
+    async def programs(filters: dict) -> list[str]:
+        report = (
+            await client.post(
+                "/api/v1/reports/preview", json={"filters": filters}, headers=MANAGER
+            )
+        ).json()
+        chart = next(item for item in report["charts"] if item["key"] == "by_program")
+        assert sorted(item["label"] for item in chart["items"]) == sorted(
+            row["program"] for row in report["rows"]
+        )
+        return sorted(row["program"] for row in report["rows"])
+
+    assert await programs({}) == ["Python-разработчик", "Тестировщик"]
+    assert await programs({"program_ids": [qa["id"]]}) == ["Тестировщик"]
+    assert await programs({"direction_ids": [development["id"]]}) == ["Python-разработчик"]
+    assert await programs({"product_ids": [sandbox["id"]]}) == ["Python-разработчик"]

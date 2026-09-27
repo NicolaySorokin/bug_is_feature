@@ -564,6 +564,20 @@ async def sync_roles(session: SessionDep, token: AccessTokenDep) -> RoleSyncResu
         elif set(user.roles or []) != roles:
             user.roles = sorted(roles)
             updated += 1
+    # Кого в Keycloak сняли со всех ролей системы, у того и в снимке ролей нет:
+    # иначе его продолжали бы предлагать ответственным до следующего входа.
+    stale = (
+        await session.execute(
+            select(User).where(
+                User.keycloak_id.not_in(list(roles_by_user)),
+                User.keycloak_id.not_like("dev:%"),
+                func.cardinality(User.roles) > 0,
+            )
+        )
+    ).scalars()
+    for user in stale:
+        user.roles = []
+        updated += 1
     await session.flush()
     return RoleSyncResult(
         users_total=len(roles_by_user), users_created=created, users_updated=updated

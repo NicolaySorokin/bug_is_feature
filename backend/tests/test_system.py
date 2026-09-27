@@ -100,4 +100,6 @@ async def test_validation_errors_have_code(client: AsyncClient) -> None:
     assert response.status_code == 422
     body = response.json()
     assert body["code"] == "validation_error"
+    # Нет обязательного поля - ошибка формата: общий текст, подробности по полям.
+    assert body["message"] == "Запрос не прошёл проверку"
     assert body["details"]["errors"]

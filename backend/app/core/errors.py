@@ -108,6 +108,28 @@ def error_payload(
     return {"code": code.value, "message": message, "details": details}
 
 
+VALIDATION_MESSAGE = "Запрос не прошёл проверку"
+# Так Pydantic начинает текст ошибки, которую бросила наша проверка (ValueError).
+_VALUE_ERROR_PREFIX = "Value error, "
+
+
+def validation_message(errors: list[dict[str, Any]]) -> str:
+    """Текст для человека: нарушенные правила предметной области как есть.
+
+    Проверки схем («подписанный договор не отменяют», «период начинается
+    позже окончания») пишут понятный текст - его и показываем, а не общее
+    «запрос не прошёл проверку». Технические ошибки формата (нет поля,
+    не тот тип) остаются в details.errors.
+    """
+    rules = [
+        str(error.get("msg", "")).removeprefix(_VALUE_ERROR_PREFIX).strip()
+        for error in errors
+        if error.get("type") == "value_error"
+    ]
+    rules = [rule for rule in dict.fromkeys(rules) if rule]
+    return "; ".join(rules) if rules else VALIDATION_MESSAGE
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Приводит все ошибки приложения к общему формату."""
 
@@ -157,20 +179,21 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
+        errors = list(exc.errors())
         return JSONResponse(
             status_code=422,
             content=error_payload(
                 ErrorCode.VALIDATION_ERROR,
-                "Запрос не прошёл проверку",
+                validation_message(errors),
                 # jsonable: в ошибках Pydantic встречаются несериализуемые объекты.
                 {
                     "errors": [
                         {
                             "loc": [str(part) for part in error.get("loc", ())],
-                            "msg": error.get("msg", ""),
+                            "msg": str(error.get("msg", "")),
                             "type": error.get("type", ""),
                         }
-                        for error in exc.errors()
+                        for error in errors
                     ]
                 },
             ),

@@ -11,8 +11,13 @@
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.api.v1.endpoints import users as users_endpoint
+from app.core.config import settings
+from app.models.user import User
 from tests.conftest import (
     ADMIN,
     HEAD,
@@ -367,3 +372,47 @@ async def test_university_with_interactions_is_archived_not_deleted(
     )
     assert archived.status_code == 200
     assert archived.json()["status"] == "archived"
+
+
+async def test_role_sync_clears_roles_removed_in_keycloak(
+    client: AsyncClient, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Сверка с Keycloak снимает роли и с тех, кого сняли со всех ролей системы:
+    иначе бывшего менеджера продолжали бы предлагать ответственным."""
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        session.add_all(
+            [
+                User(
+                    keycloak_id="kc-kept",
+                    username="kept",
+                    full_name="Остался",
+                    roles=["manager"],
+                ),
+                User(
+                    keycloak_id="kc-gone", username="gone", full_name="Ушёл", roles=["manager"]
+                ),
+            ]
+        )
+        await session.commit()
+
+    class FakeKeycloak:
+        def __init__(self, token: str) -> None:
+            self.token = token
+
+        async def role_members(self) -> dict[str, set[str]]:
+            return {"manager": {"kc-kept"}, "head": set(), "admin": set()}
+
+    monkeypatch.setattr(users_endpoint, "KeycloakAdmin", FakeKeycloak)
+    monkeypatch.setattr(settings, "auth_backend", "keycloak")
+
+    response = await client.post(
+        "/api/v1/users/sync-roles", headers={**ADMIN, "Authorization": "Bearer test"}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["users_updated"] == 1
+
+    listing = (await client.get("/api/v1/users", headers=ADMIN)).json()["items"]
+    roles = {item["username"]: item["roles"] for item in listing}
+    assert roles["kept"] == ["manager"]
+    assert roles["gone"] == []

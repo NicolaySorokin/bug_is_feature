@@ -479,7 +479,9 @@ async def cancel(
     instance.closure_comment = comment
     instance.closed_by_id = user.id
     instance.closed_at = now
+    # Закрытое взаимодействие не «заблокировано»: блокировка остаётся в истории.
     instance.blocked_reason = None
+    instance.blocked_at = None
     event = _event(
         instance,
         user,

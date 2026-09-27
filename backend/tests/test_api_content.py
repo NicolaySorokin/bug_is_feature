@@ -233,3 +233,19 @@ async def test_contract_with_licenses_is_not_deleted(
     # Действующий договор не удаляют - закрывают.
     assert response.status_code == 409
     assert contract["status"] == "active"
+
+
+async def test_file_type_is_taken_from_extension(
+    client: AsyncClient, university: dict
+) -> None:
+    """Тип содержимого при скачивании - по проверенному расширению, а не со слов браузера."""
+    interaction = await make_interaction(client, university["id"], MANAGER)
+    uploaded = await client.post(
+        f"/api/v1/interactions/{interaction['id']}/attachments",
+        files={"file": ("схема.png", PNG, "text/html")},
+        headers=MANAGER,
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    assert uploaded.json()["mime_type"] == "image/png"
+    downloaded = await client.get(uploaded.json()["download_url"], headers=MANAGER)
+    assert downloaded.headers["content-type"] == "image/png"

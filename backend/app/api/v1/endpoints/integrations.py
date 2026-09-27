@@ -157,11 +157,21 @@ async def upload_payload(
     "/sync",
     response_model=list[IntegrationRunRead],
     dependencies=runners,
-    summary="Синхронизировать все источники",
-    description="Сначала LMS с программами, затем сайт с заявками на эти программы.",
+    summary="Синхронизировать все включённые источники",
+    description=(
+        "Сначала LMS с программами, затем сайт с заявками на эти программы. "
+        "Выключенные источники пропускаются."
+    ),
 )
 async def run_all(session: SessionDep, user: CurrentUserDep) -> list[IntegrationRunRead]:
-    runs = [(code, await sync.run_sync(session, code, user)) for code in sync.ADAPTERS]
+    enabled = {
+        source.code for source in await sync.ensure_sources(session) if source.is_enabled
+    }
+    runs = [
+        (code, await sync.run_sync(session, code, user))
+        for code in sync.ADAPTERS
+        if code in enabled
+    ]
     return [IntegrationRunRead.from_model(run, code) for code, run in runs]
 
 

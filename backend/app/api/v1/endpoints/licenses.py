@@ -133,7 +133,11 @@ async def update_license(
     await access.ensure_interaction_write(
         session, license_.interaction_product.interaction, principal, user
     )
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    # Статус обязателен: пустое значение - «не менять», а не сбой базы.
+    if data.get("status") is None:
+        data.pop("status", None)
+    for field, value in data.items():
         setattr(license_, field, value)
     if license_.valid_from and license_.valid_to and license_.valid_from > license_.valid_to:
         raise AppError(

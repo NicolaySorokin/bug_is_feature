@@ -118,7 +118,10 @@ async def save_upload(
     return StoredFile(
         original_name=original_name,
         storage_path=relative,
-        mime_type=upload.content_type or ALLOWED_TYPES[extension],
+        # Тип содержимого - по проверенному расширению, а не со слов браузера:
+        # при скачивании файл отдаётся с ним, и подменить его («картинка»
+        # с типом text/html) нельзя.
+        mime_type=ALLOWED_TYPES.get(extension, "application/octet-stream"),
         size_bytes=size,
     )
 
