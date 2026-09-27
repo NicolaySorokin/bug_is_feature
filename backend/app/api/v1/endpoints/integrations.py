@@ -146,8 +146,12 @@ async def upload_payload(
     try:
         raw = json.loads(content.decode("utf-8-sig"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        # Без текста исключения («Expecting value: line 1 column 1»):
+        # сотруднику он ничего не скажет.
         raise AppError(
-            f"Файл не похож на JSON: {exc}", code=ErrorCode.INTEGRATION_FAILED
+            "Файл не похож на JSON. Загрузите ответ API источника, "
+            "сохранённый в формате JSON.",
+            code=ErrorCode.INTEGRATION_FAILED,
         ) from exc
     run = await sync.run_sync(session, code, user, raw=raw, filename=file.filename)
     return IntegrationRunRead.from_model(run, code)

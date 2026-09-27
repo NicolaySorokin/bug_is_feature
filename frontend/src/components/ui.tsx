@@ -150,7 +150,10 @@ export function EmptyState({
   );
 }
 
-/** Ошибка загрузки: сообщение для человека и код ошибки API для поддержки. */
+/**
+ * Ошибка загрузки: сообщение для человека и код ошибки API для поддержки.
+ * Номер ответа HTTP не показывается - людям он ничего не говорит.
+ */
 export function ErrorState({
   error,
   onRetry,
@@ -161,7 +164,6 @@ export function ErrorState({
   title?: string;
 }) {
   const code = error instanceof ApiError ? error.code : null;
-  const status = error instanceof ApiError && error.status ? error.status : null;
   return (
     <div className="state state--error" role="alert">
       <div className="state__icon">
@@ -172,7 +174,6 @@ export function ErrorState({
       {code && (
         <p className="muted">
           Код ошибки: <code>{code}</code>
-          {status ? <> · HTTP {status}</> : null}
         </p>
       )}
       {onRetry && (

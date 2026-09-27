@@ -8,7 +8,7 @@
  */
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { ApiError, errorMessage } from "./api/client";
+import { ApiError } from "./api/client";
 import { getMe } from "./api/endpoints";
 import { keys, queryClient } from "./api/queries";
 import { initAuth, login, logout, type AuthSession } from "./auth/auth";
@@ -21,7 +21,12 @@ import { App } from "./App";
 import { LoginPage } from "./pages/LoginPage";
 import { Loader } from "@atomaro/ui-kit";
 
-type BootState = { status: "loading" } | { status: "failed"; error: string } | { status: "ready"; auth: AuthSession };
+type BootState = { status: "loading" } | { status: "failed" } | { status: "ready"; auth: AuthSession };
+
+// Причина сбоя (нет сети, ответ 502, не поднялся Keycloak) людям ничего
+// не говорит - она уходит в консоль браузера для разработчика.
+const BOOT_FAILED =
+  "Не удалось подключиться к серверу. Повторите попытку позже, а если ошибка повторится - обратитесь к разработчику.";
 
 function Boot({ text }: { text: string }) {
   return (
@@ -41,7 +46,10 @@ export function Root() {
     let cancelled = false;
     initAuth()
       .then((auth) => !cancelled && setState({ status: "ready", auth }))
-      .catch((error) => !cancelled && setState({ status: "failed", error: errorMessage(error) }));
+      .catch((error) => {
+        console.error("Не удалось подготовить вход", error);
+        if (!cancelled) setState({ status: "failed" });
+      });
     return () => {
       cancelled = true;
     };
@@ -53,7 +61,7 @@ export function Root() {
       <div className="boot">
         <ErrorState
           title="Сервер недоступен"
-          error={new ApiError(state.error, 0, "network_error")}
+          error={new ApiError(BOOT_FAILED, 0, "network_error")}
           onRetry={() => {
             setState({ status: "loading" });
             setAttempt((value) => value + 1);

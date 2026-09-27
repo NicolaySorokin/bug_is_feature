@@ -10,6 +10,23 @@ import { authHeaders, onUnauthorized } from "../auth/auth";
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api/v1").replace(/\/$/, "");
 
+/**
+ * Текст, если сервер ответил без нашего формата ошибки - обычно это Nginx,
+ * пока API перезапускается или недоступен. Номер ответа (502, 504...) людям
+ * ничего не говорит, поэтому в тексте его нет: он виден разработчику
+ * в инструментах браузера.
+ */
+function fallbackMessage(status: number): string {
+  if (status === 413) return "Файл слишком большой. Загрузите файл меньшего размера.";
+  const what = status >= 500 ? "Сервер сейчас недоступен." : "Сервер не смог выполнить действие.";
+  return `${what} Повторите действие позже, а если ошибка повторится - обратитесь к разработчику.`;
+}
+
+function fallbackCode(status: number): string {
+  if (status === 413) return "file_too_large";
+  return status >= 500 ? "internal_error" : "request_failed";
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -71,13 +88,13 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
     try {
       payload = await response.json();
     } catch {
-      // Ответ без тела (например, от Nginx при перезапуске) - код по статусу.
+      // Ответ без тела (например, от Nginx при перезапуске) - текст и код по статусу.
     }
     if (response.status === 401) onUnauthorized();
     throw new ApiError(
-      payload.message || `Сервер ответил ошибкой ${response.status}`,
+      payload.message || fallbackMessage(response.status),
       response.status,
-      payload.code || (response.status >= 500 ? "internal_error" : "request_failed"),
+      payload.code || fallbackCode(response.status),
       payload.details ?? null,
     );
   }
