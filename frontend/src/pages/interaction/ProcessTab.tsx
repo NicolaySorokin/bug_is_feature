@@ -115,12 +115,15 @@ function TransitionDialog({
   const [documentType, setDocumentType] = useState<DocumentType>("other");
   const [reason, setReason] = useState<ClosureReason | "">("");
   const [busy, setBusy] = useState(false);
+  // Уйти с этапа вперёд можно, только когда загружены его обязательные документы.
+  const forwardMove = Boolean(dialog && !dialog.skip && !dialog.transition.is_backward);
+  const missing = forwardMove ? interaction.missing_documents || [] : [];
   useEffect(() => {
     setComment("");
     setFiles([]);
     setReason("");
-    setDocumentType("other");
-  }, [dialog]);
+    setDocumentType(((interaction.missing_documents || [])[0] as DocumentType | undefined) || "other");
+  }, [dialog, interaction.missing_documents]);
 
   if (!dialog) return null;
   const stages = view.version.stages || [];
@@ -129,7 +132,9 @@ function TransitionDialog({
   // Финальный этап без успеха закрывает взаимодействие - нужна причина.
   const failing = Boolean(!dialog.skip && to?.is_final && to.outcome && to.outcome !== "successful");
   const needsText = dialog.skip || dialog.transition.requires_comment || (failing && reason === "other");
-  const blocked = (needsText && !comment.trim()) || (failing && !reason);
+  // Файлы этого окна закрывают не больше одного типа документа.
+  const stillMissing = missing.filter((item) => !(files.length > 0 && item === documentType));
+  const blocked = (needsText && !comment.trim()) || (failing && !reason) || stillMissing.length > 0;
 
   const title = dialog.skip
     ? `Пропустить этап «${from?.name}»`
@@ -139,12 +144,27 @@ function TransitionDialog({
 
   const submit = async () => {
     setBusy(true);
+    // Обязательные документы сервер проверяет при переходе - их файлы
+    // загружаются к текущему этапу заранее, остальные - к самому переходу.
+    const upfront = missing.length > 0 ? files : [];
+    const afterwards = missing.length > 0 ? [] : files;
     try {
+      if (upfront.length > 0) {
+        const arrival = [...(view.events || [])]
+          .filter((event) => event.to_stage_id === view.current_stage_id)
+          .sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
+        for (const file of upfront) {
+          await uploadAttachment(interaction.id, file, arrival?.id, documentType);
+        }
+        // Файлы уже на сервере: повторная попытка перехода их не задвоит.
+        setFiles([]);
+        invalidateInteractionData(interaction.id);
+      }
       const result = dialog.skip
         ? await skipStage(interaction.id, dialog.transition.to_stage_id, comment.trim())
         : await transition(interaction.id, dialog.transition.to_stage_id, comment.trim(), reason || null);
       const event = newestEvent(result);
-      for (const file of files) {
+      for (const file of afterwards) {
         await uploadAttachment(interaction.id, file, event?.id, documentType);
       }
       toast.success(
@@ -209,6 +229,20 @@ function TransitionDialog({
           placeholder={dialog.skip ? "Почему этап не нужен этому вузу" : "Что сделано, о чём договорились"}
           hint={dialog.transition.requires_comment && !dialog.skip ? "Для этого перехода комментарий обязателен" : undefined}
         />
+        {missing.length > 0 && (
+          <div className="note note--warn">
+            <FileWarning size={16} aria-hidden="true" />
+            <div>
+              {stillMissing.length === 0
+                ? "Документ приложен: он загрузится к этапу до перехода."
+                : `Чтобы уйти с этапа вперёд, нужны документы: ${stillMissing
+                    .map((item) => label("document_type", item).toLowerCase())
+                    .join(", ")}. Приложите файл ниже и выберите его тип${
+                    missing.length > 1 ? " - за раз один тип, остальные можно приложить в карточке этапа" : ""
+                  }.`}
+            </div>
+          </div>
+        )}
         <div className="field">
           <span className="field__label">Файлы к этапу</span>
           <FilePicker files={files} onChange={setFiles} />

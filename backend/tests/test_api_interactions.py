@@ -167,6 +167,39 @@ async def test_head_reassigns_within_team_with_history(
     assert any(event["event_type"] == "reassigned" for event in view["events"])
 
 
+async def test_default_manager_outside_team_leaves_interaction_unassigned(
+    client: AsyncClient, university: dict, workflow_version: dict
+) -> None:
+    """Менеджер по умолчанию у вуза - подсказка: если руководитель не может его
+    назначить (другая команда), взаимодействие заводится без ответственного,
+    а не получает отказ."""
+    ivanova = await me(client, OTHER_MANAGER)
+    updated = await client.patch(
+        f"/api/v1/universities/{university['id']}",
+        json={"manager_id": ivanova["id"]},
+        headers=ADMIN,
+    )
+    assert updated.status_code == 200, updated.text
+
+    response = await client.post(
+        "/api/v1/interactions",
+        json={"university_id": university["id"], "title": "Без ответственного"},
+        headers=HEAD,
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["manager"] is None
+
+    # Своего менеджера руководитель по-прежнему получает по умолчанию.
+    await join_team(client, OTHER_MANAGER)
+    team = await client.post(
+        "/api/v1/interactions",
+        json={"university_id": university["id"], "title": "С ответственным"},
+        headers=HEAD,
+    )
+    assert team.status_code == 201, team.text
+    assert team.json()["manager"]["id"] == ivanova["id"]
+
+
 # --- Жизненный цикл -----------------------------------------------------------------
 
 

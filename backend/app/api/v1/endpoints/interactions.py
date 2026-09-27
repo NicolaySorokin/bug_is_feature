@@ -287,11 +287,22 @@ async def create_interaction(
         )
 
     head = access.can(principal, user, Action.ASSIGN_RESPONSIBLE)
-    manager_id: uuid.UUID | None
+    manager_id: uuid.UUID | None = None
     if head:
-        manager_id = payload.manager_id or university.manager_id
-        if manager_id is not None:
-            manager_id = (await _assignable_manager(session, principal, user, manager_id)).id
+        if payload.manager_id is not None:
+            manager_id = (
+                await _assignable_manager(session, principal, user, payload.manager_id)
+            ).id
+        elif university.manager_id is not None:
+            # Менеджер по умолчанию - подсказка, а не требование: если этого
+            # менеджера руководитель назначить не может (другая команда, нет
+            # роли, отключён), взаимодействие уходит в очередь назначения.
+            try:
+                manager_id = (
+                    await _assignable_manager(session, principal, user, university.manager_id)
+                ).id
+            except (ForbiddenError, ConflictError, NotFoundError):
+                manager_id = None
     else:
         if payload.manager_id not in (None, user.id):
             raise ForbiddenError(
