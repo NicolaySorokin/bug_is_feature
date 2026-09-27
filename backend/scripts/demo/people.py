@@ -252,6 +252,34 @@ def university_contacts(key: str, count: int) -> list[ContactInfo]:
     return contacts
 
 
+@dataclass(frozen=True, slots=True)
+class Signatory:
+    full_name: str
+    position: str
+    basis: str
+
+
+def university_signatory(key: str, year: int) -> Signatory:
+    """Кто подписывает договоры вуза. Не ответственный от вуза: договор
+    подписывает ректор по уставу или первый проректор по доверенности.
+    Люди вымышленные, как и контакты; одинаковы при каждом запуске."""
+    rng = random.Random(f"signatory:{key}")
+    male_surname, female_surname = rng.choice(_SURNAMES)
+    female = rng.random() < 0.3
+    surname = female_surname if female else male_surname
+    name = rng.choice(_FEMALE_NAMES if female else _MALE_NAMES)
+    patronymic = rng.choice(_PATRONYMICS)[1 if female else 0]
+    if rng.random() < 0.6:
+        return Signatory(f"{surname} {name} {patronymic}", "Ректор", "Устава")
+    number = rng.randint(3, 48)
+    day = rng.randint(10, 28)
+    return Signatory(
+        f"{surname} {name} {patronymic}",
+        "Первый проректор",
+        f"доверенности № {number} от {day:02d}.01.{year}",
+    )
+
+
 if __name__ == "__main__":
     # Раздел users для deploy/keycloak/realm-export.json.
     print(json.dumps(realm_users(), ensure_ascii=False, indent=2))

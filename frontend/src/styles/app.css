@@ -2450,6 +2450,171 @@ a.list-item:hover {
   font-size: 12px;
 }
 
+/* Раздел внутри формы: заголовок и пояснение над группой полей. */
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.form-section .muted {
+  font-size: 13px;
+}
+
+/* Шаблоны договоров: пояснение и кнопка над списком. */
+.templates-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.templates-head p {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* Редактор шаблона: текст слева, поля для вставки справа. */
+.template-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 20px;
+  align-items: start;
+}
+
+.template-editor textarea {
+  font:
+    13px/20px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+}
+
+.template-fields {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 560px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface-soft);
+}
+
+.template-fields > .muted {
+  font-size: 12px;
+}
+
+.template-fields__group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.template-fields__title {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.template-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.template-field:hover {
+  border-color: var(--accent-200, #bb85ff);
+}
+
+.template-field code {
+  color: var(--rt-violet);
+  font-size: 12px;
+}
+
+.template-field span {
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+@media (max-width: 1100px) {
+  .template-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .template-fields {
+    position: static;
+    max-height: none;
+  }
+}
+
+/* Предпросмотр договора по шаблону - как лист документа. */
+.document-preview {
+  max-height: 440px;
+  overflow: auto;
+  padding: 20px 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text);
+  font:
+    14px/21px "Times New Roman",
+    Times,
+    serif;
+}
+
+.document-preview h3 {
+  margin: 0 0 12px;
+  font:
+    700 16px/22px "Times New Roman",
+    Times,
+    serif;
+  text-align: center;
+}
+
+.document-preview h4 {
+  margin: 12px 0 6px;
+  font:
+    700 14px/21px "Times New Roman",
+    Times,
+    serif;
+}
+
+.document-preview p {
+  margin: 0 0 6px;
+  text-align: justify;
+  white-space: pre-wrap;
+}
+
+.document-preview .document-preview__item {
+  margin: 0 0 2px 18px;
+  text-align: left;
+}
+
+.document-preview__gap {
+  height: 4px;
+}
+
 /* Файл в узкой колонке: сверху название и сведения (переносятся, а не
    обрезаются), под ними - тип документа и удаление. */
 .file-row--stacked {

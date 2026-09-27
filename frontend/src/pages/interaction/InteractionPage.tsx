@@ -391,7 +391,7 @@ export default function InteractionPage() {
         <ProcessTab interaction={data} workflow={workflow} comments={comments.data || []} attachments={attachments.data || []} />
       )}
       {tab === "composition" && <CompositionTab interaction={data} />}
-      {tab === "contract" && <ContractTab interaction={data} />}
+      {tab === "contract" && <ContractTab interaction={data} workflow={workflow.data || null} />}
       {tab === "contacts" && <ContactsTab interaction={data} />}
       {tab === "files" && (
         <FilesTab interaction={data} workflow={workflow.data || null} comments={comments} attachments={attachments} />

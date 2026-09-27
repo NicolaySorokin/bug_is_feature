@@ -62,6 +62,7 @@ class Action(StrEnum):
     EDIT_CATALOG = "edit_catalog"
     IMPORT = "import"
     EDIT_TEMPLATES = "edit_templates"
+    EDIT_CONTRACT_TEMPLATES = "edit_contract_templates"  # типовые шаблоны договоров
     EDIT_WORKFLOW_PRESENTATION = "edit_workflow_presentation"
     VIEW_AUDIT = "view_audit"
     EDIT_SETTINGS = "edit_settings"
@@ -96,6 +97,8 @@ ROLE_ACTIONS: dict[Role, frozenset[Action]] = {
             Action.VIEW_STATISTICS,
             Action.EDIT_UNIVERSITY_CONTACTS,
             Action.MANAGE_UNIVERSITIES,
+            # Типовой договор - бизнес-документ: его текст задаёт руководитель.
+            Action.EDIT_CONTRACT_TEMPLATES,
         }
     ),
     Role.ADMIN: frozenset(

@@ -1,8 +1,9 @@
-"""Схемы договора взаимодействия.
+"""Схемы договора взаимодействия и типовых шаблонов договоров.
 
 Договор необязателен: до подписания его может не быть или он черновик
 внутри взаимодействия. Вуз и ответственный в договоре не дублируются -
-они берутся из взаимодействия.
+они берутся из взаимодействия. Подписант со стороны вуза - отдельно:
+подписывает не обязательно ответственный контакт.
 """
 
 import uuid
@@ -12,6 +13,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.enums import ContractClosureReason, ContractStatus
 from app.schemas.common import ORMModel
+from app.schemas.user import UserBrief
 
 
 class ContractWrite(BaseModel):
@@ -25,6 +27,17 @@ class ContractWrite(BaseModel):
     status: ContractStatus = ContractStatus.DRAFT
     closure_reason: ContractClosureReason | None = None
     comment: str | None = None
+    signatory_name: str | None = Field(
+        default=None, max_length=255, description="Подписант со стороны вуза: ФИО"
+    )
+    signatory_position: str | None = Field(
+        default=None, max_length=255, description="Должность подписанта"
+    )
+    signatory_basis: str | None = Field(
+        default=None,
+        max_length=255,
+        description="Основание полномочий: «Устава», «доверенности № 12 от 15.01.2026»",
+    )
 
     @model_validator(mode="after")
     def _rules(self) -> "ContractWrite":
@@ -61,6 +74,9 @@ class ContractRead(ORMModel):
     status: ContractStatus
     closure_reason: ContractClosureReason | None
     comment: str | None
+    signatory_name: str | None = None
+    signatory_position: str | None = None
+    signatory_basis: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -74,3 +90,57 @@ class ContractBrief(BaseModel):
     signed_at: date | None = None
     valid_to: date | None = None
     days_left: int | None = None
+
+
+# --- Типовые шаблоны договоров ---------------------------------------------------
+
+
+class ContractTemplateWrite(BaseModel):
+    """Шаблон: название и текст с полями ``{{поле}}``. Неизвестное поле -
+    ошибка: опечатка в шаблоне иначе всплыла бы только в готовом договоре."""
+
+    name: str = Field(min_length=1, max_length=255)
+    body: str = Field(
+        min_length=1,
+        max_length=50_000,
+        description=(
+            "Текст договора. Строка «# ...» - заголовок по центру, «## ...» - "
+            "заголовок раздела, поля - в двойных фигурных скобках: {{вуз}}."
+        ),
+    )
+    is_active: bool = True
+
+
+class ContractTemplateRead(ORMModel):
+    id: uuid.UUID
+    name: str
+    body: str
+    is_active: bool
+    updated_at: datetime | None = None
+    updated_by: UserBrief | None = None
+
+
+class TemplateFieldRead(BaseModel):
+    """Поле шаблона: что подставляется вместо ``{{key}}``."""
+
+    key: str
+    label: str
+    group: str
+
+
+class ContractDocumentRequest(BaseModel):
+    template_id: uuid.UUID
+    # Для «приложить к взаимодействию»: к какому событию процесса (этапу)
+    # привязать файл. Без него файл лежит во взаимодействии без этапа.
+    workflow_event_id: uuid.UUID | None = None
+
+
+class ContractDocumentPreview(BaseModel):
+    """Текст договора с подставленными значениями - до формирования файла."""
+
+    template_name: str
+    filename: str
+    text: str
+    # Поля, для которых нет значения: в документе на их месте - пропуск
+    # для заполнения от руки.
+    missing: list[TemplateFieldRead]

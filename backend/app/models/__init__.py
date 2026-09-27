@@ -13,7 +13,7 @@ from app.models.catalog import (
     VendorContact,
 )
 from app.models.content import Attachment, Comment
-from app.models.contract import Contract, License
+from app.models.contract import Contract, ContractTemplate, License
 from app.models.importing import ImportRowError, ImportRun
 from app.models.integration import (
     ExternalLink,
@@ -49,6 +49,7 @@ __all__ = [
     "Base",
     "Comment",
     "Contract",
+    "ContractTemplate",
     "DataVersion",
     "Enrollment",
     "ExternalLink",

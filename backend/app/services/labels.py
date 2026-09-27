@@ -162,6 +162,7 @@ EVENT_TYPE_LABELS = {
 
 DOCUMENT_TYPE_LABELS = {
     DocumentType.CONTRACT: "Договор",
+    DocumentType.CONTRACT_DRAFT: "Проект договора",
     DocumentType.AGREEMENT: "Дополнительное соглашение",
     DocumentType.LICENSE: "Лицензия",
     DocumentType.ACT: "Акт приёма-передачи",

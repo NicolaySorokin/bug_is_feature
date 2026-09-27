@@ -682,9 +682,22 @@ export function TextAreaField({
   maxLength?: number;
 }) {
   const id = useId();
+  // TextArea из Atomaro кладёт значение в <textarea> содержимым, а не value:
+  // браузер берёт его только при появлении поля. Если значение меняет не ввод,
+  // а код (очистка после отправки, загрузка данных), поле пересоздаётся с новым
+  // текстом - иначе на экране остался бы уже отправленный комментарий.
+  const typed = useRef(value);
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    if (value !== typed.current) {
+      typed.current = value;
+      setRevision((current) => current + 1);
+    }
+  }, [value]);
   return (
     <Field label={label} hint={hint} error={error} required={required} htmlFor={id} className={className}>
       <AtomaroTextArea
+        key={revision}
         id={id}
         className="textarea-full"
         value={value}
@@ -693,7 +706,10 @@ export function TextAreaField({
         placeholder={placeholder}
         disabled={disabled}
         maxLength={maxLength}
-        onChange={(event: ChangeEvent<HTMLTextAreaElement>) => onChange(event.target.value)}
+        onChange={(event: ChangeEvent<HTMLTextAreaElement>) => {
+          typed.current = event.target.value;
+          onChange(event.target.value);
+        }}
       />
     </Field>
   );

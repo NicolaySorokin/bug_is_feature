@@ -5,7 +5,8 @@
  * Права разделены (пункты 6 и 7 перечня исправлений): записи справочников
  * ведёт администратор, а какие ИТ-продукты используются в программе -
  * бизнес-решение руководителя. Каждый видит справочники целиком, но
- * меняет только своё.
+ * меняет только своё. Типовые шаблоны договоров - тоже руководителя:
+ * вкладка видна только ему (ContractTemplates.tsx).
  *
  * Запись не удаляется, а выключается: на неё ссылаются взаимодействия и отчёты
  * прошлых периодов.
@@ -15,6 +16,7 @@ import {
   Boxes,
   Compass,
   Factory,
+  FileSignature,
   FileSpreadsheet,
   GraduationCap,
   Mail,
@@ -60,6 +62,7 @@ import {
   TextField,
 } from "../../components/ui";
 import { usePageTitle } from "../../lib/usePageTitle";
+import { ContractTemplates } from "./ContractTemplates";
 
 type Kind = "directions" | "programs" | "vendors" | "products";
 
@@ -437,9 +440,11 @@ export default function CatalogPage() {
   const { can } = useSession();
   const canEdit = can("edit_catalog");
   const canLink = can("edit_program_products");
+  const canTemplates = can("edit_contract_templates");
   const kind = (
     ["directions", "programs", "vendors", "products"].includes(params.get("tab") || "") ? params.get("tab") : "programs"
   ) as Kind;
+  const showTemplates = canTemplates && params.get("tab") === "templates";
   const [search, setSearch] = useState("");
   const [edit, setEdit] = useState<EditState | null>(null);
   const [contactsOf, setContactsOf] = useState<Vendor | null>(null);
@@ -494,7 +499,9 @@ export default function CatalogPage() {
             ? canLink
               ? undefined
               : "Записи справочников ведёт администратор; какие продукты используются в программе, задаёт руководитель."
-            : "Справочники ведёт администратор. Вы задаёте, какие ИТ-продукты используются в каждой ИТ-программе."
+            : canTemplates
+              ? "Справочники ведёт администратор. Вы задаёте, какие ИТ-продукты используются в каждой ИТ-программе, и типовые шаблоны договоров."
+              : "Справочники ведёт администратор. Вы задаёте, какие ИТ-продукты используются в каждой ИТ-программе."
         }
         actions={
           can("import") && (
@@ -505,104 +512,118 @@ export default function CatalogPage() {
         }
       />
       <Tabs
-        value={kind}
+        value={showTemplates ? "templates" : kind}
         onChange={(key) => setParams({ tab: key }, { replace: true })}
         label="Справочники"
-        items={(["programs", "directions", "products", "vendors"] as Kind[]).map((key) => ({
-          key,
-          label: TITLES[key][0],
-          icon: TAB_ICONS[key],
-          count: sources[key].data?.length,
-        }))}
+        items={[
+          ...(["programs", "directions", "products", "vendors"] as Kind[]).map((key) => ({
+            key,
+            label: TITLES[key][0],
+            icon: TAB_ICONS[key],
+            count: sources[key].data?.length,
+          })),
+          { key: "templates", label: "Шаблоны договоров", icon: FileSignature, hidden: !canTemplates },
+        ]}
       />
-      <div className="toolbar">
-        <Field label="Поиск" className="field--grow">
-          <SearchInput value={search} onChange={setSearch} placeholder="Название" />
-        </Field>
-        {canEdit && (
-          <div className="toolbar__actions">
-            <Button icon={Plus} onClick={() => setEdit({ kind, item: null })}>
-              Добавить {accusative}
-            </Button>
+      {showTemplates ? (
+        <ContractTemplates />
+      ) : (
+        <>
+          <div className="toolbar">
+            <Field label="Поиск" className="field--grow">
+              <SearchInput value={search} onChange={setSearch} placeholder="Название" />
+            </Field>
+            {canEdit && (
+              <div className="toolbar__actions">
+                <Button icon={Plus} onClick={() => setEdit({ kind, item: null })}>
+                  Добавить {accusative}
+                </Button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      <Card flush title={`${title}: ${items.length}`}>
-        {source.isPending ? (
-          <Loading />
-        ) : source.isError ? (
-          <ErrorState error={source.error} onRetry={() => void source.refetch()} />
-        ) : items.length === 0 ? (
-          <EmptyState title="Записей нет" />
-        ) : (
-          <div className="table-wrap">
-            <table className="data-table data-table--cards">
-              <thead>
-                <tr>
-                  <th scope="col">Название</th>
-                  <th scope="col">Сведения</th>
-                  <th scope="col">Состояние</th>
-                  <th scope="col" className="col-actions">
-                    <span className="visually-hidden">Действия</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.id}>
-                    <td className="cell-primary">
-                      <div className="cell-title">
-                        {canEdit || (canLink && kind === "programs") ? (
-                          <button
-                            type="button"
-                            className="link-btn"
-                            onClick={() => (canEdit ? setEdit({ kind, item }) : setLinksOf(item))}
-                          >
-                            {item.name}
-                          </button>
-                        ) : (
-                          <strong>{item.name}</strong>
-                        )}
-                        {item.description && <small>{item.description}</small>}
-                      </div>
-                    </td>
-                    <td data-label="Сведения">{extra(item)}</td>
-                    <td data-label="Состояние">
-                      {item.is_active ? (
-                        <StatusBadge tone="success">Используется</StatusBadge>
-                      ) : (
-                        <StatusBadge>Выключен</StatusBadge>
-                      )}
-                    </td>
-                    <td className="col-actions" data-label="">
-                      {kind === "vendors" && (
-                        <Button variant="ghost" size="s" icon={UserPlus} onClick={() => setContactsOf(item as unknown as Vendor)}>
-                          Контакты
-                        </Button>
-                      )}
-                      {kind === "programs" && canLink && (
-                        <Button variant="ghost" size="s" icon={Boxes} onClick={() => setLinksOf(item)}>
-                          Продукты
-                        </Button>
-                      )}
-                      {canEdit && (
-                        <button
-                          type="button"
-                          className="icon-btn"
-                          aria-label={`Изменить ${item.name}`}
-                          onClick={() => setEdit({ kind, item })}
-                        >
-                          <Pencil size={16} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+          <Card flush title={`${title}: ${items.length}`}>
+            {source.isPending ? (
+              <Loading />
+            ) : source.isError ? (
+              <ErrorState error={source.error} onRetry={() => void source.refetch()} />
+            ) : items.length === 0 ? (
+              <EmptyState title="Записей нет" />
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table data-table--cards">
+                  <thead>
+                    <tr>
+                      <th scope="col">Название</th>
+                      <th scope="col">Сведения</th>
+                      <th scope="col">Состояние</th>
+                      <th scope="col" className="col-actions">
+                        <span className="visually-hidden">Действия</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item) => (
+                      <tr key={item.id}>
+                        <td className="cell-primary">
+                          <div className="cell-title">
+                            {canEdit || (canLink && kind === "programs") ? (
+                              <button
+                                type="button"
+                                className="link-btn"
+                                onClick={() => (canEdit ? setEdit({ kind, item }) : setLinksOf(item))}
+                              >
+                                {item.name}
+                              </button>
+                            ) : (
+                              <strong>{item.name}</strong>
+                            )}
+                            {item.description && <small>{item.description}</small>}
+                          </div>
+                        </td>
+                        <td data-label="Сведения">{extra(item)}</td>
+                        <td data-label="Состояние">
+                          {item.is_active ? (
+                            <StatusBadge tone="success">Используется</StatusBadge>
+                          ) : (
+                            <StatusBadge>Выключен</StatusBadge>
+                          )}
+                        </td>
+                        <td className="col-actions" data-label="">
+                          {kind === "vendors" && (
+                            <Button
+                              variant="ghost"
+                              size="s"
+                              icon={UserPlus}
+                              onClick={() => setContactsOf(item as unknown as Vendor)}
+                            >
+                              Контакты
+                            </Button>
+                          )}
+                          {kind === "programs" && canLink && (
+                            <Button variant="ghost" size="s" icon={Boxes} onClick={() => setLinksOf(item)}>
+                              Продукты
+                            </Button>
+                          )}
+                          {canEdit && (
+                            <button
+                              type="button"
+                              className="icon-btn"
+                              aria-label={`Изменить ${item.name}`}
+                              onClick={() => setEdit({ kind, item })}
+                            >
+                              <Pencil size={16} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
       {canEdit && <ItemModal edit={edit} onClose={() => setEdit(null)} canLink={canLink} />}
       {canLink && <ProgramProductsModal program={linksOf} onClose={() => setLinksOf(null)} />}
       <VendorContacts vendor={contactsOf} onClose={() => setContactsOf(null)} readOnly={!canEdit} />

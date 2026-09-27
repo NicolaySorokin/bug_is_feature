@@ -63,7 +63,12 @@ const WORK: NavItem[] = [
 
 const ADMIN: NavItem[] = [
   { to: "/admin/users", label: "Пользователи и права", icon: Users, any: ["manage_users"] },
-  { to: "/admin/catalog", label: "Справочники", icon: LibraryBig, any: ["edit_catalog", "edit_program_products"] },
+  {
+    to: "/admin/catalog",
+    label: "Справочники",
+    icon: LibraryBig,
+    any: ["edit_catalog", "edit_program_products", "edit_contract_templates"],
+  },
   { to: "/admin/imports", label: "Загрузка из Excel", icon: FileSpreadsheet, any: ["import"] },
   { to: "/admin/workflows", label: "Рабочие процессы", icon: GitBranch, any: ["edit_templates"] },
   { to: "/admin/audit", label: "Журнал изменений", icon: History, any: ["view_audit"] },

@@ -338,9 +338,11 @@ class Upload:
 
 
 # Тип документа по названию файла - те же правила, что и при переносе
-# старых вложений в миграции 0005.
+# старых вложений в миграции 0005, плюс «Проект договора»: проект - ещё
+# не подписанный договор и не закрывает обязательный документ подписания.
 _DOCUMENT_WORDS: tuple[tuple[tuple[str, ...], DocumentType], ...] = (
     (("соглашени",), DocumentType.AGREEMENT),
+    (("проект договора",), DocumentType.CONTRACT_DRAFT),
     (("договор",), DocumentType.CONTRACT),
     (("лиценз",), DocumentType.LICENSE),
     (("акт ",), DocumentType.ACT),

@@ -29,6 +29,7 @@ export type Action =
   | "edit_catalog"
   | "import"
   | "edit_templates"
+  | "edit_contract_templates"
   | "edit_workflow_presentation"
   | "view_audit"
   | "edit_settings"

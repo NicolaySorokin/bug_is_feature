@@ -74,6 +74,7 @@ export const FALLBACK_LABELS: MetaEnums["labels"] = {
   },
   document_type: {
     contract: "Договор",
+    contract_draft: "Проект договора",
     agreement: "Дополнительное соглашение",
     license: "Лицензия",
     act: "Акт приёма-передачи",
@@ -166,6 +167,7 @@ export const CLOSURE_REASONS = [
 ] as const;
 export const DOCUMENT_TYPES = [
   "contract",
+  "contract_draft",
   "agreement",
   "license",
   "act",

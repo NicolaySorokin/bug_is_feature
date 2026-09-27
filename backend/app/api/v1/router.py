@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     audit,
     catalog,
     content,
+    contract_templates,
     dashboard,
     health,
     imports,
@@ -43,6 +44,8 @@ authenticated.include_router(workflow_admin.presentation_router)
 authenticated.include_router(content.router)
 authenticated.include_router(content.files_router)
 authenticated.include_router(licenses.router)
+authenticated.include_router(contract_templates.router)
+authenticated.include_router(contract_templates.documents_router)
 authenticated.include_router(reports.router)
 authenticated.include_router(statistics.router)
 authenticated.include_router(integrations.router)

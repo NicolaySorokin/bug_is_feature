@@ -126,5 +126,30 @@ async def save_upload(
     )
 
 
+def save_bytes(content: bytes, original_name: str, subdir: str) -> StoredFile:
+    """Сохраняет файл, который сформировала сама система (договор по шаблону).
+
+    Правила те же, что для загрузки: допустимое расширение, предел размера,
+    имя на диске - случайное.
+    """
+    extension = check_extension(original_name)
+    if len(content) > settings.max_upload_bytes:
+        raise AppError(
+            f"Файл больше допустимых {settings.max_upload_mb} МБ",
+            code=ErrorCode.FILE_TOO_LARGE,
+            status_code=413,
+        )
+    directory = storage_root() / subdir
+    directory.mkdir(parents=True, exist_ok=True)
+    relative = str(PurePosixPath(subdir) / f"{uuid.uuid4()}.{extension}")
+    (directory / Path(relative).name).write_bytes(content)
+    return StoredFile(
+        original_name=original_name,
+        storage_path=relative,
+        mime_type=ALLOWED_TYPES.get(extension, "application/octet-stream"),
+        size_bytes=len(content),
+    )
+
+
 def delete(storage_path: str) -> None:
     absolute_path(storage_path).unlink(missing_ok=True)
