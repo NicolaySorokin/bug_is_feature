@@ -346,6 +346,9 @@ export default function IntegrationsPage() {
       key: "source",
       title: "Источник",
       primary: true,
+      // Название и время запуска не переносятся: длинный текст сбоя
+      // переносится в «Подробностях», а не сжимает эту колонку.
+      className: "nowrap",
       render: (row) => (
         <div className="cell-title">
           <button type="button" className="link-btn" onClick={() => setRunId(row.id)}>

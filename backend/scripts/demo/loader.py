@@ -83,7 +83,7 @@ from app.models.workflow import (
 )
 from app.services import imports, storage
 from app.services.integrations import sync
-from app.services.integrations.base import load_fixture
+from app.services.integrations.base import UNAVAILABLE_MESSAGE, load_fixture
 from app.services.integrations.lms import LmsAdapter
 from app.services.integrations.site import SiteAdapter
 from scripts.demo import files, sheets
@@ -118,7 +118,8 @@ _REMARKS = (
     "Интерес к расширению на магистратуру",
 )
 
-_SYNC_ERROR = "Внешняя система ответила ошибкой 502"
+# Неудачный обмен в демоданных - той же фразой, что видит сотрудник при сбое.
+_SYNC_ERROR = UNAVAILABLE_MESSAGE
 _UNKNOWN_UNIVERSITY = "Вуз «site-99» не сопоставлен со справочником"
 
 # Вуз с сайта, который обмен не сопоставил сам: такое же название уже есть

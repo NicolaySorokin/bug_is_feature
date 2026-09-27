@@ -72,6 +72,11 @@ class SiteAdapter:
     async def fetch(self) -> IntegrationPayload:
         attempts = 1
         if self.uses_fixture:
+            # Заглушка внешнего API: API сайта организаторы не предоставят,
+            # поэтому без SITE_BASE_URL вместо запроса берётся тестовый ответ
+            # той же формы (fixtures/site.json). Разбор и весь дальнейший путь
+            # данных - те же, что для настоящего ответа. Почему так - в начале
+            # base.py.
             raw = load_fixture("site")
         else:
             raw, attempts = await fetch_json(f"{self.base_url}/api/applications", self._token)

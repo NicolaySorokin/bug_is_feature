@@ -104,6 +104,11 @@ class LmsAdapter:
     async def fetch(self) -> IntegrationPayload:
         attempts = 1
         if self.uses_fixture:
+            # Заглушка внешнего API: API LMS организаторы не предоставят,
+            # поэтому без LMS_BASE_URL вместо запроса берётся тестовый ответ
+            # той же формы (fixtures/lms.json). Разбор и весь дальнейший путь
+            # данных - те же, что для настоящего ответа. Почему так - в начале
+            # base.py.
             raw = load_fixture("lms")
         else:
             raw, attempts = await fetch_json(f"{self.base_url}/api/v1/programs", self._token)
