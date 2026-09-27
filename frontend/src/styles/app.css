@@ -650,6 +650,24 @@ p {
   padding-top: 8px;
 }
 
+/* Последний обмен - не длиннее двух строк, чтобы длинное сообщение
+   об ошибке не растягивало обе карточки. Полный текст, ошибки по записям
+   и пояснения - по «Подробнее», в карточке запуска. */
+.source-card__last {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.source-card__summary {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .kpi-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));

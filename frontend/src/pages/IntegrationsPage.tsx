@@ -403,10 +403,24 @@ export default function IntegrationsPage() {
                       : `Адрес API: ${source.base_url}`}
                   </p>
                   {last && (
-                    <p style={{ fontSize: 13 }}>
-                      Последний обмен {formatDateTime(last.started_at)}:{" "}
-                      {last.status === "failed" ? <span className="field__error">{last.error_message}</span> : describeRun(last)}
-                    </p>
+                    <div className="source-card__last">
+                      <p className="source-card__summary">
+                        Последний обмен {formatDateTime(last.started_at)}:{" "}
+                        {last.status === "failed" ? (
+                          <span className="field__error">{last.error_message}</span>
+                        ) : (
+                          describeRun(last)
+                        )}
+                      </p>
+                      <button
+                        type="button"
+                        className="link-btn"
+                        aria-label={`Подробнее о последнем обмене: ${source.name}`}
+                        onClick={() => setRunId(last.id)}
+                      >
+                        Подробнее
+                      </button>
+                    </div>
                   )}
                   <div className="row source-card__actions">
                     {can("sync_integrations") && (
