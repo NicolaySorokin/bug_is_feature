@@ -305,7 +305,8 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
           </Button>
           <Button
             loading={save.isPending}
-            disabled={!user.data || roles.length === 0 || !fullName.trim() || needsReason}
+            // Снять с себя роль администратора сервер не даст - кнопку не предлагаем.
+            disabled={!user.data || roles.length === 0 || !fullName.trim() || needsReason || (self && !roles.includes("admin"))}
             onClick={() => save.mutate(undefined)}
           >
             Сохранить
