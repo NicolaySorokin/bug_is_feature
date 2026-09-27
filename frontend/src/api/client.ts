@@ -19,7 +19,7 @@ export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api/v1").rep
 function fallbackMessage(status: number): string {
   if (status === 413) return "Файл слишком большой. Загрузите файл меньшего размера.";
   const what = status >= 500 ? "Сервер сейчас недоступен." : "Сервер не смог выполнить действие.";
-  return `${what} Повторите действие позже, а если ошибка повторится - обратитесь к разработчику.`;
+  return `${what} Повторите действие позже, а если ошибка повторится - обратитесь к администратору.`;
 }
 
 function fallbackCode(status: number): string {

@@ -172,8 +172,8 @@ def register_error_handlers(app: FastAPI) -> None:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=error_payload(
                 ErrorCode.INTERNAL_ERROR,
-                "Внутренняя ошибка сервиса. Повторите действие позже, а если "
-                "ошибка повторится - обратитесь к разработчику.",
+                "Внутренняя ошибка сервиса. Повторите действие или обратитесь "
+                "к администратору",
             ),
         )
 
