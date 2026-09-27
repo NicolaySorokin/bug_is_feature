@@ -57,9 +57,12 @@ export function SysadminGuide(): Section[] {
             </tbody>
           </table>
           <p>
-            Описание API - Swagger UI (<code>/docs</code>) и ReDoc (<code>/redoc</code>), схема -{" "}
-            <code>/api/v1/openapi.json</code>. Модель архитектуры в нотации ArchiMate (Archi) -{" "}
-            <code>docs/architecture/edu-crm.archimate</code> в репозитории.
+            Описание API -{" "}
+            <a href="/docs" target="_blank" rel="noreferrer">
+              Swagger UI
+            </a>{" "}
+            (<code>/docs</code>) и ReDoc (<code>/redoc</code>), схема - <code>/api/v1/openapi.json</code>. Модель архитектуры в
+            нотации ArchiMate (Archi) - <code>docs/architecture/edu-crm.archimate</code> в репозитории.
           </p>
         </>
       ),

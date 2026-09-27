@@ -4,8 +4,8 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle,
   BarChart3,
+  Bell,
   BookOpen,
   Building2,
   ClipboardList,
@@ -249,8 +249,8 @@ function AlertsMenu() {
   return (
     <div style={{ position: "relative" }} ref={ref}>
       <IconButton
-        icon={AlertTriangle}
-        label={`Проблемы: ${items.length}`}
+        icon={Bell}
+        label={`Требует внимания: ${items.length}`}
         badge={critical}
         expanded={open}
         onClick={() => setOpen((value) => !value)}
@@ -265,7 +265,7 @@ function AlertsMenu() {
           {items.slice(0, 30).map((item, index) => {
             const body = (
               <>
-                <AlertTriangle size={16} className={`alert-item__icon alert-item__icon--${item.severity}`} />
+                <Bell size={16} className={`alert-item__icon alert-item__icon--${item.severity}`} />
                 <span className="alert-item__text">
                   <strong>{item.kind_label}</strong>
                   <span>{item.message}</span>

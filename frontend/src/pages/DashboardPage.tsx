@@ -13,9 +13,9 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle,
   ArrowRight,
   Ban,
+  Bell,
   Building2,
   CheckCircle2,
   Clock,
@@ -35,7 +35,7 @@ import { keys, useLabel } from "../api/queries";
 import type { Alert, ControlItem, Dashboard, NextStep } from "../api/types";
 import { useSession } from "../auth/session";
 import { ChartCard } from "../charts/ChartCard";
-import { Button, Card, EmptyState, ErrorState, Kpi, Loading, PageHeader, StatusBadge } from "../components/ui";
+import { Button, Card, EmptyState, ErrorState, Kpi, KpiRow, Loading, PageHeader, StatusBadge } from "../components/ui";
 import { interactionTitle, SlaBlock, StatusCell, UniversityName } from "../features/interaction/parts";
 import { countLabel, formatDateTime, formatLongDate, formatNumber } from "../lib/format";
 import { IMPORT_TYPE_LABELS, RUN_TONE, SEVERITY_TONE } from "../lib/labels";
@@ -143,7 +143,7 @@ function AlertList({ alerts, limit = 8 }: { alerts: Alert[]; limit?: number }) {
       {alerts.slice(0, limit).map((alert, index) => {
         const content = (
           <>
-            <AlertTriangle
+            <Bell
               size={16}
               className={`alert-item__icon alert-item__icon--${alert.severity}`}
               aria-label={alert.severity_label}
@@ -287,7 +287,7 @@ function AdminBlock({ data }: { data: Dashboard }) {
   if (!admin) return null;
   return (
     <>
-      <div className="kpi-row">
+      <KpiRow>
         <Kpi
           label="Пользователи"
           icon={Users}
@@ -318,7 +318,7 @@ function AdminBlock({ data }: { data: Dashboard }) {
           detail="области и доступы к вузам со сроком"
           onClick={() => navigate("/admin/users")}
         />
-      </div>
+      </KpiRow>
       <div className="grid-3">
         <Card title="Пользователи по ролям" actions={<Link to="/admin/users">Управление</Link>}>
           <div className="tags">
@@ -450,7 +450,7 @@ export default function DashboardPage() {
 
       <div className="stack" style={{ gap: 20 }}>
         {business && (
-          <div className="kpi-row">
+          <KpiRow>
             <Kpi
               label={role === "manager" ? "Мои активные" : "Активные"}
               icon={Handshake}
@@ -499,7 +499,7 @@ export default function DashboardPage() {
               detail={`успешно ${formatNumber(counters.successful)} · частично ${formatNumber(counters.partial)} · без успеха ${formatNumber(counters.unsuccessful)}`}
               onClick={() => listByStatus("completed,cancelled")}
             />
-          </div>
+          </KpiRow>
         )}
 
         {business && (
