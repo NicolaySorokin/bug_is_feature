@@ -618,6 +618,38 @@ p {
   color: #fff;
 }
 
+/* Карточка на всю высоту ряда сетки: подвал с кнопками прижат к низу,
+   на одной линии с соседними карточками, сколько бы ни было текста. */
+.card--fill {
+  display: flex;
+  flex-direction: column;
+}
+
+.card--fill > .card__body {
+  flex: 1;
+}
+
+/* Карточки источников «LMS и сайт» стоят рядом: одной высоты, кнопки -
+   на одной линии внизу, даже если у одной из них текст длиннее. Кнопки
+   у них не в подвале, а в теле карточки - к низу прижимается сам ряд. */
+.sources {
+  align-items: stretch;
+}
+
+.source-card > .card__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.source-card > .card__body > .stack-s {
+  flex: 1;
+}
+
+.source-card__actions {
+  margin-top: auto;
+  padding-top: 8px;
+}
+
 .kpi-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -826,12 +858,15 @@ button.kpi {
   grid-column: 1 / -1;
 }
 
+/* Системные поля (список, дата, число, почта, поиск) оформлены как поле
+   Atomaro - те же рамка, скругление, наведение и фокус, - чтобы в одной
+   форме поля двух видов не отличались. */
 .control {
   width: 100%;
   min-height: 36px;
-  padding: 6px 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-s);
+  padding: 5px 12px;
+  border: var(--input-m-border-width, 2px) solid var(--input-primary-border-color-default);
+  border-radius: var(--input-m-border-radius, 6px);
   background: var(--surface);
   color: var(--text);
   font-size: 14px;
@@ -841,14 +876,14 @@ button.kpi {
     box-shadow 0.15s;
 }
 
-.control:hover {
-  border-color: var(--border-default, rgba(68, 83, 113, 0.5));
+.control:hover:not(:disabled) {
+  border-color: var(--input-primary-border-color-hover);
 }
 
 .control:focus {
-  border-color: var(--rt-violet);
+  border-color: var(--input-primary-border-color-focus);
   outline: none;
-  box-shadow: var(--focus);
+  box-shadow: 0 0 0 var(--focus-soft-border-width) var(--focus-soft-color);
 }
 
 .control:disabled {
@@ -877,7 +912,7 @@ select.control {
 
 .control--s {
   min-height: 34px;
-  padding: 5px 10px;
+  padding: 4px 10px;
   font-size: 13px;
 }
 
@@ -986,6 +1021,12 @@ select.control--s {
   --badge-secondary-neutral-label-color: #3a4760;
   --badge-secondary-status-04-bg-color: rgba(119, 0, 255, 0.1);
   --badge-secondary-status-04-label-color: #5500b8;
+
+  /* Фокус поля. У Atomaro это ореол 6px: вокруг поля получалась толстая
+     бледная рамка. 3px и плотнее цветом - аккуратнее, а заметность фокусу
+     даёт фиолетовая рамка самого поля. Этот же ореол у системных полей. */
+  --focus-soft-border-width: 3px;
+  --focus-soft-color: rgba(119, 0, 255, 0.16);
 }
 
 .input.input-full,
@@ -1320,22 +1361,27 @@ select.control--s {
   min-height: 36px;
   align-items: center;
   gap: 8px;
-  padding: 6px 32px 6px 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-s);
+  padding: 5px 32px 5px 12px;
+  border: var(--input-m-border-width, 2px) solid var(--input-primary-border-color-default);
+  border-radius: var(--input-m-border-radius, 6px);
   background: var(--surface)
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235f6a80' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
     no-repeat right 10px center;
   text-align: left;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .multi__button:hover {
-  border-color: var(--border-default, rgba(68, 83, 113, 0.5));
+  border-color: var(--input-primary-border-color-hover);
 }
 
+/* Открытый список и фокус - как у поля. */
+.multi__button:focus-visible,
 .multi__button[aria-expanded="true"] {
-  border-color: var(--rt-violet);
-  box-shadow: var(--focus);
+  border-color: var(--input-primary-border-color-focus);
+  box-shadow: 0 0 0 var(--focus-soft-border-width) var(--focus-soft-color);
 }
 
 .multi__value {
@@ -1473,8 +1519,13 @@ select.control--s {
   background: var(--accent-10, #fbf8ff);
 }
 
+/* Числа - по центру столбца, как и заголовок. В наших таблицах это
+   короткие счётчики между текстовыми столбцами: прижатое вправо число
+   уходило от своего заголовка и прилипало к тексту соседнего столбца
+   («0 Внешняя система ответила…»). По той же оси встают прочерк и бейдж
+   со счётчиком. На телефоне таблица - карточки, там значение справа. */
 .data-table .col-num {
-  text-align: right;
+  text-align: center;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
