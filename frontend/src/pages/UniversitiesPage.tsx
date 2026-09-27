@@ -21,6 +21,7 @@ import {
   EmptyState,
   ErrorState,
   Hint,
+  KpiRow,
   Loading,
   PageHeader,
   SearchInput,
@@ -152,7 +153,7 @@ export default function UniversitiesPage() {
         }
       />
       {manages && (pendingCount > 0 || duplicateCount > 0) && (
-        <div className="kpi-row" style={{ marginBottom: 16 }}>
+        <KpiRow style={{ marginBottom: 16 }}>
           {pendingCount > 0 && (
             <button type="button" className="kpi kpi--alert" onClick={() => update({ status: "pending", offset: "" })}>
               <span className="kpi__label">
@@ -178,7 +179,7 @@ export default function UniversitiesPage() {
               </span>
             </div>
           )}
-        </div>
+        </KpiRow>
       )}
       <div className="toolbar">
         <div className="field field--grow">

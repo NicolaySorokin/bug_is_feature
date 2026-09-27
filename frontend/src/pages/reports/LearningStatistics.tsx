@@ -13,7 +13,7 @@ import { ChartCard } from "../../charts/ChartCard";
 import { Drawer } from "../../components/Modal";
 import { MultiSelect } from "../../components/MultiSelect";
 import { PeriodPicker, type Period } from "../../components/PeriodPicker";
-import { Button, Card, EmptyState, ErrorState, Kpi, Loading } from "../../components/ui";
+import { Button, Card, EmptyState, ErrorState, Kpi, KpiRow, Loading } from "../../components/ui";
 import { formatDate, formatDateTime, formatNumber } from "../../lib/format";
 import { usePersistentState } from "../../lib/storage";
 
@@ -169,7 +169,7 @@ export function LearningStatistics() {
         <ErrorState error={statistics.error} onRetry={() => void statistics.refetch()} />
       ) : (
         <div className={`stack ${statistics.isFetching && statistics.isPlaceholderData ? "is-refreshing" : ""}`}>
-          <div className="kpi-row">
+          <KpiRow>
             <Kpi label="Заявки с сайта" value={formatNumber(statistics.data.totals.applications)} />
             <Kpi
               label="Обучаются (LMS)"
@@ -183,7 +183,7 @@ export function LearningStatistics() {
             <Kpi label="Потоки" value={formatNumber(statistics.data.totals.streams)} />
             <Kpi label="ИТ-программы" value={formatNumber(statistics.data.totals.programs)} />
             <Kpi label="ИТ-направления" value={formatNumber(statistics.data.totals.directions)} />
-          </div>
+          </KpiRow>
 
           <Card
             title="Рейтинг ИТ-программ"

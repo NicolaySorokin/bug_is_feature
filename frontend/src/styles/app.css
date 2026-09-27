@@ -38,6 +38,9 @@
   --sidebar-width: 256px;
   --topbar-height: 64px;
   --gutter: 28px;
+  /* Поле карточки по горизонтали: заголовок, содержимое, подвал, а также
+     первая колонка таблиц и строки списков внутри карточки - на одной линии. */
+  --card-pad-x: 16px;
 
   /* Диаграммы: одна категория - фиолетовый, вторая - оранжевый. Пара
      проверена на различимость при нарушениях цветового зрения. */
@@ -566,7 +569,7 @@ p {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 20px 0;
+  padding: 16px var(--card-pad-x) 0;
 }
 
 .card__header > div:first-child {
@@ -591,7 +594,12 @@ p {
 }
 
 .card__body {
-  padding: 16px 20px 20px;
+  padding: 12px var(--card-pad-x) 16px;
+}
+
+/* Карточка без заголовка: поля сверху и снизу одинаковые. */
+.card__body:first-child {
+  padding-top: 16px;
 }
 
 .card__body--flush {
@@ -603,7 +611,7 @@ p {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 12px 20px;
+  padding: 12px var(--card-pad-x);
   border-top: 1px solid var(--line);
 }
 
@@ -668,10 +676,20 @@ p {
   -webkit-line-clamp: 2;
 }
 
+/* Ряд показателей (KpiRow): колонок столько, чтобы ряды были поровну
+   (--kpi-cols считает компонент по ширине и --kpi-min). Карточки неполного
+   последнего ряда растягиваются на всю ширину. */
 .kpi-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 16px;
+  --kpi-min: 190px;
+  --kpi-gap: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kpi-gap);
+}
+
+.kpi-row > * {
+  min-width: 0;
+  flex: 1 1 calc((100% - (var(--kpi-cols, 4) - 1) * var(--kpi-gap)) / var(--kpi-cols, 4) - 1px);
 }
 
 .kpi {
@@ -1511,12 +1529,12 @@ select.control--s {
 
 .data-table th:first-child,
 .data-table td:first-child {
-  padding-left: 20px;
+  padding-left: var(--card-pad-x);
 }
 
 .data-table th:last-child,
 .data-table td:last-child {
-  padding-right: 20px;
+  padding-right: var(--card-pad-x);
 }
 
 .data-table td {
@@ -1596,7 +1614,7 @@ select.control--s {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  padding: 12px 20px;
+  padding: 12px var(--card-pad-x);
   border-top: 1px solid var(--line);
   color: var(--text-muted);
   font-size: 13px;
@@ -2045,7 +2063,7 @@ select.control--s {
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 0.9fr);
   gap: 12px;
   align-items: start;
-  padding: 12px 20px;
+  padding: 12px var(--card-pad-x);
   border-top: 1px solid var(--line);
   color: inherit;
   text-decoration: none;
@@ -2275,7 +2293,7 @@ a.step-row:hover {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 20px;
+  padding: 12px var(--card-pad-x);
   border-top: 1px solid var(--line);
   color: inherit;
   text-decoration: none;
@@ -2430,6 +2448,41 @@ a.list-item:hover {
 .file-row__name small {
   color: var(--text-muted);
   font-size: 12px;
+}
+
+/* Файл в узкой колонке: сверху название и сведения (переносятся, а не
+   обрезаются), под ними - тип документа и удаление. */
+.file-row--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.file-row__main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.file-row__main > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.file-row--stacked .file-row__name button {
+  overflow: visible;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.file-row__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-left: 26px;
 }
 
 .dropzone {
@@ -3429,6 +3482,7 @@ a.list-item:hover {
   :root {
     --gutter: 16px;
     --topbar-height: 56px;
+    --card-pad-x: 14px;
   }
 
   html,
@@ -3455,9 +3509,10 @@ a.list-item:hover {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* На телефоне - по две карточки в ряд. */
   .kpi-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    --kpi-min: 140px;
+    --kpi-gap: 10px;
   }
 
   .kpi {

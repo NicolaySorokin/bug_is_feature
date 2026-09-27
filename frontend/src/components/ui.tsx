@@ -18,8 +18,20 @@ import {
   Tooltip as AtomaroTooltip,
 } from "@atomaro/ui-kit";
 import { AlertTriangle, Inbox, Search, type LucideIcon } from "lucide-react";
-import { useEffect, useId, useRef, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
+import {
+  Children,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { ApiError, errorMessage } from "../api/client";
+import { kpiColumns } from "../lib/kpi";
 import type { Tone } from "../lib/labels";
 
 // --- Кнопки -------------------------------------------------------------------
@@ -390,6 +402,40 @@ export function Kpi({
     );
   }
   return <div className={className}>{content}</div>;
+}
+
+/**
+ * Ряд показателей. Карточки раскладываются ровными рядами по ширине
+ * экрана: шесть - в один ряд, 3 + 3 или 2 + 2 + 2, четыре - 4 или 2 + 2.
+ * Если поровну не делится (пять - это 3 + 2), карточки последнего ряда
+ * растягиваются на всю его ширину. Сколько карточек помещается в ряд,
+ * задаёт их наименьшая ширина (--kpi-min в стилях).
+ */
+export function KpiRow({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const count = Children.toArray(children).length;
+  const [columns, setColumns] = useState(count);
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const update = () => {
+      const styles = getComputedStyle(element);
+      const gap = parseFloat(styles.columnGap) || 0;
+      const min = parseFloat(styles.getPropertyValue("--kpi-min")) || 190;
+      setColumns(kpiColumns(count, Math.floor((element.clientWidth + gap) / (min + gap))));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [count]);
+
+  return (
+    <div ref={ref} className="kpi-row" style={{ ...style, "--kpi-cols": columns } as CSSProperties}>
+      {children}
+    </div>
+  );
 }
 
 export function DescriptionList({ items }: { items: [ReactNode, ReactNode][] }) {

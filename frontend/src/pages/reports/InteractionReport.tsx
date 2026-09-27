@@ -40,7 +40,18 @@ import { ChartCard } from "../../charts/ChartCard";
 import { Modal } from "../../components/Modal";
 import { MultiSelect } from "../../components/MultiSelect";
 import { PeriodPicker, type Period } from "../../components/PeriodPicker";
-import { Button, Card, Checkbox, EmptyState, ErrorState, Kpi, Loading, SelectField, TextField } from "../../components/ui";
+import {
+  Button,
+  Card,
+  Checkbox,
+  EmptyState,
+  ErrorState,
+  Kpi,
+  KpiRow,
+  Loading,
+  SelectField,
+  TextField,
+} from "../../components/ui";
 import { formatDate, formatDateTime, formatNumber } from "../../lib/format";
 import { CLOSURE_REASONS, INTERACTION_STATUSES, PERIOD_BASIS_LABELS } from "../../lib/labels";
 import { usePersistentState } from "../../lib/storage";
@@ -354,7 +365,7 @@ export function InteractionReport() {
         <ErrorState error={report.error} onRetry={() => void report.refetch()} />
       ) : (
         <div className={`stack ${report.isFetching && report.isPlaceholderData ? "is-refreshing" : ""}`}>
-          <div className="kpi-row">
+          <KpiRow>
             <Kpi label="Взаимодействия" value={formatNumber(report.data.totals.interactions)} />
             <Kpi label="Вузы" value={formatNumber(report.data.totals.universities)} />
             <Kpi
@@ -369,7 +380,7 @@ export function InteractionReport() {
             <Kpi label="ИТ-программы" value={formatNumber(report.data.totals.programs)} />
             <Kpi label="ИТ-продукты" value={formatNumber(report.data.totals.products)} />
             <Kpi label="Строк в отчёте" value={formatNumber(report.data.totals.rows)} />
-          </div>
+          </KpiRow>
 
           <Card
             title={state.title || DEFAULTS.title}

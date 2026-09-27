@@ -182,45 +182,51 @@ export function FilesTab({
           <div className="files">
             {[...attachments.data]
               .sort((a, b) => b.created_at.localeCompare(a.created_at))
-              .map((file) => (
-                <div key={file.id} className="file-row">
-                  <Paperclip size={16} />
-                  <div className="file-row__name">
-                    <button
-                      type="button"
-                      className="link-btn"
-                      title={file.original_name}
-                      onClick={() => void download(() => downloadAttachment(file.id))}
-                    >
-                      {file.original_name}
-                    </button>
-                    <small>
-                      {fileSize(file.size_bytes)} · {file.uploader?.full_name || "—"} · {formatDateTime(file.created_at)}
-                      {stageOfEvent(file.workflow_event_id) ? ` · «${stageOfEvent(file.workflow_event_id)}»` : ""}
-                    </small>
+              .map((file) => {
+                // Колонка узкая: название и сведения - во всю ширину и переносятся,
+                // а тип документа и удаление - отдельной строкой под ними.
+                const removable = canWork && (file.uploaded_by === me.id || can("assign_responsible"));
+                return (
+                  <div key={file.id} className="file-row file-row--stacked">
+                    <div className="file-row__main">
+                      <Paperclip size={16} />
+                      <div className="file-row__name">
+                        <button
+                          type="button"
+                          className="link-btn"
+                          onClick={() => void download(() => downloadAttachment(file.id))}
+                        >
+                          {file.original_name}
+                        </button>
+                        <small>
+                          {fileSize(file.size_bytes)} · {file.uploader?.full_name || "—"} · {formatDateTime(file.created_at)}
+                          {stageOfEvent(file.workflow_event_id) ? ` · «${stageOfEvent(file.workflow_event_id)}»` : ""}
+                        </small>
+                      </div>
+                    </div>
+                    <div className="file-row__footer">
+                      <Tag>{label("document_type", file.document_type || "other")}</Tag>
+                      {removable && (
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label={`Удалить ${file.original_name}`}
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: `Удалить файл «${file.original_name}»?`,
+                              confirmLabel: "Удалить",
+                              danger: true,
+                            });
+                            if (ok !== null) remove.mutate(file.id);
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  {file.document_type && file.document_type !== "other" && (
-                    <Tag>{label("document_type", file.document_type)}</Tag>
-                  )}
-                  {canWork && (file.uploaded_by === me.id || can("assign_responsible")) && (
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      aria-label={`Удалить ${file.original_name}`}
-                      onClick={async () => {
-                        const ok = await confirm({
-                          title: `Удалить файл «${file.original_name}»?`,
-                          confirmLabel: "Удалить",
-                          danger: true,
-                        });
-                        if (ok !== null) remove.mutate(file.id);
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
           </div>
         )}
       </Card>

@@ -21,7 +21,7 @@ import { useApiMutation, useDownload } from "../../api/mutations";
 import { invalidateInteractionData, keys, queryClient, useLabel } from "../../api/queries";
 import type { ImportPreview, ImportResult, ImportType } from "../../api/types";
 import { FilePicker } from "../../components/FilePicker";
-import { Button, Card, EmptyState, ErrorState, Loading, PageHeader, StatusBadge } from "../../components/ui";
+import { Button, Card, EmptyState, ErrorState, KpiRow, Loading, PageHeader, StatusBadge } from "../../components/ui";
 import { formatDateTime, formatNumber } from "../../lib/format";
 import { IMPORT_TYPE_LABELS } from "../../lib/labels";
 import { usePageTitle } from "../../lib/usePageTitle";
@@ -49,7 +49,7 @@ function ResultSummary({ result, committed }: { result: ImportResult; committed:
   const run = result.run;
   return (
     <div className="stack">
-      <div className="kpi-row">
+      <KpiRow>
         <div className="kpi">
           <span className="kpi__label">Строк в файле</span>
           <span className="kpi__value">{formatNumber(run.rows_total)}</span>
@@ -66,7 +66,7 @@ function ResultSummary({ result, committed }: { result: ImportResult; committed:
           <span className="kpi__label">С ошибками</span>
           <span className="kpi__value">{formatNumber(run.rows_failed)}</span>
         </div>
-      </div>
+      </KpiRow>
       {(result.errors || []).length > 0 && (
         <Card
           title="Замечания по строкам"

@@ -9,9 +9,9 @@
  */
 import { BookOpen, Info, ShieldCheck, TriangleAlert, Users, Wrench } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useSession } from "../../auth/session";
-import { Card, PageHeader, Tabs } from "../../components/ui";
+import { PageHeader, Tabs } from "../../components/ui";
 import { usePageTitle } from "../../lib/usePageTitle";
 import { AdminGuide } from "./AdminGuide";
 import { HeadGuide } from "./HeadGuide";
@@ -66,15 +66,15 @@ function Guide({ sections }: { sections: Section[] }) {
 
   return (
     <div className="help">
-      <Card className="help__toc">
-        <nav aria-label="Оглавление" className="help__toc">
-          {sections.map((section) => (
-            <a key={section.id} href={`#${section.id}`} className={active === section.id ? "active" : undefined}>
-              {section.title}
-            </a>
-          ))}
-        </nav>
-      </Card>
+      {/* Оглавление само оформлено карточкой: без вложенной карточки его поля
+          не складываются в двойной отступ. */}
+      <nav aria-label="Оглавление" className="card help__toc">
+        {sections.map((section) => (
+          <a key={section.id} href={`#${section.id}`} className={active === section.id ? "active" : undefined}>
+            {section.title}
+          </a>
+        ))}
+      </nav>
       <article className="card article">
         {sections.map((section) => (
           <section key={section.id}>
@@ -115,19 +115,11 @@ export default function HelpPage() {
 
   return (
     <div className="page">
-      <PageHeader
-        title="Руководства"
-        description={
-          <>
-            {admin ? "" : "Вопросы по доступу - к администратору системы (раздел «Пользователи и права» у него в меню). "}
-            Описание API - в{" "}
-            <Link to="/docs" target="_blank" reloadDocument>
-              Swagger UI
-            </Link>
-            .
-          </>
-        }
-      />
+      {/* Без подзаголовка: куда обращаться за доступом, сказано в разделе
+          «Роли и права» и на экране закрытого раздела, а Swagger UI нужен
+          техническим специалистам - ссылка на него в руководстве системного
+          администратора. */}
+      <PageHeader title="Руководства" />
       <Tabs
         value={current}
         onChange={(key) => navigate(`/help/${key}`)}
