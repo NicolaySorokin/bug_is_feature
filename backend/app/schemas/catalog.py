@@ -78,7 +78,7 @@ class ItProductRead(ORMModel):
 class NamedUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=500)
     description: str | None = None
-    # Запись справочника, на которую ссылаются договоры, не удаляют, а выключают.
+    # Запись справочника, на которую ссылаются взаимодействия, не удаляют, а выключают.
     is_active: bool | None = None
 
 

@@ -77,11 +77,20 @@ async def _check_unique_name(
         raise ConflictError(f"Запись «{name}» уже есть в справочнике")
 
 
+async def _active(session: SessionDep, model, item_id: uuid.UUID, title: str):  # noqa: ANN001
+    """Запись справочника для новой связи: архивную выбрать нельзя (пункт 22)."""
+    item = await _get(session, model, item_id, title)
+    if not item.is_active:
+        raise ConflictError(f"{title} «{item.name}» в архиве - выберите действующую запись")
+    return item
+
+
 async def _update(session: SessionDep, item, data: dict) -> None:  # noqa: ANN001
     if data.get("name"):
         await _check_unique_name(session, type(item), data["name"], item.id)
     for field, value in data.items():
-        if field == "name" and value is None:
+        # Название и признак активности обязательны: пустое значение - «не менять».
+        if field in ("name", "is_active") and value is None:
             continue
         setattr(item, field, value)
     await session.flush()
@@ -123,6 +132,8 @@ async def list_programs(session: SessionDep, _: CurrentUserDep) -> list[ItProgra
 )
 async def create_program(payload: ItProgramCreate, session: SessionDep) -> ItProgramRead:
     await _check_unique_name(session, ItProgram, payload.name)
+    if payload.direction_id is not None:
+        await _active(session, ItDirection, payload.direction_id, "ИТ-направление")
     program = ItProgram(**payload.model_dump())
     session.add(program)
     await session.flush()
@@ -182,7 +193,7 @@ async def _check_product_contact(
 async def create_product(payload: ItProductCreate, session: SessionDep) -> ItProductRead:
     await _check_unique_name(session, ItProduct, payload.name)
     if payload.vendor_id is not None:
-        await _get(session, Vendor, payload.vendor_id, "Вендор")
+        await _active(session, Vendor, payload.vendor_id, "Вендор")
     await _check_product_contact(session, payload.vendor_id, payload.contact_id)
     product = ItProduct(**payload.model_dump())
     session.add(product)
@@ -218,8 +229,9 @@ async def update_program(
 ) -> ItProgramRead:
     item = await _get(session, ItProgram, item_id, "ИТ-программа")
     data = payload.model_dump(exclude_unset=True)
-    if data.get("direction_id") is not None:
-        await _get(session, ItDirection, data["direction_id"], "ИТ-направление")
+    # Новая связь - только с действующим направлением; прежняя архивная остаётся.
+    if data.get("direction_id") is not None and data["direction_id"] != item.direction_id:
+        await _active(session, ItDirection, data["direction_id"], "ИТ-направление")
     await _update(session, item, data)
     return ItProgramRead.model_validate(item)
 
@@ -250,8 +262,8 @@ async def update_product(
 ) -> ItProductRead:
     item = await _get(session, ItProduct, item_id, "ИТ-продукт")
     data = payload.model_dump(exclude_unset=True)
-    if data.get("vendor_id") is not None:
-        await _get(session, Vendor, data["vendor_id"], "Вендор")
+    if data.get("vendor_id") is not None and data["vendor_id"] != item.vendor_id:
+        await _active(session, Vendor, data["vendor_id"], "Вендор")
     vendor_id = data.get("vendor_id", item.vendor_id)
     contact_id = data.get("contact_id", item.contact_id)
     if "vendor_id" in data and "contact_id" not in data and contact_id is not None:
@@ -298,8 +310,19 @@ async def set_program_products(
 ) -> list[ProgramProductLink]:
     await _get(session, ItProgram, item_id, "ИТ-программа")
     product_ids = list(dict.fromkeys(payload.product_ids))
+    current = set(
+        (
+            await session.execute(
+                select(ProgramProduct.product_id).where(ProgramProduct.program_id == item_id)
+            )
+        ).scalars()
+    )
     for product_id in product_ids:
-        await _get(session, ItProduct, product_id, "ИТ-продукт")
+        # Архивный продукт остаётся в прежнем соответствии, но заново не добавляется.
+        if product_id in current:
+            await _get(session, ItProduct, product_id, "ИТ-продукт")
+        else:
+            await _active(session, ItProduct, product_id, "ИТ-продукт")
     await session.execute(delete(ProgramProduct).where(ProgramProduct.program_id == item_id))
     mark_changed(session)
     for product_id in product_ids:

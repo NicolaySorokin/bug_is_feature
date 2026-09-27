@@ -276,3 +276,55 @@ async def test_catalog_items_are_edited_and_deactivated(client: AsyncClient) -> 
         f"/api/v1/catalog/programs/{program['id']}", json={"name": "x"}, headers=MANAGER
     )
     assert denied.status_code == 403
+
+
+async def test_archived_catalog_items_are_not_linked_anew(client: AsyncClient) -> None:
+    """Архивные записи справочников остаются в прежних связях, но в новые не попадают."""
+
+    async def create(kind: str, body: dict) -> dict:
+        response = await client.post(f"/api/v1/catalog/{kind}", json=body, headers=ADMIN)
+        assert response.status_code == 201, response.text
+        return response.json()
+
+    async def archive(kind: str, item: dict) -> None:
+        response = await client.patch(
+            f"/api/v1/catalog/{kind}/{item['id']}", json={"is_active": False}, headers=ADMIN
+        )
+        assert response.status_code == 200, response.text
+
+    vendor = await create("vendors", {"name": "Закрытый вендор"})
+    direction = await create("directions", {"name": "Закрытое направление"})
+    await archive("vendors", vendor)
+    await archive("directions", direction)
+
+    product = await client.post(
+        "/api/v1/catalog/products",
+        json={"name": "Продукт закрытого вендора", "vendor_id": vendor["id"]},
+        headers=ADMIN,
+    )
+    assert product.status_code == 409
+    assert "в архиве" in product.json()["message"]
+    program = await client.post(
+        "/api/v1/catalog/programs",
+        json={"name": "Программа закрытого направления", "direction_id": direction["id"]},
+        headers=ADMIN,
+    )
+    assert program.status_code == 409
+
+    # Соответствие программ и продуктов: архивный продукт не добавить заново,
+    # а прежняя связь с ним при сохранении списка не мешает.
+    course = await create("programs", {"name": "Курс"})
+    kept = await create("products", {"name": "Прежний продукт"})
+    retired = await create("products", {"name": "Снятый продукт"})
+    url = f"/api/v1/catalog/programs/{course['id']}/products"
+    linked = await client.put(url, json={"product_ids": [kept["id"]]}, headers=HEAD)
+    assert linked.status_code == 200, linked.text
+    await archive("products", kept)
+    await archive("products", retired)
+
+    refused = await client.put(
+        url, json={"product_ids": [kept["id"], retired["id"]]}, headers=HEAD
+    )
+    assert refused.status_code == 409
+    saved = await client.put(url, json={"product_ids": [kept["id"]]}, headers=HEAD)
+    assert saved.status_code == 200, saved.text

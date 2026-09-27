@@ -235,6 +235,8 @@ async def test_cancel_needs_reason_and_keeps_outcome(
 
     other = await client.post(url, json={"reason": "other"}, headers=MANAGER)
     assert other.status_code == 422
+    # Нарушенное правило видно в тексте ошибки, а не только в подробностях.
+    assert other.json()["message"] == "Для причины «Иное» нужен комментарий"
 
     cancelled = await client.post(
         url,
@@ -261,6 +263,23 @@ async def test_cancel_needs_reason_and_keeps_outcome(
         )
     ).json()
     assert listing["total"] == 1
+
+
+async def test_cancelled_blocked_interaction_is_no_longer_blocked(
+    client: AsyncClient, university: dict
+) -> None:
+    interaction = await make_interaction(client, university["id"], MANAGER)
+    url = f"/api/v1/interactions/{interaction['id']}"
+    await client.post(f"{url}/block", json={"reason": "Ждём ректора"}, headers=MANAGER)
+    cancelled = await client.post(
+        f"{url}/cancel", json={"reason": "university_refused"}, headers=MANAGER
+    )
+    assert cancelled.status_code == 200, cancelled.text
+
+    detail = (await client.get(url, headers=MANAGER)).json()
+    assert detail["status"] == "cancelled"
+    assert detail["blocked_reason"] is None
+    assert detail["blocked_at"] is None
 
 
 async def test_unconfirmed_university_gets_no_interaction(client: AsyncClient) -> None:

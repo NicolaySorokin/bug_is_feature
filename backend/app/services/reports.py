@@ -11,6 +11,8 @@
   блок; есть фильтры по результату, источнику и причине закрытия;
 * в строке программы - только продукты, фактически связанные с ней;
   программы и продукты считаются по идентификаторам, а не по названиям;
+* фильтры по программам, направлениям и продуктам сужают и строки: другие
+  программы тех же взаимодействий в отчёт не попадают;
 * период «по дате подписания» не подменяется датой заведения:
   взаимодействие без подписанного договора в такой отчёт не входит,
   и их число показывается отдельно.
@@ -219,9 +221,51 @@ def stage_title(instance: WorkflowInstance) -> str:
     return name
 
 
-def build_rows(interactions: list[WorkflowInstance]) -> list[ReportRow]:
-    """Разворачивает взаимодействия в строки «взаимодействие - ИТ-программа»."""
+def _composition_filtered(filters: ReportFilters | None) -> bool:
+    return filters is not None and bool(
+        filters.program_ids or filters.direction_ids or filters.product_ids
+    )
+
+
+def _program_matches(
+    link: InteractionProgram,
+    products_by_id: dict[uuid.UUID, InteractionProduct],
+    filters: ReportFilters,
+) -> bool:
+    """Строка программы подходит под фильтры по программам, направлениям и продуктам.
+
+    Отбор взаимодействий идёт в базе, но у взаимодействия бывают и другие
+    программы: отчёт «по направлению Разработка» не должен показывать строку
+    программы из тестирования. Продукт - по фактической связи с программой.
+    """
+    if filters.program_ids and link.program_id not in filters.program_ids:
+        return False
+    if filters.direction_ids and (
+        link.program is None or link.program.direction_id not in filters.direction_ids
+    ):
+        return False
+    if filters.product_ids:
+        used = {
+            products_by_id[item.interaction_product_id].product_id
+            for item in link.product_links
+            if item.interaction_product_id in products_by_id
+        }
+        if not used.intersection(filters.product_ids):
+            return False
+    return True
+
+
+def build_rows(
+    interactions: list[WorkflowInstance], filters: ReportFilters | None = None
+) -> list[ReportRow]:
+    """Разворачивает взаимодействия в строки «взаимодействие - ИТ-программа».
+
+    С фильтрами по программам, направлениям или продуктам в отчёт идут только
+    подходящие программы взаимодействия - таблица и диаграммы описывают
+    ровно то, что выбрано.
+    """
     rows: list[ReportRow] = []
+    narrowed = _composition_filtered(filters)
     for instance in interactions:
         contract = instance.contract
         university = instance.university
@@ -259,13 +303,18 @@ def build_rows(interactions: list[WorkflowInstance]) -> list[ReportRow]:
         }
 
         if not instance.programs:
-            # Взаимодействие без программ - тоже строка отчёта.
-            rows.append(ReportRow(**base))
+            # Взаимодействие без программ - тоже строка отчёта, но не в отчёте,
+            # суженном до конкретных программ, направлений или продуктов.
+            if not narrowed:
+                rows.append(ReportRow(**base))
             continue
 
-        for link in sorted(
+        links = sorted(
             instance.programs, key=lambda item: item.program.name if item.program else ""
-        ):
+        )
+        if narrowed:
+            links = [link for link in links if _program_matches(link, products_by_id, filters)]
+        for link in links:
             program = link.program
             direction = program.direction if program else None
             linked = [
@@ -427,7 +476,7 @@ async def _build_report(
     user: User,
 ) -> ReportResponse:
     interactions = await fetch_interactions(session, request.filters, principal, user)
-    rows = build_rows(interactions)
+    rows = build_rows(interactions, request.filters)
     unsigned = await count_unsigned_excluded(session, request.filters, principal, user)
     return ReportResponse(
         title=request.title,

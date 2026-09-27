@@ -643,8 +643,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Синхронизировать все источники
-         * @description Сначала LMS с программами, затем сайт с заявками на эти программы.
+         * Синхронизировать все включённые источники
+         * @description Сначала LMS с программами, затем сайт с заявками на эти программы. Выключенные источники пропускаются.
          */
         post: operations["run_all_api_v1_integrations_sync_post"];
         delete?: never;
@@ -4949,7 +4949,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4958,7 +4958,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -4973,7 +4973,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -4994,7 +4994,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5003,7 +5003,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5046,7 +5046,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5055,7 +5055,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5070,7 +5070,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5091,7 +5091,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5100,7 +5100,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5151,7 +5151,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5160,7 +5160,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5175,7 +5175,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5196,7 +5196,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5205,7 +5205,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5246,7 +5246,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5255,7 +5255,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5270,7 +5270,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5291,7 +5291,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5300,7 +5300,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5345,7 +5345,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5354,7 +5354,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5369,7 +5369,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5390,7 +5390,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5399,7 +5399,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5446,7 +5446,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5455,7 +5455,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5470,7 +5470,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5491,7 +5491,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5500,7 +5500,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5541,7 +5541,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5550,7 +5550,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5565,7 +5565,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5586,7 +5586,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5595,7 +5595,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5640,7 +5640,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5649,7 +5649,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5664,7 +5664,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5685,7 +5685,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5694,7 +5694,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5741,7 +5741,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5750,7 +5750,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5765,7 +5765,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5786,7 +5786,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5795,7 +5795,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5836,7 +5836,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5845,7 +5845,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5860,7 +5860,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5881,7 +5881,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5890,7 +5890,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5931,7 +5931,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5940,7 +5940,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5955,7 +5955,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -5976,7 +5976,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5985,7 +5985,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6030,7 +6030,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6039,7 +6039,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6054,7 +6054,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6075,7 +6075,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6084,7 +6084,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6131,7 +6131,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6140,7 +6140,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6155,7 +6155,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6176,7 +6176,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6185,7 +6185,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6232,7 +6232,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6241,7 +6241,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6256,7 +6256,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6277,7 +6277,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6286,7 +6286,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6327,7 +6327,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6336,7 +6336,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6351,7 +6351,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6372,7 +6372,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6381,7 +6381,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6428,7 +6428,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6437,7 +6437,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6452,7 +6452,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6473,7 +6473,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6482,7 +6482,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6523,7 +6523,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6532,7 +6532,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6547,7 +6547,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6568,7 +6568,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6577,7 +6577,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6622,7 +6622,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6631,7 +6631,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6646,7 +6646,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6667,7 +6667,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6676,7 +6676,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6723,7 +6723,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6732,7 +6732,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6747,7 +6747,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6768,7 +6768,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6777,7 +6777,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6824,7 +6824,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6833,7 +6833,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6848,7 +6848,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6869,7 +6869,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6878,7 +6878,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6919,7 +6919,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6928,7 +6928,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6943,7 +6943,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -6964,7 +6964,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6973,7 +6973,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7018,7 +7018,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7027,7 +7027,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7042,7 +7042,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7063,7 +7063,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7072,7 +7072,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7115,7 +7115,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7124,7 +7124,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7139,7 +7139,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7160,7 +7160,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7169,7 +7169,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7213,7 +7213,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7222,7 +7222,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7237,7 +7237,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7258,7 +7258,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7267,7 +7267,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7312,7 +7312,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7321,7 +7321,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7336,7 +7336,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7357,7 +7357,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7366,7 +7366,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7409,7 +7409,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7418,7 +7418,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7433,7 +7433,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7454,7 +7454,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7463,7 +7463,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7504,7 +7504,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7513,7 +7513,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7528,7 +7528,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7549,7 +7549,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7558,7 +7558,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7601,7 +7601,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7610,7 +7610,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7625,7 +7625,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7646,7 +7646,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7655,7 +7655,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7702,7 +7702,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7711,7 +7711,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7726,7 +7726,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7747,7 +7747,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7756,7 +7756,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7803,7 +7803,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7812,7 +7812,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7827,7 +7827,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7848,7 +7848,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7857,7 +7857,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7900,7 +7900,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7909,7 +7909,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7924,7 +7924,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7945,7 +7945,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7954,7 +7954,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -7997,7 +7997,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8006,7 +8006,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8021,7 +8021,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8042,7 +8042,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8051,7 +8051,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8094,7 +8094,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8103,7 +8103,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8118,7 +8118,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8139,7 +8139,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8148,7 +8148,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8195,7 +8195,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8204,7 +8204,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8219,7 +8219,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8240,7 +8240,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8249,7 +8249,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8294,7 +8294,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8303,7 +8303,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8318,7 +8318,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8339,7 +8339,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8348,7 +8348,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8391,7 +8391,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8400,7 +8400,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8415,7 +8415,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8436,7 +8436,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8445,7 +8445,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8486,7 +8486,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8495,7 +8495,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8510,7 +8510,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8531,7 +8531,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8540,7 +8540,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8587,7 +8587,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8596,7 +8596,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8611,7 +8611,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8632,7 +8632,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8641,7 +8641,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8684,7 +8684,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8693,7 +8693,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8708,7 +8708,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8729,7 +8729,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8738,7 +8738,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8785,7 +8785,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8794,7 +8794,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8809,7 +8809,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8830,7 +8830,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8839,7 +8839,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8880,7 +8880,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8889,7 +8889,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8904,7 +8904,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8925,7 +8925,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8934,7 +8934,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -8999,7 +8999,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9008,7 +9008,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9023,7 +9023,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9044,7 +9044,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9053,7 +9053,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9098,7 +9098,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9107,7 +9107,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9122,7 +9122,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9143,7 +9143,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9152,7 +9152,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9195,7 +9195,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9204,7 +9204,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9219,7 +9219,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9240,7 +9240,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9249,7 +9249,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9290,7 +9290,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9299,7 +9299,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9314,7 +9314,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9335,7 +9335,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9344,7 +9344,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9391,7 +9391,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9400,7 +9400,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9415,7 +9415,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9436,7 +9436,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9445,7 +9445,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9490,7 +9490,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9499,7 +9499,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9514,7 +9514,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9535,7 +9535,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9544,7 +9544,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9591,7 +9591,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9600,7 +9600,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9615,7 +9615,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9636,7 +9636,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9645,7 +9645,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9692,7 +9692,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9701,7 +9701,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9716,7 +9716,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9737,7 +9737,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9746,7 +9746,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9793,7 +9793,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9802,7 +9802,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9817,7 +9817,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9838,7 +9838,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9847,7 +9847,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9892,7 +9892,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9901,7 +9901,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9916,7 +9916,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9937,7 +9937,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9946,7 +9946,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -9993,7 +9993,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10002,7 +10002,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10017,7 +10017,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10038,7 +10038,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10047,7 +10047,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10090,7 +10090,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10099,7 +10099,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10114,7 +10114,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10135,7 +10135,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10144,7 +10144,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10191,7 +10191,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10200,7 +10200,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10215,7 +10215,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10236,7 +10236,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10245,7 +10245,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10287,7 +10287,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10296,7 +10296,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10311,7 +10311,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10332,7 +10332,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10341,7 +10341,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10384,7 +10384,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10393,7 +10393,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10408,7 +10408,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10429,7 +10429,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10438,7 +10438,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10485,7 +10485,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10494,7 +10494,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10509,7 +10509,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10530,7 +10530,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10539,7 +10539,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10580,7 +10580,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10589,7 +10589,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10604,7 +10604,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10625,7 +10625,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10634,7 +10634,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10677,7 +10677,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10686,7 +10686,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10701,7 +10701,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10722,7 +10722,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10731,7 +10731,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10776,7 +10776,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10785,7 +10785,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10800,7 +10800,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10821,7 +10821,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10830,7 +10830,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10874,7 +10874,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10883,7 +10883,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10898,7 +10898,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10919,7 +10919,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10928,7 +10928,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10975,7 +10975,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10984,7 +10984,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -10999,7 +10999,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11020,7 +11020,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11029,7 +11029,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11071,7 +11071,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11080,7 +11080,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11095,7 +11095,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11116,7 +11116,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11125,7 +11125,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11173,7 +11173,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11182,7 +11182,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11197,7 +11197,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11218,7 +11218,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11227,7 +11227,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11275,7 +11275,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11284,7 +11284,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11299,7 +11299,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11320,7 +11320,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11329,7 +11329,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11376,7 +11376,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11385,7 +11385,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11400,7 +11400,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11421,7 +11421,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11430,7 +11430,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11472,7 +11472,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11481,7 +11481,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11496,7 +11496,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11517,7 +11517,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11526,7 +11526,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11574,7 +11574,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11583,7 +11583,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11598,7 +11598,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11619,7 +11619,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11628,7 +11628,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11675,7 +11675,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11684,7 +11684,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11699,7 +11699,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11720,7 +11720,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11729,7 +11729,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11772,7 +11772,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11781,7 +11781,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11796,7 +11796,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11817,7 +11817,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11826,7 +11826,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11873,7 +11873,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11882,7 +11882,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11897,7 +11897,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11918,7 +11918,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11927,7 +11927,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11974,7 +11974,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11983,7 +11983,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -11998,7 +11998,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12019,7 +12019,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12028,7 +12028,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12071,7 +12071,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12080,7 +12080,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12095,7 +12095,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12116,7 +12116,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12125,7 +12125,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12174,7 +12174,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12183,7 +12183,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12198,7 +12198,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12219,7 +12219,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12228,7 +12228,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12269,7 +12269,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12278,7 +12278,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12293,7 +12293,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12314,7 +12314,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12323,7 +12323,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12370,7 +12370,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12379,7 +12379,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12394,7 +12394,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12415,7 +12415,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12424,7 +12424,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12465,7 +12465,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12474,7 +12474,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12489,7 +12489,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12510,7 +12510,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12519,7 +12519,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12560,7 +12560,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12569,7 +12569,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12584,7 +12584,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12605,7 +12605,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12614,7 +12614,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12657,7 +12657,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12666,7 +12666,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12681,7 +12681,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12702,7 +12702,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12711,7 +12711,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12761,7 +12761,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12770,7 +12770,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12785,7 +12785,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12806,7 +12806,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12815,7 +12815,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12856,7 +12856,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12865,7 +12865,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12880,7 +12880,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12901,7 +12901,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12910,7 +12910,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12957,7 +12957,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12966,7 +12966,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -12981,7 +12981,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13002,7 +13002,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13011,7 +13011,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13056,7 +13056,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13065,7 +13065,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13080,7 +13080,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13101,7 +13101,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13110,7 +13110,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13151,7 +13151,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13160,7 +13160,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13175,7 +13175,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13196,7 +13196,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13205,7 +13205,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13250,7 +13250,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13259,7 +13259,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13274,7 +13274,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13295,7 +13295,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13304,7 +13304,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13357,7 +13357,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13366,7 +13366,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13381,7 +13381,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13402,7 +13402,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13411,7 +13411,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13460,7 +13460,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13469,7 +13469,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13484,7 +13484,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13505,7 +13505,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13514,7 +13514,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13561,7 +13561,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13570,7 +13570,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13585,7 +13585,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13606,7 +13606,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13615,7 +13615,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13660,7 +13660,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13669,7 +13669,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13684,7 +13684,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13705,7 +13705,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13714,7 +13714,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13759,7 +13759,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13768,7 +13768,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13783,7 +13783,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13804,7 +13804,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13813,7 +13813,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13864,7 +13864,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13873,7 +13873,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13888,7 +13888,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13909,7 +13909,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13918,7 +13918,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13963,7 +13963,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13972,7 +13972,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -13987,7 +13987,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14008,7 +14008,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14017,7 +14017,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14058,7 +14058,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14067,7 +14067,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14082,7 +14082,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14103,7 +14103,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14112,7 +14112,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14155,7 +14155,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14164,7 +14164,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14179,7 +14179,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14200,7 +14200,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14209,7 +14209,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14250,7 +14250,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14259,7 +14259,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14274,7 +14274,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14295,7 +14295,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14304,7 +14304,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14351,7 +14351,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14360,7 +14360,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14375,7 +14375,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14396,7 +14396,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14405,7 +14405,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14448,7 +14448,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14457,7 +14457,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14472,7 +14472,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14493,7 +14493,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14502,7 +14502,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14545,7 +14545,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14554,7 +14554,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14569,7 +14569,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14590,7 +14590,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14599,7 +14599,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14646,7 +14646,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14655,7 +14655,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14670,7 +14670,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14691,7 +14691,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14700,7 +14700,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14742,7 +14742,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14751,7 +14751,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14766,7 +14766,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14787,7 +14787,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14796,7 +14796,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14844,7 +14844,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14853,7 +14853,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14868,7 +14868,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14889,7 +14889,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14898,7 +14898,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14945,7 +14945,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14954,7 +14954,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14969,7 +14969,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -14990,7 +14990,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14999,7 +14999,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15048,7 +15048,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15057,7 +15057,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15072,7 +15072,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15093,7 +15093,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15102,7 +15102,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15147,7 +15147,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15156,7 +15156,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15171,7 +15171,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15192,7 +15192,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15201,7 +15201,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15244,7 +15244,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15253,7 +15253,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15268,7 +15268,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15289,7 +15289,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15298,7 +15298,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15339,7 +15339,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15348,7 +15348,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15363,7 +15363,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15384,7 +15384,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15393,7 +15393,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15436,7 +15436,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15445,7 +15445,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15460,7 +15460,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15481,7 +15481,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15490,7 +15490,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15537,7 +15537,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15546,7 +15546,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15561,7 +15561,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15582,7 +15582,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15591,7 +15591,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15638,7 +15638,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15647,7 +15647,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15662,7 +15662,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15683,7 +15683,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15692,7 +15692,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15736,7 +15736,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15745,7 +15745,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15760,7 +15760,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15781,7 +15781,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15790,7 +15790,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15835,7 +15835,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15844,7 +15844,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15859,7 +15859,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15880,7 +15880,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15889,7 +15889,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15936,7 +15936,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15945,7 +15945,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15960,7 +15960,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -15981,7 +15981,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15990,7 +15990,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16031,7 +16031,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16040,7 +16040,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16055,7 +16055,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16076,7 +16076,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16085,7 +16085,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16130,7 +16130,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16139,7 +16139,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16154,7 +16154,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16175,7 +16175,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16184,7 +16184,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16231,7 +16231,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16240,7 +16240,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16255,7 +16255,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16276,7 +16276,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16285,7 +16285,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16328,7 +16328,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16337,7 +16337,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16352,7 +16352,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16373,7 +16373,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16382,7 +16382,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16429,7 +16429,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16438,7 +16438,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16453,7 +16453,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16474,7 +16474,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16483,7 +16483,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16526,7 +16526,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16535,7 +16535,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16550,7 +16550,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16571,7 +16571,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16580,7 +16580,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16621,7 +16621,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16630,7 +16630,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16645,7 +16645,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16666,7 +16666,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16675,7 +16675,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16722,7 +16722,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16731,7 +16731,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16746,7 +16746,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16767,7 +16767,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16776,7 +16776,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16823,7 +16823,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16832,7 +16832,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16847,7 +16847,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16868,7 +16868,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16877,7 +16877,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16920,7 +16920,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Недостаточно прав или запись вне зоны ответственности */
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16929,7 +16929,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "forbidden",
-                     *       "message": "Договор не входит в зону вашей ответственности"
+                     *       "message": "Взаимодействие не входит в вашу область данных"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16944,7 +16944,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "not_found",
-                     *       "message": "Договор не найден"
+                     *       "message": "Взаимодействие не найдено"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];
@@ -16965,7 +16965,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Запрос не прошёл проверку */
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16974,7 +16974,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "code": "validation_error",
-                     *       "message": "Запрос не прошёл проверку"
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
                      *     }
                      */
                     "application/json": components["schemas"]["ErrorResponse"];

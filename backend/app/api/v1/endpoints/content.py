@@ -220,5 +220,7 @@ async def delete_attachment(
         principal, user, Action.ASSIGN_RESPONSIBLE
     ):
         raise ForbiddenError("Удалять чужие файлы может только руководитель")
-    storage.delete(attachment.storage_path)
+    # Сначала запись: если база откажет, файл на диске останется целым.
     await session.delete(attachment)
+    await session.flush()
+    storage.delete(attachment.storage_path)
