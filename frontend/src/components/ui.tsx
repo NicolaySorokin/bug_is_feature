@@ -427,7 +427,10 @@ export interface TabItem {
   icon?: LucideIcon;
   /** Число рядом с названием: сколько записей на вкладке. */
   count?: number;
-  /** Точка-метка: на вкладке есть то, что требует внимания. */
+  /**
+   * Метка: на вкладке есть то, что требует внимания. Без счётчика - точка
+   * после названия; со счётчиком метка - его цвет, а не вторая точка рядом.
+   */
   dot?: boolean;
   hidden?: boolean;
 }
@@ -495,8 +498,11 @@ export function Tabs({
           >
             {Icon && <Icon size={16} aria-hidden="true" />}
             <span>{item.label}</span>
-            {item.count !== undefined && <span className="tab__count">{item.count}</span>}
-            {item.dot && <span className="tab__dot" aria-label="есть что проверить" />}
+            {item.count !== undefined && (
+              <span className={item.dot ? "tab__count tab__count--alert" : "tab__count"}>{item.count}</span>
+            )}
+            {item.dot && item.count === undefined && <span className="tab__dot" aria-hidden="true" />}
+            {item.dot && <span className="visually-hidden">есть что проверить</span>}
           </button>
         );
       })}
