@@ -24,6 +24,7 @@ interface State {
   city: string;
   website: string;
   description: string;
+  requisites: string;
   manager_id: string;
 }
 
@@ -48,6 +49,7 @@ export function UniversityFormModal({
     city: "",
     website: "",
     description: "",
+    requisites: "",
     manager_id: "",
   });
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +66,7 @@ export function UniversityFormModal({
       city: university?.city || "",
       website: university?.website || "",
       description: university?.description || "",
+      requisites: university?.requisites || "",
       manager_id: university?.manager_id || "",
     });
   }, [open, university]);
@@ -77,6 +80,7 @@ export function UniversityFormModal({
         city: state.city.trim() || null,
         website: state.website.trim() || null,
         description: state.description.trim() || null,
+        requisites: state.requisites.trim() || null,
         ...(assign ? { manager_id: state.manager_id || null } : {}),
       };
       return university ? updateUniversity(university.id, body) : createUniversity(body);
@@ -209,6 +213,16 @@ export function UniversityFormModal({
           onChange={(value) => set("description", value)}
           rows={3}
           maxLength={4000}
+        />
+        <TextAreaField
+          className="span-2"
+          label="Реквизиты для договора"
+          value={state.requisites}
+          onChange={(value) => set("requisites", value)}
+          rows={3}
+          maxLength={4000}
+          placeholder={"Адрес: ...\nКПП ..., ОГРН ...\nр/с ... в банке ..., БИК ..."}
+          hint="Как их пишут в договоре: подставляются в проект договора по шаблону"
         />
       </form>
     </Modal>

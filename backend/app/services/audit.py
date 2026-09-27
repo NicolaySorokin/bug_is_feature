@@ -25,7 +25,7 @@ from app.enums import AuditAction
 from app.models.access import UserUniversityAccess
 from app.models.audit import AuditLog
 from app.models.catalog import ItDirection, ItProduct, ItProgram, Vendor, VendorContact
-from app.models.contract import Contract, License
+from app.models.contract import Contract, ContractTemplate, License
 from app.models.integration import IntegrationMapping, IntegrationSource
 from app.models.interaction import (
     InteractionContact,
@@ -58,6 +58,7 @@ AUDITED_MODELS: tuple[type, ...] = (
     InteractionContact,
     Contract,
     License,
+    ContractTemplate,
     University,
     UniversityContact,
     ItDirection,

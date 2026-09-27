@@ -270,6 +270,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/contract-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Шаблоны договоров
+         * @description Менеджеру - действующие шаблоны, руководителю - все, включая выключенные. Если шаблонов ещё нет, заводится типовой.
+         */
+        get: operations["list_templates_api_v1_contract_templates_get"];
+        put?: never;
+        /** Завести шаблон договора */
+        post: operations["create_template_api_v1_contract_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contract-templates/fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Поля шаблона договора
+         * @description Что можно подставить в текст шаблона: {{ключ}} и откуда берётся значение.
+         */
+        get: operations["list_fields_api_v1_contract_templates_fields_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contract-templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Изменить шаблон договора
+         * @description Шаблон не удаляется, а выключается: по нему уже могли сформировать договоры.
+         */
+        put: operations["update_template_api_v1_contract_templates__template_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard": {
         parameters: {
             query?: never;
@@ -839,6 +900,63 @@ export interface paths {
          * @description Подписанный договор не удаляют, а закрывают. Договор с лицензиями не удалить.
          */
         delete: operations["delete_contract_api_v1_interactions__interaction_id__contract_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/interactions/{interaction_id}/contract/document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Скачать договор по шаблону (DOCX) */
+        post: operations["download_document_api_v1_interactions__interaction_id__contract_document_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/interactions/{interaction_id}/contract/document/attach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Приложить договор по шаблону к взаимодействию
+         * @description Файл DOCX попадает в файлы взаимодействия с типом «Проект договора», а с workflow_event_id - и в карточку этапа. Проект не закрывает обязательный документ «Договор»: для подписания нужен подписанный договор.
+         */
+        post: operations["attach_document_api_v1_interactions__interaction_id__contract_document_attach_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/interactions/{interaction_id}/contract/document/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Предпросмотр договора по шаблону
+         * @description Текст с подставленными реквизитами и список полей без значения: их стоит дописать в карточке вуза или в договоре до формирования файла.
+         */
+        post: operations["preview_document_api_v1_interactions__interaction_id__contract_document_preview_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2227,6 +2345,30 @@ export interface components {
          * @enum {string}
          */
         ContractClosureReason: "fulfilled" | "expired" | "terminated";
+        /**
+         * ContractDocumentPreview
+         * @description Текст договора с подставленными значениями - до формирования файла.
+         */
+        ContractDocumentPreview: {
+            /** Filename */
+            filename: string;
+            /** Missing */
+            missing: components["schemas"]["TemplateFieldRead"][];
+            /** Template Name */
+            template_name: string;
+            /** Text */
+            text: string;
+        };
+        /** ContractDocumentRequest */
+        ContractDocumentRequest: {
+            /**
+             * Template Id
+             * Format: uuid
+             */
+            template_id: string;
+            /** Workflow Event Id */
+            workflow_event_id?: string | null;
+        };
         /** ContractRead */
         ContractRead: {
             closure_reason: components["schemas"]["ContractClosureReason"] | null;
@@ -2241,6 +2383,12 @@ export interface components {
             id: string;
             /** Number */
             number: string;
+            /** Signatory Basis */
+            signatory_basis?: string | null;
+            /** Signatory Name */
+            signatory_name?: string | null;
+            /** Signatory Position */
+            signatory_position?: string | null;
             /** Signed At */
             signed_at: string | null;
             status: components["schemas"]["ContractStatus"];
@@ -2263,6 +2411,42 @@ export interface components {
          * @enum {string}
          */
         ContractStatus: "draft" | "active" | "suspended" | "closed" | "cancelled";
+        /** ContractTemplateRead */
+        ContractTemplateRead: {
+            /** Body */
+            body: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Updated At */
+            updated_at?: string | null;
+            updated_by?: components["schemas"]["UserBrief"] | null;
+        };
+        /**
+         * ContractTemplateWrite
+         * @description Шаблон: название и текст с полями ``{{поле}}``. Неизвестное поле -
+         *     ошибка: опечатка в шаблоне иначе всплыла бы только в готовом договоре.
+         */
+        ContractTemplateWrite: {
+            /**
+             * Body
+             * @description Текст договора. Строка «# ...» - заголовок по центру, «## ...» - заголовок раздела, поля - в двойных фигурных скобках: {{вуз}}.
+             */
+            body: string;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active?: boolean;
+            /** Name */
+            name: string;
+        };
         /**
          * ContractWrite
          * @description Создание и правка договора. Проверки дат и статусов - здесь и в базе.
@@ -2273,6 +2457,21 @@ export interface components {
             comment?: string | null;
             /** Number */
             number: string;
+            /**
+             * Signatory Basis
+             * @description Основание полномочий: «Устава», «доверенности № 12 от 15.01.2026»
+             */
+            signatory_basis?: string | null;
+            /**
+             * Signatory Name
+             * @description Подписант со стороны вуза: ФИО
+             */
+            signatory_name?: string | null;
+            /**
+             * Signatory Position
+             * @description Должность подписанта
+             */
+            signatory_position?: string | null;
             /** Signed At */
             signed_at?: string | null;
             /** @default draft */
@@ -2451,7 +2650,7 @@ export interface components {
          * @description Тип документа во вложении: по нему проверяется комплектность этапа.
          * @enum {string}
          */
-        DocumentType: "contract" | "agreement" | "license" | "act" | "letter" | "curriculum" | "presentation" | "other";
+        DocumentType: "contract" | "contract_draft" | "agreement" | "license" | "act" | "letter" | "curriculum" | "presentation" | "other";
         /**
          * DuplicateCandidate
          * @description Похоже, что два вуза - одна организация.
@@ -4250,6 +4449,18 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * TemplateFieldRead
+         * @description Поле шаблона: что подставляется вместо ``{{key}}``.
+         */
+        TemplateFieldRead: {
+            /** Group */
+            group: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
         /** TemplateRead */
         TemplateRead: {
             /** Active Version Id */
@@ -4413,6 +4624,11 @@ export interface components {
             manager_id?: string | null;
             /** Name */
             name: string;
+            /**
+             * Requisites
+             * @description Реквизиты для договора: адрес, КПП, ОГРН, банковские реквизиты
+             */
+            requisites?: string | null;
             /** Short Name */
             short_name?: string | null;
             /** Website */
@@ -4477,6 +4693,8 @@ export interface components {
              * @default manual
              */
             origin?: string;
+            /** Requisites */
+            requisites?: string | null;
             /** Short Name */
             short_name: string | null;
             status: components["schemas"]["UniversityStatus"];
@@ -4533,6 +4751,8 @@ export interface components {
              * @default manual
              */
             origin?: string;
+            /** Requisites */
+            requisites?: string | null;
             /** Short Name */
             short_name: string | null;
             status: components["schemas"]["UniversityStatus"];
@@ -4568,6 +4788,11 @@ export interface components {
             manager_id?: string | null;
             /** Name */
             name?: string | null;
+            /**
+             * Requisites
+             * @description Реквизиты для договора: адрес, КПП, ОГРН, банковские реквизиты
+             */
+            requisites?: string | null;
             /** Short Name */
             short_name?: string | null;
             /** Website */
@@ -6807,6 +7032,396 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VendorContactRead"];
+                };
+            };
+            /** @description Не пройдена авторизация */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthorized",
+                     *       "message": "Требуется Bearer-токен"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "message": "Взаимодействие не входит в вашу область данных"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запись не найдена */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "message": "Взаимодействие не найдено"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Действие противоречит правилам предметной области */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "workflow_rule_violated",
+                     *       "message": "Такой переход не предусмотрен шаблоном процесса"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_error",
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_templates_api_v1_contract_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractTemplateRead"][];
+                };
+            };
+            /** @description Не пройдена авторизация */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthorized",
+                     *       "message": "Требуется Bearer-токен"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "message": "Взаимодействие не входит в вашу область данных"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запись не найдена */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "message": "Взаимодействие не найдено"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Действие противоречит правилам предметной области */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "workflow_rule_violated",
+                     *       "message": "Такой переход не предусмотрен шаблоном процесса"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_error",
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_template_api_v1_contract_templates_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContractTemplateWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractTemplateRead"];
+                };
+            };
+            /** @description Не пройдена авторизация */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthorized",
+                     *       "message": "Требуется Bearer-токен"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "message": "Взаимодействие не входит в вашу область данных"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запись не найдена */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "message": "Взаимодействие не найдено"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Действие противоречит правилам предметной области */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "workflow_rule_violated",
+                     *       "message": "Такой переход не предусмотрен шаблоном процесса"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_error",
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_fields_api_v1_contract_templates_fields_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateFieldRead"][];
+                };
+            };
+            /** @description Не пройдена авторизация */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthorized",
+                     *       "message": "Требуется Bearer-токен"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "message": "Взаимодействие не входит в вашу область данных"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запись не найдена */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "message": "Взаимодействие не найдено"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Действие противоречит правилам предметной области */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "workflow_rule_violated",
+                     *       "message": "Такой переход не предусмотрен шаблоном процесса"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_error",
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update_template_api_v1_contract_templates__template_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContractTemplateWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractTemplateRead"];
                 };
             };
             /** @description Не пройдена авторизация */
@@ -10564,6 +11179,309 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Не пройдена авторизация */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthorized",
+                     *       "message": "Требуется Bearer-токен"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "message": "Взаимодействие не входит в вашу область данных"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запись не найдена */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "message": "Взаимодействие не найдено"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Действие противоречит правилам предметной области */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "workflow_rule_violated",
+                     *       "message": "Такой переход не предусмотрен шаблоном процесса"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_error",
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    download_document_api_v1_interactions__interaction_id__contract_document_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                interaction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContractDocumentRequest"];
+            };
+        };
+        responses: {
+            /** @description Файл DOCX */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": unknown;
+                };
+            };
+            /** @description Не пройдена авторизация */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthorized",
+                     *       "message": "Требуется Bearer-токен"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "message": "Взаимодействие не входит в вашу область данных"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запись не найдена */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "message": "Взаимодействие не найдено"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Действие противоречит правилам предметной области */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "workflow_rule_violated",
+                     *       "message": "Такой переход не предусмотрен шаблоном процесса"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_error",
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    attach_document_api_v1_interactions__interaction_id__contract_document_attach_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                interaction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContractDocumentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentRead"];
+                };
+            };
+            /** @description Не пройдена авторизация */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthorized",
+                     *       "message": "Требуется Bearer-токен"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "message": "Взаимодействие не входит в вашу область данных"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запись не найдена */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "message": "Взаимодействие не найдено"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Действие противоречит правилам предметной области */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "workflow_rule_violated",
+                     *       "message": "Такой переход не предусмотрен шаблоном процесса"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_error",
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    preview_document_api_v1_interactions__interaction_id__contract_document_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                interaction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContractDocumentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractDocumentPreview"];
+                };
             };
             /** @description Не пройдена авторизация */
             401: {

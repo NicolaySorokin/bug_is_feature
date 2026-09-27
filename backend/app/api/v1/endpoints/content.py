@@ -34,7 +34,7 @@ router = APIRouter(prefix="/interactions", tags=["comments & files"])
 files_router = APIRouter(prefix="/attachments", tags=["comments & files"])
 
 
-async def _check_event(
+async def check_event(
     session: SessionDep, interaction_id: uuid.UUID, event_id: uuid.UUID | None
 ) -> None:
     """Событие процесса должно принадлежать этому же взаимодействию."""
@@ -86,7 +86,7 @@ async def create_comment(
     session: SessionDep,
     user: CurrentUserDep,
 ) -> CommentRead:
-    await _check_event(session, interaction.id, payload.workflow_event_id)
+    await check_event(session, interaction.id, payload.workflow_event_id)
     comment = Comment(
         workflow_instance_id=interaction.id,
         workflow_event_id=payload.workflow_event_id,
@@ -143,7 +143,7 @@ async def upload_attachment(
     workflow_event_id: uuid.UUID | None = Form(default=None),
     document_type: DocumentType | None = Form(default=None),
 ) -> AttachmentRead:
-    await _check_event(session, interaction.id, workflow_event_id)
+    await check_event(session, interaction.id, workflow_event_id)
     stored = await storage.save_upload(file, f"interactions/{interaction.id}")
 
     attachment = Attachment(

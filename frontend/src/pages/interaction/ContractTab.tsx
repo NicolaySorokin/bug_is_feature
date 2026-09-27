@@ -3,17 +3,21 @@
  *
  * Договор появляется в ходе работы (обычно на обмене документами), у
  * взаимодействия он не больше одного. Вуз и ответственный в договоре не
- * дублируются - они берутся из взаимодействия. Сервер проверяет даты
- * и статусы: действующий договор подписан, закрытый - с причиной,
- * подписанный не удаляют, а закрывают.
+ * дублируются - они берутся из взаимодействия. А подписант со стороны вуза -
+ * свой: договор подписывает не обязательно ответственный контакт, а,
+ * например, ректор по уставу или проректор по доверенности. Сервер
+ * проверяет даты и статусы: действующий договор подписан, закрытый -
+ * с причиной, подписанный не удаляют, а закрывают.
+ *
+ * Проект договора собирается по типовому шаблону - см. ContractDocument.tsx.
  */
 import { useQuery } from "@tanstack/react-query";
-import { FilePlus2, KeyRound, Trash2 } from "lucide-react";
+import { FilePlus2, FileText, KeyRound, Trash2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
-import { deleteContract, getContract, listInteractionLicenses, saveContract } from "../../api/endpoints";
+import { deleteContract, getContract, getUniversity, listInteractionLicenses, saveContract } from "../../api/endpoints";
 import { useApiMutation } from "../../api/mutations";
 import { invalidateInteractionData, keys, useLabel } from "../../api/queries";
-import type { Contract, ContractClosureReason, ContractStatus, InteractionDetail } from "../../api/types";
+import type { Contract, ContractClosureReason, ContractStatus, InteractionDetail, WorkflowView } from "../../api/types";
 import { useSession } from "../../auth/session";
 import { useConfirm } from "../../components/Confirm";
 import {
@@ -30,6 +34,7 @@ import {
 } from "../../components/ui";
 import { countLabel, DAYS, daysUntil, formatDate, formatDateTime } from "../../lib/format";
 import { CONTRACT_STATUS_TONE, LICENSE_TONE } from "../../lib/labels";
+import { ContractDocumentModal } from "./ContractDocument";
 
 const STATUSES: ContractStatus[] = ["draft", "active", "suspended", "closed", "cancelled"];
 const SIGNED: ContractStatus[] = ["active", "suspended", "closed"];
@@ -43,6 +48,9 @@ interface FormState {
   valid_from: string;
   valid_to: string;
   comment: string;
+  signatory_name: string;
+  signatory_position: string;
+  signatory_basis: string;
 }
 
 function initial(contract: Contract | null | undefined, interaction: InteractionDetail): FormState {
@@ -55,6 +63,9 @@ function initial(contract: Contract | null | undefined, interaction: Interaction
     valid_from: contract?.valid_from || "",
     valid_to: contract?.valid_to || "",
     comment: contract?.comment || "",
+    signatory_name: contract?.signatory_name || "",
+    signatory_position: contract?.signatory_position || "",
+    signatory_basis: contract?.signatory_basis || "",
   };
 }
 
@@ -72,6 +83,12 @@ function ContractForm({
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   useEffect(() => setForm(initial(contract, interaction)), [contract, interaction]);
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((current) => ({ ...current, [key]: value }));
+  // Подписанта удобно взять из контактов вуза - а можно вписать любого.
+  const university = useQuery({
+    queryKey: keys.university(interaction.university.id),
+    queryFn: () => getUniversity(interaction.university.id),
+  });
+  const contacts = (university.data?.contacts || []).filter((item) => item.is_active);
 
   const save = useApiMutation(
     (state: FormState) =>
@@ -84,6 +101,9 @@ function ContractForm({
         valid_from: state.valid_from || null,
         valid_to: state.valid_to || null,
         comment: state.comment.trim() || null,
+        signatory_name: state.signatory_name.trim() || null,
+        signatory_position: state.signatory_position.trim() || null,
+        signatory_basis: state.signatory_basis.trim() || null,
       }),
     {
       success: contract ? "Договор сохранён" : "Договор заведён",
@@ -162,6 +182,51 @@ function ContractForm({
         error={errors.valid_to}
         hint="За 60 дней до окончания ответственный получит предупреждение"
       />
+      <div className="span-2 form-section">
+        <strong>Подписант со стороны вуза</strong>
+        <span className="muted">Кто подписывает договор - не обязательно ответственный от вуза.</span>
+      </div>
+      {contacts.length > 0 && (
+        <SelectField
+          className="span-2"
+          label="Взять из контактов вуза"
+          value=""
+          placeholder="Выберите контакт"
+          onChange={(id) => {
+            const contact = contacts.find((item) => item.id === id);
+            if (!contact) return;
+            set("signatory_name", contact.full_name);
+            set("signatory_position", contact.position || "");
+          }}
+          options={contacts.map((item) => ({
+            value: item.id,
+            label: item.position ? `${item.full_name} - ${item.position}` : item.full_name,
+          }))}
+        />
+      )}
+      <TextField
+        label="ФИО подписанта"
+        value={form.signatory_name}
+        onChange={(value) => set("signatory_name", value)}
+        maxLength={255}
+        placeholder="Смирнов Алексей Викторович"
+      />
+      <TextField
+        label="Должность"
+        value={form.signatory_position}
+        onChange={(value) => set("signatory_position", value)}
+        maxLength={255}
+        placeholder="Ректор"
+      />
+      <TextField
+        className="span-2"
+        label="Действует на основании"
+        value={form.signatory_basis}
+        onChange={(value) => set("signatory_basis", value)}
+        maxLength={255}
+        placeholder="Устава"
+        hint="Как в договоре после «действует на основании»: «Устава», «доверенности № 12 от 15.01.2026»"
+      />
       <TextAreaField
         className="span-2"
         label="Комментарий"
@@ -182,12 +247,13 @@ function ContractForm({
   );
 }
 
-export function ContractTab({ interaction }: { interaction: InteractionDetail }) {
+export function ContractTab({ interaction, workflow }: { interaction: InteractionDetail; workflow: WorkflowView | null }) {
   const label = useLabel();
   const confirm = useConfirm();
   const { can } = useSession();
   const canWork = can("work_interaction");
   const [editing, setEditing] = useState(false);
+  const [documentOpen, setDocumentOpen] = useState(false);
   const contract = useQuery({
     queryKey: [...keys.interaction(interaction.id), "contract"],
     queryFn: () => getContract(interaction.id),
@@ -252,6 +318,9 @@ export function ContractTab({ interaction }: { interaction: InteractionDetail })
         actions={
           canWork && (
             <>
+              <Button variant="secondary" size="s" icon={FileText} onClick={() => setDocumentOpen(true)}>
+                Договор по шаблону
+              </Button>
               <Button variant="outline" size="s" onClick={() => setEditing(true)}>
                 Изменить
               </Button>
@@ -293,6 +362,21 @@ export function ContractTab({ interaction }: { interaction: InteractionDetail })
                 </span>
               ) : null,
             ],
+            [
+              "Подписант от вуза",
+              data.signatory_name ? (
+                <span className="stack-s" style={{ gap: 2 }}>
+                  <span>{data.signatory_name}</span>
+                  <small className="muted">
+                    {[data.signatory_position, data.signatory_basis && `на основании ${data.signatory_basis}`]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </small>
+                </span>
+              ) : (
+                <span className="muted">не указан</span>
+              ),
+            ],
             ["Причина закрытия", data.closure_reason ? label("contract_closure_reason", data.closure_reason) : null],
             ["Комментарий", data.comment ? <span style={{ whiteSpace: "pre-wrap" }}>{data.comment}</span> : null],
             ["Изменён", formatDateTime(data.updated_at || data.created_at)],
@@ -329,6 +413,12 @@ export function ContractTab({ interaction }: { interaction: InteractionDetail })
           </div>
         )}
       </Card>
+      <ContractDocumentModal
+        interaction={interaction}
+        workflow={workflow}
+        open={documentOpen}
+        onClose={() => setDocumentOpen(false)}
+      />
     </div>
   );
 }

@@ -96,7 +96,13 @@ from scripts.demo.catalog import (
     UNIVERSITIES,
     VENDORS,
 )
-from scripts.demo.people import EMPLOYEES, HEAD_OF, Employee, university_contacts
+from scripts.demo.people import (
+    EMPLOYEES,
+    HEAD_OF,
+    Employee,
+    university_contacts,
+    university_signatory,
+)
 from scripts.demo.plans import CONTRACT_FROM, STORIES, InteractionPlan, Move, generate
 from scripts.demo.processes import (
     BACKWARD_REASONS,
@@ -917,6 +923,8 @@ class DemoLoader:
                 else ContractClosureReason.FULFILLED
             )
 
+        # Подписывает не ответственный от вуза, а ректор или первый проректор.
+        signatory = university_signatory(plan.university, drafted.year)
         contract = Contract(
             id=uuid.uuid4(),
             workflow_instance_id=instance.id,
@@ -927,6 +935,9 @@ class DemoLoader:
             valid_to=valid_to,
             status=status,
             closure_reason=closure,
+            signatory_name=signatory.full_name,
+            signatory_position=signatory.position,
+            signatory_basis=signatory.basis,
             created_at=drafted,
             updated_at=max(drafted, signed_at or drafted, last_activity),
         )

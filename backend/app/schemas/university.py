@@ -79,6 +79,11 @@ class UniversityCreate(BaseModel):
     city: str | None = Field(default=None, max_length=255)
     website: str | None = Field(default=None, max_length=500)
     description: str | None = None
+    requisites: str | None = Field(
+        default=None,
+        max_length=4000,
+        description="Реквизиты для договора: адрес, КПП, ОГРН, банковские реквизиты",
+    )
     manager_id: uuid.UUID | None = None
 
     _inn = field_validator("inn")(_clean_inn)
@@ -91,6 +96,11 @@ class UniversityUpdate(BaseModel):
     city: str | None = Field(default=None, max_length=255)
     website: str | None = Field(default=None, max_length=500)
     description: str | None = None
+    requisites: str | None = Field(
+        default=None,
+        max_length=4000,
+        description="Реквизиты для договора: адрес, КПП, ОГРН, банковские реквизиты",
+    )
     manager_id: uuid.UUID | None = None
 
     _inn = field_validator("inn")(_clean_inn)
@@ -111,6 +121,7 @@ class UniversityRead(ORMModel):
     city: str | None
     website: str | None
     description: str | None
+    requisites: str | None = None
     # Менеджер по умолчанию: его назначают ответственным за новые
     # взаимодействия вуза.
     manager_id: uuid.UUID | None

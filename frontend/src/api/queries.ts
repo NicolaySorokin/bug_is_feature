@@ -50,6 +50,8 @@ export const keys = {
   attachments: (id: string) => ["attachments", id] as const,
   licenses: (id: string) => ["licenses", id] as const,
   templates: ["templates"] as const,
+  contractTemplates: ["contract-templates"] as const,
+  templateFields: ["contract-templates", "fields"] as const,
   versions: (templateId: string) => ["versions", templateId] as const,
   version: (versionId: string) => ["version", versionId] as const,
   sources: ["sources"] as const,

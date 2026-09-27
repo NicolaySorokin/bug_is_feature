@@ -28,6 +28,9 @@ class University(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     city: Mapped[str | None] = mapped_column(String(255), nullable=True)
     website: Mapped[str | None] = mapped_column(String(500), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Реквизиты для договора так, как их пишут в договоре: юридический адрес,
+    # КПП, ОГРН, банковские реквизиты. Одним текстом - форматы у вузов разные.
+    requisites: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Менеджер по умолчанию: правило, кого назначать ответственным за новые
     # взаимодействия этого вуза. Ответственный конкретного процесса хранится
     # на взаимодействии.

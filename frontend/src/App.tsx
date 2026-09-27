@@ -149,7 +149,7 @@ const router = createBrowserRouter(
         {
           path: "admin/catalog",
           element: (
-            <Guard any={["edit_catalog", "edit_program_products"]}>
+            <Guard any={["edit_catalog", "edit_program_products", "edit_contract_templates"]}>
               <Page>
                 <CatalogPage />
               </Page>

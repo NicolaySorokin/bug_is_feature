@@ -586,6 +586,10 @@ export default function UniversityPage() {
                   ) : null,
                 ],
                 ["Описание", data.description],
+                [
+                  "Реквизиты для договора",
+                  data.requisites ? <span style={{ whiteSpace: "pre-wrap" }}>{data.requisites}</span> : null,
+                ],
                 ["Источник записи", ORIGIN[data.origin || "manual"] || data.origin],
                 ["В системе с", formatDateTime(data.created_at)],
                 ["Подтверждён", data.confirmed_at ? formatDateTime(data.confirmed_at) : null],

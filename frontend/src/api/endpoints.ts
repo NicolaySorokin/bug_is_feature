@@ -10,6 +10,9 @@ import type {
   ColumnInfo,
   Comment,
   Contract,
+  ContractDocumentPreview,
+  ContractTemplate,
+  ContractTemplateWrite,
   ContractWrite,
   Dashboard,
   Direction,
@@ -51,6 +54,7 @@ import type {
   Statistics,
   StatisticsFilters,
   Template,
+  TemplateField,
   UniversityContact,
   UniversityContactCreate,
   UniversityCreate,
@@ -193,6 +197,23 @@ export const removeInteractionContact = (id: string, contactId: string) =>
 export const getContract = (id: string) => api<Contract | null>(`${I(id)}/contract`);
 export const saveContract = (id: string, body: ContractWrite) => api<Contract>(`${I(id)}/contract`, { method: "PUT", body });
 export const deleteContract = (id: string) => api<void>(`${I(id)}/contract`, { method: "DELETE" });
+
+// Типовые шаблоны договоров и договор по шаблону.
+export const listContractTemplates = () => api<ContractTemplate[]>("/contract-templates");
+export const listTemplateFields = () => api<TemplateField[]>("/contract-templates/fields");
+export const saveContractTemplate = (id: string | null, body: ContractTemplateWrite) =>
+  id
+    ? api<ContractTemplate>(`/contract-templates/${id}`, { method: "PUT", body })
+    : api<ContractTemplate>("/contract-templates", { method: "POST", body });
+export const previewContractDocument = (id: string, templateId: string) =>
+  api<ContractDocumentPreview>(`${I(id)}/contract/document/preview`, { method: "POST", body: { template_id: templateId } });
+export const downloadContractDocument = (id: string, templateId: string) =>
+  download(`${I(id)}/contract/document`, { method: "POST", body: { template_id: templateId } });
+export const attachContractDocument = (id: string, templateId: string, eventId?: string | null) =>
+  api<Attachment>(`${I(id)}/contract/document/attach`, {
+    method: "POST",
+    body: { template_id: templateId, workflow_event_id: eventId || null },
+  });
 export const listInteractionLicenses = (id: string) => api<License[]>(`${I(id)}/licenses`);
 export const createLicense = (id: string, productLinkId: string, body: LicenseCreate) =>
   api<License>(`${I(id)}/products/${productLinkId}/licenses`, { method: "POST", body });

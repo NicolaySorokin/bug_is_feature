@@ -115,6 +115,11 @@ async function shot(page, name) {
   await open(manager, `/interactions/${showcase}?tab=composition`);
   await manager.evaluate(() => window.scrollTo(0, 560));
   await shot(manager, "composition.png");
+  await open(manager, `/interactions/${showcase}?tab=contract`);
+  await manager.getByRole("button", { name: "Договор по шаблону" }).click();
+  await manager.waitForSelector(".document-preview");
+  await manager.waitForTimeout(600);
+  await shot(manager, "contract-document.png");
 
   // --- Руководитель -------------------------------------------------------------
   const head = await session(browser, "head");
@@ -128,6 +133,11 @@ async function shot(page, name) {
   await open(head, "/reports?tab=learning");
   await head.evaluate(() => window.scrollTo(0, 250));
   await shot(head, "statistics.png");
+  await open(head, "/admin/catalog?tab=templates");
+  await head.locator(".data-table .link-btn").first().click();
+  await head.waitForSelector(".template-editor");
+  await head.waitForTimeout(600);
+  await shot(head, "contract-templates.png");
 
   // --- Администратор -----------------------------------------------------------
   const admin = await session(browser, "admin");
@@ -151,7 +161,9 @@ async function shot(page, name) {
   await shot(admin, "mappings.png");
   // Журнал пуст на свежих демоданных: руководитель снимает менеджера по
   // умолчанию у вуза и назначает снова - оба изменения попадут в журнал.
-  const universities = await (await admin.request.get(`${BASE}/api/v1/universities?limit=1`, { headers: headers("head") })).json();
+  const universities = await (
+    await admin.request.get(`${BASE}/api/v1/universities?limit=1`, { headers: headers("head") })
+  ).json();
   const university = universities.items[0];
   if (university) {
     const url = `${BASE}/api/v1/universities/${university.id}`;
