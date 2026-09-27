@@ -183,6 +183,7 @@ export default function ImportsPage() {
               {types.data.map((item) => (
                 <Card
                   key={item.import_type}
+                  className="card--fill"
                   title={item.title || IMPORT_TYPE_LABELS[item.import_type]}
                   footer={
                     <>

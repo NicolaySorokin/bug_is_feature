@@ -600,6 +600,7 @@ export default function UsersPage() {
     {
       key: "extra",
       title: "Доп. права",
+      className: "col-num",
       render: (row) => {
         const names = (row.permissions || []).map((item) => label("permission", item));
         if (names.length === 0) return <span className="muted">—</span>;

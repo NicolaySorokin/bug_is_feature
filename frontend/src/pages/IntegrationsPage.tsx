@@ -383,12 +383,13 @@ export default function IntegrationsPage() {
       ) : sources.isError ? (
         <ErrorState error={sources.error} onRetry={() => void sources.refetch()} />
       ) : (
-        <div className="grid-2" style={{ marginBottom: 20 }}>
+        <div className="grid-2 sources" style={{ marginBottom: 20 }}>
           {sources.data.map((source) => {
             const last = runs.data?.find((run) => run.source_code === source.code);
             return (
               <Card
                 key={source.code}
+                className="card--fill source-card"
                 title={source.name}
                 actions={
                   source.is_enabled ? <StatusBadge tone="success">Включён</StatusBadge> : <StatusBadge>Выключен</StatusBadge>
@@ -407,7 +408,7 @@ export default function IntegrationsPage() {
                       {last.status === "failed" ? <span className="field__error">{last.error_message}</span> : describeRun(last)}
                     </p>
                   )}
-                  <div className="row" style={{ marginTop: 8 }}>
+                  <div className="row source-card__actions">
                     {can("sync_integrations") && (
                       <>
                         <Button
