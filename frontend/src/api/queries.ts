@@ -42,16 +42,19 @@ export const keys = {
   products: ["catalog", "products"] as const,
   vendors: ["catalog", "vendors"] as const,
   programProducts: ["catalog", "program-products"] as const,
-  contracts: ["contracts"] as const,
-  contract: (id: string) => ["contract", id] as const,
-  workflow: (contractId: string) => ["workflow", contractId] as const,
-  comments: (contractId: string) => ["comments", contractId] as const,
-  attachments: (contractId: string) => ["attachments", contractId] as const,
+  directory: ["directory"] as const,
+  interactions: ["interactions"] as const,
+  interaction: (id: string) => ["interaction", id] as const,
+  workflow: (id: string) => ["workflow", id] as const,
+  comments: (id: string) => ["comments", id] as const,
+  attachments: (id: string) => ["attachments", id] as const,
+  licenses: (id: string) => ["licenses", id] as const,
   templates: ["templates"] as const,
   versions: (templateId: string) => ["versions", templateId] as const,
   version: (versionId: string) => ["version", versionId] as const,
   sources: ["sources"] as const,
   runs: ["runs"] as const,
+  mappings: ["mappings"] as const,
   imports: ["imports"] as const,
   settings: ["settings"] as const,
 };
@@ -70,7 +73,7 @@ export function useEnums() {
   });
 }
 
-/** Подпись значения перечисления: label("contract_status", "active") -> «Действует». */
+/** Подпись значения перечисления: label("interaction_status", "blocked") -> «Заблокировано». */
 export function useLabel(): (group: string, value?: string | null) => string {
   const { data } = useEnums();
   const labels = data?.labels || FALLBACK_LABELS;
@@ -80,8 +83,18 @@ export function useLabel(): (group: string, value?: string | null) => string {
   };
 }
 
-export const useUsers = () =>
-  useQuery({ queryKey: keys.users, queryFn: () => endpoints.listUsers().then((page) => page.items), staleTime: LONG });
+/** Все сотрудники - только администратору (управление пользователями). */
+export const useUsers = (enabled = true) =>
+  useQuery({
+    queryKey: keys.users,
+    queryFn: () => endpoints.listUsers().then((page) => page.items),
+    staleTime: LONG,
+    enabled,
+  });
+
+/** Менеджеры, которых сотрудник может назначить или выбрать в фильтре. */
+export const useDirectory = () =>
+  useQuery({ queryKey: keys.directory, queryFn: () => endpoints.listDirectory("manager"), staleTime: LONG });
 
 export const useUniversities = () =>
   useQuery({
@@ -93,9 +106,9 @@ export const useUniversities = () =>
 /**
  * Этапы опубликованных версий шаблонов: название -> все его id.
  *
- * У каждой версии шаблона свои записи этапов, а договоры идут по разным
- * версиям. Пользователь выбирает этап по названию, в запрос уходят id
- * этапа во всех версиях.
+ * У каждой версии шаблона свои записи этапов, а взаимодействия идут по
+ * разным версиям. Пользователь выбирает этап по названию, в запрос уходят
+ * id этапа во всех версиях.
  */
 export interface StageIndex {
   names: string[];
@@ -111,7 +124,7 @@ export const useStageIndex = () =>
       const templates = await endpoints.listTemplates();
       for (const template of templates) {
         const versions = (await endpoints.listVersions(template.id))
-          .filter((version) => version.published_at)
+          .filter((version) => version.status !== "draft")
           .sort((left, right) => right.version_number - left.version_number);
         for (const version of versions) {
           const graph = await endpoints.getVersion(version.id);
@@ -143,20 +156,22 @@ export const useProducts = () => useQuery({ queryKey: keys.products, queryFn: en
 export const useVendors = () => useQuery({ queryKey: keys.vendors, queryFn: endpoints.listVendors, staleTime: LONG });
 export const useTemplates = () => useQuery({ queryKey: keys.templates, queryFn: endpoints.listTemplates, staleTime: LONG });
 
-/** Данные изменились: всё, что зависит от договоров, перезапросится в фоне. */
-export function invalidateContractData(contractId?: string): void {
+/** Данные изменились: всё, что зависит от взаимодействий, перезапросится в фоне. */
+export function invalidateInteractionData(interactionId?: string): void {
   void queryClient.invalidateQueries({ queryKey: keys.dashboard });
   void queryClient.invalidateQueries({ queryKey: keys.alerts });
-  void queryClient.invalidateQueries({ queryKey: keys.contracts });
+  void queryClient.invalidateQueries({ queryKey: keys.interactions });
   void queryClient.invalidateQueries({ queryKey: keys.universities });
   void queryClient.invalidateQueries({ queryKey: ["university"] });
   void queryClient.invalidateQueries({ queryKey: ["report"] });
   void queryClient.invalidateQueries({ queryKey: ["statistics"] });
   void queryClient.invalidateQueries({ queryKey: ["search"] });
-  if (contractId) {
-    void queryClient.invalidateQueries({ queryKey: keys.contract(contractId) });
-    void queryClient.invalidateQueries({ queryKey: keys.workflow(contractId) });
-    void queryClient.invalidateQueries({ queryKey: keys.comments(contractId) });
-    void queryClient.invalidateQueries({ queryKey: keys.attachments(contractId) });
+  void queryClient.invalidateQueries({ queryKey: ["license-registry"] });
+  if (interactionId) {
+    void queryClient.invalidateQueries({ queryKey: keys.interaction(interactionId) });
+    void queryClient.invalidateQueries({ queryKey: keys.workflow(interactionId) });
+    void queryClient.invalidateQueries({ queryKey: keys.comments(interactionId) });
+    void queryClient.invalidateQueries({ queryKey: keys.attachments(interactionId) });
+    void queryClient.invalidateQueries({ queryKey: keys.licenses(interactionId) });
   }
 }

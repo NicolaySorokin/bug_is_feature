@@ -1,8 +1,13 @@
 /**
  * Отчёт о взаимодействии с вузами (п. 2 функциональных требований ТЗ).
  *
- * Отчёт пересчитывается сразу при смене фильтров - без кнопки и без
- * перезагрузки страницы. Выгрузка берёт те же фильтры и колонки.
+ * Отчёт строится вокруг взаимодействия (пункт 23 перечня исправлений):
+ * строка - взаимодействие в разрезе ИТ-программы, договор - одна из
+ * колонок. Фильтры - по статусу и результату взаимодействия, причине
+ * закрытия, источнику, этапу; период считается по выбранной дате: начала,
+ * движения процесса, подписания договора или закрытия. Отчёт
+ * пересчитывается сразу при смене фильтров, выгрузка берёт те же фильтры
+ * и колонки.
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Download, FileJson, FileSpreadsheet, FileText, RotateCcw, SlidersHorizontal } from "lucide-react";
@@ -10,15 +15,34 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { exportReport, exportReportChart, listReportColumns, previewReport } from "../../api/endpoints";
 import { useDownload } from "../../api/mutations";
-import { useDirections, useLabel, usePrograms, useProducts, useStageIndex, useUniversities, useUsers } from "../../api/queries";
-import type { ContractStatus, ExportFormat, PeriodBasis, ReportColumn, ReportRequest, ReportRow } from "../../api/types";
+import {
+  useDirectory,
+  useDirections,
+  useLabel,
+  usePrograms,
+  useProducts,
+  useStageIndex,
+  useUniversities,
+} from "../../api/queries";
+import type {
+  ClosureReason,
+  ContractStatus,
+  ExportFormat,
+  InteractionOutcome,
+  InteractionSource,
+  InteractionStatus,
+  PeriodBasis,
+  ReportColumn,
+  ReportRequest,
+  ReportRow,
+} from "../../api/types";
 import { ChartCard } from "../../charts/ChartCard";
 import { Modal } from "../../components/Modal";
 import { MultiSelect } from "../../components/MultiSelect";
 import { PeriodPicker, type Period } from "../../components/PeriodPicker";
 import { Button, Card, Checkbox, EmptyState, ErrorState, Kpi, Loading, SelectField, TextField } from "../../components/ui";
 import { formatDate, formatDateTime, formatNumber } from "../../lib/format";
-import { PERIOD_BASIS_LABELS } from "../../lib/labels";
+import { CLOSURE_REASONS, INTERACTION_STATUSES, PERIOD_BASIS_LABELS } from "../../lib/labels";
 import { usePersistentState } from "../../lib/storage";
 
 interface Saved {
@@ -31,7 +55,11 @@ interface Saved {
   program_ids: string[];
   product_ids: string[];
   manager_ids: string[];
-  statuses: ContractStatus[];
+  statuses: InteractionStatus[];
+  outcomes: InteractionOutcome[];
+  closure_reasons: ClosureReason[];
+  sources: InteractionSource[];
+  contract_statuses: ContractStatus[];
   stages: string[];
 }
 
@@ -39,13 +67,17 @@ const DEFAULTS: Saved = {
   title: "Отчёт о взаимодействии с вузами",
   columns: [],
   period: { date_from: "", date_to: "" },
-  period_basis: "signed",
+  period_basis: "created",
   university_ids: [],
   direction_ids: [],
   program_ids: [],
   product_ids: [],
   manager_ids: [],
   statuses: [],
+  outcomes: [],
+  closure_reasons: [],
+  sources: [],
+  contract_statuses: [],
   stages: [],
 };
 
@@ -63,11 +95,33 @@ function useDebounced<T>(value: T, delay = 300): T {
 function Cell({ row, column }: { row: ReportRow; column: ReportColumn }) {
   switch (column) {
     case "university":
-      return <Link to={`/universities/${row.university_id}`}>{row.university}</Link>;
+      return (
+        <Link to={`/universities/${row.university_id}`} title={row.university_full || undefined}>
+          {row.university}
+        </Link>
+      );
+    case "interaction":
+      return <Link to={`/interactions/${row.interaction_id}`}>{row.interaction || "Взаимодействие"}</Link>;
     case "contract_number":
-      return <Link to={`/contracts/${row.contract_id}`}>{row.contract_number}</Link>;
+      return row.contract_number ? (
+        <Link to={`/interactions/${row.interaction_id}?tab=contract`}>{row.contract_number}</Link>
+      ) : (
+        <span className="muted">нет</span>
+      );
     case "contract_status":
-      return <>{row.contract_status_label || row.contract_status}</>;
+      return <>{row.contract_status_label || row.contract_status || "—"}</>;
+    case "status":
+      return <>{row.status_label || row.status}</>;
+    case "outcome":
+      return <>{row.outcome_label || "—"}</>;
+    case "closure_reason":
+      return <>{row.closure_reason_label || "—"}</>;
+    case "source":
+      return <>{row.source_label || row.source}</>;
+    case "created_at":
+      return <>{formatDate(row.created_at)}</>;
+    case "closed_at":
+      return <>{formatDate(row.closed_at)}</>;
     case "implementation_status":
       return <>{row.implementation_status_label || "—"}</>;
     case "signed_at":
@@ -85,7 +139,7 @@ function Cell({ row, column }: { row: ReportRow; column: ReportColumn }) {
 
 export function InteractionReport() {
   const label = useLabel();
-  const [saved, setSaved] = usePersistentState<Saved>("report.interaction", DEFAULTS);
+  const [saved, setSaved] = usePersistentState<Saved>("report.interaction.v2", DEFAULTS);
   const state = { ...DEFAULTS, ...saved };
   const [chooser, setChooser] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -95,7 +149,7 @@ export function InteractionReport() {
   const directions = useDirections();
   const programs = usePrograms();
   const products = useProducts();
-  const users = useUsers();
+  const directory = useDirectory();
   const stageIndex = useStageIndex();
 
   // Колонки по умолчанию - как предлагает сервер.
@@ -126,6 +180,10 @@ export function InteractionReport() {
         product_ids: state.product_ids,
         manager_ids: state.manager_ids,
         statuses: state.statuses,
+        outcomes: state.outcomes,
+        closure_reasons: state.closure_reasons,
+        sources: state.sources,
+        contract_statuses: state.contract_statuses,
         stage_ids: state.stages.flatMap((name) => stageIndex.data?.ids[name] || []),
       },
     }),
@@ -152,6 +210,10 @@ export function InteractionReport() {
       state.product_ids,
       state.manager_ids,
       state.statuses,
+      state.outcomes,
+      state.closure_reasons,
+      state.sources,
+      state.contract_statuses,
       state.stages,
     ].filter((list) => list.length > 0).length + (state.period.date_from || state.period.date_to ? 1 : 0);
 
@@ -205,15 +267,43 @@ export function InteractionReport() {
             label="Ответственные"
             value={state.manager_ids}
             onChange={(value) => set("manager_ids", value)}
-            options={(users.data || [])
-              .filter((user) => (user.roles || []).includes("manager"))
-              .map((user) => ({ value: user.id, label: user.full_name }))}
+            options={(directory.data || []).map((user) => ({ value: user.id, label: user.full_name }))}
           />
           <MultiSelect
-            label="Статусы работы"
+            label="Статус взаимодействия"
             value={state.statuses}
-            onChange={(value) => set("statuses", value as ContractStatus[])}
-            options={(["draft", "active", "suspended", "closed"] as const).map((value) => ({
+            onChange={(value) => set("statuses", value as InteractionStatus[])}
+            options={INTERACTION_STATUSES.map((value) => ({ value, label: label("interaction_status", value) }))}
+          />
+          <MultiSelect
+            label="Результат"
+            value={state.outcomes}
+            onChange={(value) => set("outcomes", value as InteractionOutcome[])}
+            options={(["successful", "partial", "unsuccessful"] as const).map((value) => ({
+              value,
+              label: label("interaction_outcome", value),
+            }))}
+          />
+          <MultiSelect
+            label="Причина закрытия"
+            value={state.closure_reasons}
+            onChange={(value) => set("closure_reasons", value as ClosureReason[])}
+            options={CLOSURE_REASONS.map((value) => ({ value, label: label("closure_reason", value) }))}
+          />
+          <MultiSelect
+            label="Источник"
+            value={state.sources}
+            onChange={(value) => set("sources", value as InteractionSource[])}
+            options={(["manual", "site", "import", "lms"] as const).map((value) => ({
+              value,
+              label: label("interaction_source", value),
+            }))}
+          />
+          <MultiSelect
+            label="Статус договора"
+            value={state.contract_statuses}
+            onChange={(value) => set("contract_statuses", value as ContractStatus[])}
+            options={(["draft", "active", "suspended", "closed", "cancelled"] as const).map((value) => ({
               value,
               label: label("contract_status", value),
             }))}
@@ -265,8 +355,17 @@ export function InteractionReport() {
       ) : (
         <div className={`stack ${report.isFetching && report.isPlaceholderData ? "is-refreshing" : ""}`}>
           <div className="kpi-row">
+            <Kpi label="Взаимодействия" value={formatNumber(report.data.totals.interactions)} />
             <Kpi label="Вузы" value={formatNumber(report.data.totals.universities)} />
-            <Kpi label="Договоры" value={formatNumber(report.data.totals.contracts)} />
+            <Kpi
+              label="Договоры"
+              value={formatNumber(report.data.totals.contracts)}
+              detail={
+                report.data.totals.unsigned_excluded
+                  ? `без подписанного договора не вошло: ${formatNumber(report.data.totals.unsigned_excluded)}`
+                  : undefined
+              }
+            />
             <Kpi label="ИТ-программы" value={formatNumber(report.data.totals.programs)} />
             <Kpi label="ИТ-продукты" value={formatNumber(report.data.totals.products)} />
             <Kpi label="Строк в отчёте" value={formatNumber(report.data.totals.rows)} />
@@ -300,7 +399,7 @@ export function InteractionReport() {
                   </thead>
                   <tbody>
                     {report.data.rows.slice(0, PREVIEW_ROWS).map((row, index) => (
-                      <tr key={`${row.contract_id}-${index}`}>
+                      <tr key={`${row.interaction_id}-${index}`}>
                         {report.data.columns.map((column) => (
                           <td key={column} className={column === "days_on_stage" ? "col-num" : undefined}>
                             <Cell row={row} column={column} />

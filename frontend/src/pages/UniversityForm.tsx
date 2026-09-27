@@ -1,21 +1,30 @@
-/** Создание и изменение вуза (руководитель и администратор). */
+/**
+ * Создание и изменение вуза.
+ *
+ * Путь создания вуза один для всех источников (пункт 10 перечня
+ * исправлений): руководитель и администратор заводят подтверждённый вуз,
+ * менеджер - предлагает, и вуз ждёт проверки. Стабильный ключ - ИНН: по
+ * нему и по названию система не даст завести дубль.
+ */
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { ApiError } from "../api/client";
 import { createUniversity, updateUniversity } from "../api/endpoints";
 import { useApiMutation } from "../api/mutations";
-import { invalidateContractData, useUsers } from "../api/queries";
+import { invalidateInteractionData, useDirectory } from "../api/queries";
 import type { UniversityDetail } from "../api/types";
+import { useSession } from "../auth/session";
 import { Modal } from "../components/Modal";
-import { Button, SelectField, Switch, TextAreaField, TextField } from "../components/ui";
+import { Button, Notice, SelectField, TextAreaField, TextField } from "../components/ui";
 
 interface State {
   name: string;
   short_name: string;
+  inn: string;
   city: string;
   website: string;
   description: string;
   manager_id: string;
-  is_active: boolean;
 }
 
 export function UniversityFormModal({
@@ -28,29 +37,34 @@ export function UniversityFormModal({
   university?: UniversityDetail;
 }) {
   const navigate = useNavigate();
-  const users = useUsers();
+  const { can } = useSession();
+  const manages = can("manage_universities");
+  const assign = can("assign_responsible");
+  const directory = useDirectory();
   const [state, setState] = useState<State>({
     name: "",
     short_name: "",
+    inn: "",
     city: "",
     website: "",
     description: "",
     manager_id: "",
-    is_active: true,
   });
   const [error, setError] = useState<string | null>(null);
+  const [duplicateId, setDuplicateId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setError(null);
+    setDuplicateId(null);
     setState({
       name: university?.name || "",
       short_name: university?.short_name || "",
+      inn: university?.inn || "",
       city: university?.city || "",
       website: university?.website || "",
       description: university?.description || "",
       manager_id: university?.manager_id || "",
-      is_active: university?.is_active ?? true,
     });
   }, [open, university]);
 
@@ -59,22 +73,31 @@ export function UniversityFormModal({
       const body = {
         name: state.name.trim(),
         short_name: state.short_name.trim() || null,
+        inn: state.inn.trim() || null,
         city: state.city.trim() || null,
         website: state.website.trim() || null,
         description: state.description.trim() || null,
-        manager_id: state.manager_id || null,
+        ...(assign ? { manager_id: state.manager_id || null } : {}),
       };
-      return university ? updateUniversity(university.id, { ...body, is_active: state.is_active }) : createUniversity(body);
+      return university ? updateUniversity(university.id, body) : createUniversity(body);
     },
     {
-      success: university ? "Вуз сохранён" : "Вуз добавлен",
+      success: university ? "Вуз сохранён" : manages ? "Вуз добавлен" : "Вуз отправлен на проверку",
       onSuccess: (saved) => {
-        invalidateContractData();
+        invalidateInteractionData();
         onClose();
         if (!university) navigate(`/universities/${saved.id}`);
       },
     },
   );
+
+  useEffect(() => {
+    const failure = save.error;
+    if (failure instanceof ApiError && failure.status === 409) {
+      const id = failure.details?.university_id;
+      setDuplicateId(typeof id === "string" ? id : null);
+    }
+  }, [save.error]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -82,6 +105,11 @@ export function UniversityFormModal({
       setError("Укажите название вуза");
       return;
     }
+    if (state.inn.trim() && !/^\d{10}(\d{2})?$/.test(state.inn.trim())) {
+      setError("ИНН - 10 или 12 цифр");
+      return;
+    }
+    setError(null);
     save.mutate(undefined);
   };
 
@@ -92,19 +120,45 @@ export function UniversityFormModal({
       open={open}
       onClose={onClose}
       size="wide"
-      title={university ? university.name : "Новый вуз"}
+      title={university ? university.name : manages ? "Новый вуз" : "Предложить вуз"}
+      description={
+        university
+          ? undefined
+          : manages
+            ? "Вуз появится в справочнике подтверждённым."
+            : "Вуз уйдёт на проверку руководителю: пока его не подтвердят, взаимодействие с ним не завести."
+      }
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
             Отмена
           </Button>
           <Button type="submit" form="university-form" loading={save.isPending}>
-            Сохранить
+            {university ? "Сохранить" : manages ? "Добавить" : "Отправить на проверку"}
           </Button>
         </>
       }
     >
       <form id="university-form" className="form-grid" onSubmit={submit} noValidate>
+        {duplicateId && (
+          <div className="span-2">
+            <Notice
+              tone="warning"
+              title="Такой вуз уже есть"
+              actions={[
+                {
+                  label: "Открыть существующую запись",
+                  onClick: () => {
+                    onClose();
+                    navigate(`/universities/${duplicateId}`);
+                  },
+                },
+              ]}
+            >
+              Дубль не заводится: работайте с существующей записью или объедините записи.
+            </Notice>
+          </div>
+        )}
         <TextField
           className="span-2"
           label="Полное название"
@@ -120,6 +174,14 @@ export function UniversityFormModal({
           onChange={(value) => set("short_name", value)}
           maxLength={100}
           placeholder="МТУСИ"
+          hint="Показывается в списках, уведомлениях и на главной"
+        />
+        <TextField
+          label="ИНН"
+          value={state.inn}
+          onChange={(value) => set("inn", value.replace(/\D/g, ""))}
+          maxLength={12}
+          hint="Стабильный ключ вуза: по нему находятся дубли"
         />
         <TextField label="Город" value={state.city} onChange={(value) => set("city", value)} maxLength={100} />
         <TextField
@@ -130,15 +192,16 @@ export function UniversityFormModal({
           placeholder="https://"
           maxLength={255}
         />
-        <SelectField
-          label="Ответственный от ИТ Школы"
-          value={state.manager_id}
-          onChange={(value) => set("manager_id", value)}
-          placeholder="Не назначен"
-          options={(users.data || [])
-            .filter((user) => user.is_active && (user.roles || []).includes("manager"))
-            .map((user) => ({ value: user.id, label: user.full_name }))}
-        />
+        {assign && (
+          <SelectField
+            label="Менеджер по умолчанию"
+            value={state.manager_id}
+            onChange={(value) => set("manager_id", value)}
+            placeholder="Не назначен"
+            options={(directory.data || []).map((user) => ({ value: user.id, label: user.full_name }))}
+            hint="Станет ответственным за новые взаимодействия вуза"
+          />
+        )}
         <TextAreaField
           className="span-2"
           label="Описание"
@@ -147,7 +210,6 @@ export function UniversityFormModal({
           rows={3}
           maxLength={4000}
         />
-        {university && <Switch label="Вуз в работе" checked={state.is_active} onChange={(value) => set("is_active", value)} />}
       </form>
     </Modal>
   );

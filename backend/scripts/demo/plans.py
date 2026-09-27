@@ -124,7 +124,7 @@ STORIES: tuple[InteractionPlan, ...] = (
     # --- Петров: главный герой показа -------------------------------------------
     InteractionPlan(
         number="ДГ-2025-017",
-        title="Основной договор о сотрудничестве",
+        title="Базовое сотрудничество: разработка, тестирование, сети",
         university="mtuci",
         manager="petrov",
         programs=("Python-разработчик", "Инженер по тестированию", "Сетевой инженер"),
@@ -170,7 +170,7 @@ STORIES: tuple[InteractionPlan, ...] = (
     ),
     InteractionPlan(
         number="ДС-2026-011",
-        title="Дополнительное соглашение: DevOps для магистратуры",
+        title="Расширение: DevOps для магистратуры",
         university="sut",
         manager="petrov",
         programs=("Инженер DevOps",),
@@ -291,7 +291,7 @@ STORIES: tuple[InteractionPlan, ...] = (
     ),
     InteractionPlan(
         number="ДС-2026-005",
-        title="Дополнительное соглашение: сетевые технологии",
+        title="Расширение: сетевые технологии",
         university="dvfu",
         manager="alekseeva",
         programs=("Сетевой инженер",),
@@ -502,7 +502,7 @@ def _products_for(programs: tuple[str, ...], rng: random.Random) -> tuple[str, .
 
 def _title(programs: tuple[str, ...], template: str) -> str:
     if template == SHORT.key:
-        return f"Дополнительное соглашение: {programs[0]}"
+        return f"Расширение: {programs[0]}"
     if len(programs) == 1:
         return f"Программа «{programs[0]}»"
     directions = sorted({PROGRAM_BY_NAME[name].direction for name in programs})

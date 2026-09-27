@@ -247,11 +247,11 @@ jobs:
           fi
 
           # Адрес страницы приложения открывается напрямую (закладка, ссылка из письма).
-          code=$(curl -sS --max-time 10 -o "$RUNNER_TEMP/deep.html" -w '%{http_code}' "$base/contracts")
+          code=$(curl -sS --max-time 10 -o "$RUNNER_TEMP/deep.html" -w '%{http_code}' "$base/interactions")
           if [ "$code" = 200 ] && grep -q 'id="root"' "$RUNNER_TEMP/deep.html"; then
-            ok "Прямая ссылка на страницу" "/contracts → 200"
+            ok "Прямая ссылка на страницу" "/interactions → 200"
           else
-            fail "Прямая ссылка на страницу" "/contracts → $code"
+            fail "Прямая ссылка на страницу" "/interactions → $code"
           fi
 
           asset=$(grep -o '/assets/[^"]*\.js' "$RUNNER_TEMP/index.html" | head -1)

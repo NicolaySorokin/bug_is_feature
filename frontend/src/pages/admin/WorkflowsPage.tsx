@@ -2,14 +2,21 @@
  * Шаблоны рабочих процессов (п. 7 функциональных требований ТЗ:
  * создание и изменение рабочих процессов).
  *
- * Шаблон живёт версиями. Опубликованная версия не меняется - по ней идут
- * договоры; изменения делаются в новой версии-черновике и публикуются.
- * Уже запущенные процессы остаются на своей версии, новые договоры
- * получают последнюю опубликованную.
+ * Шаблон живёт версиями: черновик -> действующая -> устаревшая -> выведена
+ * из использования. Действующая версия у шаблона одна; опубликованную не
+ * меняют - по ней идут взаимодействия, и это держит даже база. Изменения
+ * делаются в новой версии-черновике и публикуются: новые взаимодействия
+ * пойдут по ней, начатые доходят до конца по своей.
+ *
+ * Перед публикацией граф проверяется целиком: ровно один стартовый этап,
+ * все этапы достижимы, нет тупиков, у финальных этапов задан результат
+ * и нет исходящих переходов. Этап может требовать документы и сам ставить
+ * статусы программ и продуктов при входе.
  */
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, CopyPlus, Plus, Rocket, Save, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ApiError } from "../../api/client";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   createTemplate,
   createVersion,
@@ -23,11 +30,21 @@ import {
   updateTemplate,
 } from "../../api/endpoints";
 import { useApiMutation } from "../../api/mutations";
-import { keys, queryClient } from "../../api/queries";
-import type { GraphWrite, StageWrite, TransitionWrite, VersionGraph } from "../../api/types";
+import { keys, queryClient, useLabel } from "../../api/queries";
+import type {
+  DocumentType,
+  GraphWrite,
+  InteractionOutcome,
+  ProductStatus,
+  ProgramStatus,
+  StageWrite,
+  TransitionWrite,
+  VersionGraph,
+} from "../../api/types";
 import { useSession } from "../../auth/session";
 import { useConfirm } from "../../components/Confirm";
 import { Modal } from "../../components/Modal";
+import { MultiSelect } from "../../components/MultiSelect";
 import {
   Button,
   Card,
@@ -44,6 +61,7 @@ import {
 import { ProcessCanvas } from "../../features/workflow/ProcessCanvas";
 import type { Point } from "../../features/workflow/layout";
 import { formatDateTime } from "../../lib/format";
+import { DOCUMENT_TYPES, PRODUCT_STATUSES, PROGRAM_STATUSES, VERSION_TONE } from "../../lib/labels";
 import { usePageTitle } from "../../lib/usePageTitle";
 
 function toWrite(version: VersionGraph): GraphWrite {
@@ -55,8 +73,13 @@ function toWrite(version: VersionGraph): GraphWrite {
       name: stage.name,
       description: stage.description,
       sla_days: stage.sla_days,
+      is_initial: stage.is_initial,
       is_optional: stage.is_optional,
       is_final: stage.is_final,
+      outcome: stage.outcome || null,
+      required_documents: stage.required_documents || [],
+      program_status_on_enter: stage.program_status_on_enter || null,
+      product_status_on_enter: stage.product_status_on_enter || null,
       sort_order: stage.sort_order,
       layout_x: stage.layout_x,
       layout_y: stage.layout_y,
@@ -78,6 +101,8 @@ function problems(graph: GraphWrite): string[] {
   if (codes.some((item) => !item)) found.push("У каждого этапа должен быть код");
   if (new Set(codes).size !== codes.length) found.push("Коды этапов повторяются");
   if (graph.stages.some((stage) => !stage.name.trim())) found.push("У каждого этапа должно быть название");
+  const initial = graph.stages.filter((stage) => stage.is_initial).length;
+  if (graph.stages.length && initial !== 1) found.push("Стартовый этап должен быть ровно один");
   if (!graph.stages.some((stage) => stage.is_final)) found.push("Отметьте завершающий этап");
   (graph.transitions || []).forEach((transition) => {
     if (!codes.includes(transition.from_code) || !codes.includes(transition.to_code))
@@ -104,6 +129,7 @@ function GraphEditor({
   onChange: (graph: GraphWrite) => void;
   readOnly: boolean;
 }) {
+  const label = useLabel();
   const stages = graph.stages;
   const transitions = graph.transitions || [];
   const setStage = (index: number, patch: Partial<StageWrite>) =>
@@ -140,8 +166,9 @@ function GraphEditor({
                 <th scope="col">Название</th>
                 <th scope="col">Код</th>
                 <th scope="col">Норма, дней</th>
-                <th scope="col">Необязательный</th>
-                <th scope="col">Завершающий</th>
+                <th scope="col">Старт</th>
+                <th scope="col">Необяза&shy;тельный</th>
+                <th scope="col">Завершающий и итог</th>
                 {!readOnly && (
                   <th scope="col" className="col-actions">
                     <span className="visually-hidden">Действия</span>
@@ -151,106 +178,198 @@ function GraphEditor({
             </thead>
             <tbody>
               {stages.map((stage, index) => (
-                <tr key={index}>
-                  <td className="num">{index + 1}</td>
-                  <td style={{ minWidth: 220 }}>
-                    {readOnly ? (
-                      stage.name
-                    ) : (
+                <Fragment key={index}>
+                  <tr>
+                    <td className="num">{index + 1}</td>
+                    <td style={{ minWidth: 220 }}>
+                      {readOnly ? (
+                        stage.name
+                      ) : (
+                        <input
+                          className="control control--s"
+                          aria-label="Название этапа"
+                          value={stage.name}
+                          maxLength={255}
+                          onChange={(event) => setStage(index, { name: event.target.value })}
+                        />
+                      )}
+                    </td>
+                    <td style={{ minWidth: 140 }}>
+                      {readOnly ? (
+                        <span className="mono">{stage.code}</span>
+                      ) : (
+                        <input
+                          className="control control--s mono"
+                          aria-label="Код этапа"
+                          value={stage.code}
+                          maxLength={100}
+                          onChange={(event) => renameCode(index, event.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))}
+                        />
+                      )}
+                    </td>
+                    <td style={{ width: 110 }}>
+                      {readOnly ? (
+                        (stage.sla_days ?? "—")
+                      ) : (
+                        <input
+                          className="control control--s"
+                          aria-label="Норма в днях"
+                          type="number"
+                          min={0}
+                          value={stage.sla_days ?? ""}
+                          onChange={(event) =>
+                            setStage(index, { sla_days: event.target.value ? Number(event.target.value) : null })
+                          }
+                        />
+                      )}
+                    </td>
+                    <td>
                       <input
-                        className="control control--s"
-                        aria-label="Название этапа"
-                        value={stage.name}
-                        maxLength={255}
-                        onChange={(event) => setStage(index, { name: event.target.value })}
-                      />
-                    )}
-                  </td>
-                  <td style={{ minWidth: 140 }}>
-                    {readOnly ? (
-                      <span className="mono">{stage.code}</span>
-                    ) : (
-                      <input
-                        className="control control--s mono"
-                        aria-label="Код этапа"
-                        value={stage.code}
-                        maxLength={100}
-                        onChange={(event) => renameCode(index, event.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))}
-                      />
-                    )}
-                  </td>
-                  <td style={{ width: 110 }}>
-                    {readOnly ? (
-                      (stage.sla_days ?? "—")
-                    ) : (
-                      <input
-                        className="control control--s"
-                        aria-label="Норма в днях"
-                        type="number"
-                        min={0}
-                        value={stage.sla_days ?? ""}
-                        onChange={(event) =>
-                          setStage(index, { sla_days: event.target.value ? Number(event.target.value) : null })
-                        }
-                      />
-                    )}
-                  </td>
-                  <td>
-                    <input
-                      type="checkbox"
-                      aria-label="Необязательный этап"
-                      checked={Boolean(stage.is_optional)}
-                      disabled={readOnly}
-                      onChange={(event) => setStage(index, { is_optional: event.target.checked })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="checkbox"
-                      aria-label="Завершающий этап"
-                      checked={Boolean(stage.is_final)}
-                      disabled={readOnly}
-                      onChange={(event) => setStage(index, { is_final: event.target.checked })}
-                    />
-                  </td>
-                  {!readOnly && (
-                    <td className="col-actions">
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        aria-label="Выше"
-                        disabled={index === 0}
-                        onClick={() => move(index, -1)}
-                      >
-                        <ArrowUp size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        aria-label="Ниже"
-                        disabled={index === stages.length - 1}
-                        onClick={() => move(index, 1)}
-                      >
-                        <ArrowDown size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        aria-label="Удалить этап"
-                        onClick={() =>
+                        type="radio"
+                        name="initial-stage"
+                        aria-label="Стартовый этап"
+                        checked={Boolean(stage.is_initial)}
+                        disabled={readOnly}
+                        onChange={() =>
                           onChange({
-                            stages: stages.filter((_, position) => position !== index),
-                            transitions: transitions.filter(
-                              (item) => item.from_code !== stage.code && item.to_code !== stage.code,
-                            ),
+                            ...graph,
+                            stages: stages.map((item, position) => ({ ...item, is_initial: position === index })),
                           })
                         }
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      />
                     </td>
-                  )}
-                </tr>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label="Необязательный этап"
+                        checked={Boolean(stage.is_optional)}
+                        disabled={readOnly}
+                        onChange={(event) => setStage(index, { is_optional: event.target.checked })}
+                      />
+                    </td>
+                    <td style={{ minWidth: 190 }}>
+                      <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                        <input
+                          type="checkbox"
+                          aria-label="Завершающий этап"
+                          checked={Boolean(stage.is_final)}
+                          disabled={readOnly}
+                          onChange={(event) =>
+                            setStage(index, {
+                              is_final: event.target.checked,
+                              outcome: event.target.checked ? stage.outcome || "successful" : null,
+                            })
+                          }
+                        />
+                        {stage.is_final &&
+                          (readOnly ? (
+                            <span>{label("interaction_outcome", stage.outcome || "successful")}</span>
+                          ) : (
+                            <select
+                              className="control control--s"
+                              aria-label="Результат взаимодействия на этом этапе"
+                              value={stage.outcome || "successful"}
+                              onChange={(event) => setStage(index, { outcome: event.target.value as InteractionOutcome })}
+                            >
+                              {(["successful", "partial", "unsuccessful"] as const).map((value) => (
+                                <option key={value} value={value}>
+                                  {label("interaction_outcome", value)}
+                                </option>
+                              ))}
+                            </select>
+                          ))}
+                      </div>
+                    </td>
+                    {!readOnly && (
+                      <td className="col-actions">
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label="Выше"
+                          disabled={index === 0}
+                          onClick={() => move(index, -1)}
+                        >
+                          <ArrowUp size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label="Ниже"
+                          disabled={index === stages.length - 1}
+                          onClick={() => move(index, 1)}
+                        >
+                          <ArrowDown size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label="Удалить этап"
+                          onClick={() =>
+                            onChange({
+                              stages: stages.filter((_, position) => position !== index),
+                              transitions: transitions.filter(
+                                (item) => item.from_code !== stage.code && item.to_code !== stage.code,
+                              ),
+                            })
+                          }
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                  <tr className="stage-extra">
+                    <td />
+                    <td colSpan={readOnly ? 6 : 7}>
+                      <div className="stage-extra__grid">
+                        {readOnly ? (
+                          <span className="muted">
+                            Документы:{" "}
+                            {(stage.required_documents || []).length
+                              ? (stage.required_documents || []).map((item) => label("document_type", item)).join(", ")
+                              : "не требуются"}
+                            {stage.program_status_on_enter
+                              ? ` · программы при входе: ${label("program_status", stage.program_status_on_enter).toLowerCase()}`
+                              : ""}
+                            {stage.product_status_on_enter
+                              ? ` · продукты при входе: ${label("product_status", stage.product_status_on_enter).toLowerCase()}`
+                              : ""}
+                          </span>
+                        ) : (
+                          <>
+                            <MultiSelect
+                              label="Обязательные документы"
+                              placeholder="Не требуются"
+                              value={stage.required_documents || []}
+                              onChange={(value) => setStage(index, { required_documents: value as DocumentType[] })}
+                              options={DOCUMENT_TYPES.map((value) => ({ value, label: label("document_type", value) }))}
+                            />
+                            <SelectField
+                              size="s"
+                              label="Программы при входе"
+                              value={stage.program_status_on_enter || ""}
+                              onChange={(value) =>
+                                setStage(index, { program_status_on_enter: (value || null) as ProgramStatus | null })
+                              }
+                              placeholder="Не менять"
+                              options={PROGRAM_STATUSES.map((value) => ({ value, label: label("program_status", value) }))}
+                            />
+                            <SelectField
+                              size="s"
+                              label="Продукты при входе"
+                              value={stage.product_status_on_enter || ""}
+                              onChange={(value) =>
+                                setStage(index, { product_status_on_enter: (value || null) as ProductStatus | null })
+                              }
+                              placeholder="Не менять"
+                              options={PRODUCT_STATUSES.map((value) => ({ value, label: label("product_status", value) }))}
+                            />
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -266,7 +385,16 @@ function GraphEditor({
                 onChange({
                   stages: [
                     ...stages,
-                    { code, name: "", is_optional: false, is_final: false, sort_order: (stages.length + 1) * 10, sla_days: 7 },
+                    {
+                      code,
+                      name: "",
+                      is_initial: stages.length === 0,
+                      is_optional: false,
+                      is_final: false,
+                      sort_order: (stages.length + 1) * 10,
+                      sla_days: 7,
+                      required_documents: [],
+                    },
                   ],
                   // Новый этап сразу связываем с предыдущим - так быстрее собрать цепочку.
                   transitions: last
@@ -482,6 +610,8 @@ export default function WorkflowsPage() {
   const [positions, setPositions] = useState<Record<string, Point> | null>(null);
   const [creating, setCreating] = useState(false);
   const [templateName, setTemplateName] = useState("");
+  const [serverProblems, setServerProblems] = useState<string[]>([]);
+  const label = useLabel();
   usePageTitle("Рабочие процессы");
 
   const templates = useQuery({ queryKey: keys.templates, queryFn: listTemplates });
@@ -514,6 +644,7 @@ export default function WorkflowsPage() {
       setGraph(toWrite(version.data));
       setDirty(false);
       setPositions(null);
+      setServerProblems([]);
     }
   }, [version.data]);
 
@@ -534,10 +665,17 @@ export default function WorkflowsPage() {
   const publish = useApiMutation(
     async () => {
       if (dirty) await saveGraph(versionId!, graph!);
-      return publishVersion(versionId!);
+      try {
+        return await publishVersion(versionId!);
+      } catch (error) {
+        // Сервер проверяет граф целиком и перечисляет, что мешает публикации.
+        const list = error instanceof ApiError ? error.details?.problems : null;
+        setServerProblems(Array.isArray(list) ? list.map(String) : []);
+        throw error;
+      }
     },
     {
-      success: "Версия опубликована: новые договоры пойдут по ней",
+      success: "Версия опубликована: новые взаимодействия пойдут по ней",
       onSuccess: refresh,
     },
   );
@@ -574,7 +712,7 @@ export default function WorkflowsPage() {
     },
   );
 
-  const isDraft = Boolean(version.data && !version.data.published_at);
+  const isDraft = version.data?.status === "draft";
   const issues = graph ? problems(graph) : [];
 
   // Для предпросмотра черновика: коды вместо id, раскладка из сохранённых координат.
@@ -644,9 +782,9 @@ export default function WorkflowsPage() {
                 .sort((a, b) => b.version_number - a.version_number)
                 .map((item) => ({
                   value: item.id,
-                  label: `Версия ${item.version_number} · ${item.published_at ? `опубликована ${formatDateTime(item.published_at)}` : "черновик"}${
-                    item.instances_count ? ` · процессов: ${item.instances_count}` : ""
-                  }`,
+                  label: `Версия ${item.version_number} · ${label("workflow_version_status", item.status).toLowerCase()}${
+                    item.published_at ? ` с ${formatDateTime(item.published_at)}` : ""
+                  }${item.open_instances_count ? ` · открытых процессов: ${item.open_instances_count}` : ""}`,
                 }))}
             />
             {template && (
@@ -678,14 +816,15 @@ export default function WorkflowsPage() {
             <>
               <div className="row-between">
                 <div className="row">
-                  {isDraft ? (
-                    <StatusBadge tone="warning">Черновик</StatusBadge>
-                  ) : (
-                    <StatusBadge tone="success">Опубликована</StatusBadge>
-                  )}
+                  <StatusBadge tone={VERSION_TONE[version.data.status]}>
+                    {label("workflow_version_status", version.data.status)}
+                  </StatusBadge>
                   <span className="muted">
                     Версия {version.data.version_number}
-                    {version.data.instances_count ? ` · используется в ${version.data.instances_count} процессах` : ""}
+                    {version.data.instances_count
+                      ? ` · взаимодействий: ${version.data.instances_count}, открытых: ${version.data.open_instances_count || 0}`
+                      : ""}
+                    {version.data.status === "deprecated" ? " · новые не запускаются, начатые доходят до конца" : ""}
                   </span>
                 </div>
                 <div className="row">
@@ -718,7 +857,7 @@ export default function WorkflowsPage() {
                           const ok = await confirm({
                             title: "Опубликовать версию?",
                             message:
-                              "После публикации версию нельзя изменить. Новые договоры пойдут по ней, уже запущенные процессы останутся на своей версии.",
+                              "После публикации версию нельзя изменить. Новые взаимодействия пойдут по ней, уже запущенные останутся на своей версии, а прежняя станет устаревшей.",
                             confirmLabel: "Опубликовать",
                           });
                           if (ok !== null) publish.mutate(undefined);
@@ -739,9 +878,14 @@ export default function WorkflowsPage() {
                   )}
                 </div>
               </div>
-              {issues.length > 0 && isDraft && (
+              {(issues.length > 0 || serverProblems.length > 0) && isDraft && (
                 <div className="quote" style={{ borderLeftColor: "var(--bad)" }}>
-                  {issues.join(". ")}.
+                  <strong>Что мешает публикации:</strong>
+                  <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                    {[...issues, ...serverProblems].map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
               {preview && (
@@ -749,7 +893,7 @@ export default function WorkflowsPage() {
                   <ProcessCanvas
                     stages={preview.stages}
                     transitions={preview.transitions}
-                    editable={preview.saved && can("save_layout")}
+                    editable={preview.saved && can("edit_workflow_presentation")}
                     onPositionsChange={setPositions}
                     resetKey={versionId || undefined}
                     height={460}

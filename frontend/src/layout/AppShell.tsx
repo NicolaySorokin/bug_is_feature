@@ -10,8 +10,8 @@ import {
   Building2,
   ClipboardList,
   FileSpreadsheet,
-  FileText,
   GitBranch,
+  Handshake,
   History,
   LayoutDashboard,
   LibraryBig,
@@ -27,10 +27,10 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from "react-router-dom";
-import { getAlerts, listContracts, listUniversities } from "../api/endpoints";
+import { getAlerts, listInteractions, listUniversities } from "../api/endpoints";
 import { keys } from "../api/queries";
 import { logout } from "../auth/auth";
-import { useSession, type Permission } from "../auth/session";
+import { useSession, type Action, type Session } from "../auth/session";
 import { RtLogo } from "../components/Brand";
 import { Avatar, IconButton } from "../components/ui";
 import { countLabel } from "../lib/format";
@@ -40,26 +40,40 @@ interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
-  permission?: Permission;
+  /** Пункт виден, если есть хотя бы одно из действий. */
+  any?: Action[];
+  /** Пункт виден только при доступе к бизнес-данным. */
+  business?: boolean;
   end?: boolean;
 }
 
 const WORK: NavItem[] = [
   { to: "/", label: "Главная", icon: LayoutDashboard, end: true },
-  { to: "/contracts", label: "Договоры", icon: FileText },
+  { to: "/interactions", label: "Взаимодействия", icon: Handshake, business: true },
   { to: "/universities", label: "Вузы", icon: Building2 },
-  { to: "/reports", label: "Отчёты и статистика", icon: BarChart3 },
-  { to: "/integrations", label: "LMS и сайт", icon: PlugZap },
+  { to: "/reports", label: "Отчёты и статистика", icon: BarChart3, any: ["view_reports", "view_statistics"] },
+  // Технический раздел: журнал обмена и сопоставление - не для бизнес-ролей (пункт 28).
+  {
+    to: "/integrations",
+    label: "LMS и сайт",
+    icon: PlugZap,
+    any: ["view_integration_log", "sync_integrations", "resolve_mappings"],
+  },
 ];
 
 const ADMIN: NavItem[] = [
-  { to: "/admin/users", label: "Пользователи и права", icon: Users, permission: "manage_users" },
-  { to: "/admin/catalog", label: "Справочники", icon: LibraryBig, permission: "edit_catalog" },
-  { to: "/admin/imports", label: "Загрузка из Excel", icon: FileSpreadsheet, permission: "import" },
-  { to: "/admin/workflows", label: "Рабочие процессы", icon: GitBranch, permission: "edit_templates" },
-  { to: "/admin/audit", label: "Журнал изменений", icon: History, permission: "view_audit" },
-  { to: "/admin/settings", label: "Настройки", icon: Settings, permission: "edit_settings" },
+  { to: "/admin/users", label: "Пользователи и права", icon: Users, any: ["manage_users"] },
+  { to: "/admin/catalog", label: "Справочники", icon: LibraryBig, any: ["edit_catalog", "edit_program_products"] },
+  { to: "/admin/imports", label: "Загрузка из Excel", icon: FileSpreadsheet, any: ["import"] },
+  { to: "/admin/workflows", label: "Рабочие процессы", icon: GitBranch, any: ["edit_templates"] },
+  { to: "/admin/audit", label: "Журнал изменений", icon: History, any: ["view_audit"] },
+  { to: "/admin/settings", label: "Настройки", icon: Settings, any: ["edit_settings"] },
 ];
+
+function visible(item: NavItem, session: Session): boolean {
+  if (item.business && !session.business) return false;
+  return !item.any || item.any.some((action) => session.can(action));
+}
 
 function useOutsideClose(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
@@ -82,8 +96,9 @@ function useOutsideClose(open: boolean, close: () => void) {
 }
 
 function Sidebar({ onNavigate, alerts }: { onNavigate: () => void; alerts: number }) {
-  const { can } = useSession();
-  const admin = ADMIN.filter((item) => !item.permission || can(item.permission));
+  const session = useSession();
+  const work = WORK.filter((item) => visible(item, session));
+  const admin = ADMIN.filter((item) => visible(item, session));
   const link = (item: NavItem) => (
     <NavLink key={item.to} to={item.to} end={item.end} className="nav-link" onClick={onNavigate}>
       <item.icon size={18} />
@@ -102,7 +117,7 @@ function Sidebar({ onNavigate, alerts }: { onNavigate: () => void; alerts: numbe
         <span className="sidebar__product">Взаимодействие с вузами</span>
       </Link>
       <nav className="sidebar__nav">
-        {WORK.map(link)}
+        {work.map(link)}
         {admin.length > 0 && (
           <>
             <div className="nav-group__title">Администрирование</div>
@@ -116,8 +131,9 @@ function Sidebar({ onNavigate, alerts }: { onNavigate: () => void; alerts: numbe
   );
 }
 
-/** Быстрый поиск договоров и вузов из любой страницы. */
+/** Быстрый поиск взаимодействий (в том числе по номеру договора) и вузов. */
 function QuickSearch({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { business } = useSession();
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [debounced, setDebounced] = useState("");
@@ -130,10 +146,10 @@ function QuickSearch({ open, onClose }: { open: boolean; onClose: () => void }) 
   }, [query]);
 
   const enabled = debounced.length >= 2;
-  const contracts = useQuery({
-    queryKey: ["search", "contracts", debounced],
-    queryFn: () => listContracts({ search: debounced, limit: 6 }),
-    enabled,
+  const interactions = useQuery({
+    queryKey: ["search", "interactions", debounced],
+    queryFn: () => listInteractions({ search: debounced, limit: 6 }),
+    enabled: enabled && business,
   });
   const universities = useQuery({
     queryKey: ["search", "universities", debounced],
@@ -156,8 +172,8 @@ function QuickSearch({ open, onClose }: { open: boolean; onClose: () => void }) 
         <input
           className="control"
           type="search"
-          placeholder="Найти договор или вуз"
-          aria-label="Найти договор или вуз"
+          placeholder={business ? "Найти вуз, взаимодействие или договор" : "Найти вуз"}
+          aria-label="Поиск по вузам и взаимодействиям"
           value={query}
           autoFocus={open}
           onFocus={() => setFocused(true)}
@@ -166,7 +182,12 @@ function QuickSearch({ open, onClose }: { open: boolean; onClose: () => void }) 
             setFocused(true);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && query.trim()) go(`/contracts?search=${encodeURIComponent(query.trim())}`);
+            if (event.key === "Enter" && query.trim())
+              go(
+                business
+                  ? `/interactions?search=${encodeURIComponent(query.trim())}`
+                  : `/universities?search=${encodeURIComponent(query.trim())}`,
+              );
           }}
         />
       </div>
@@ -180,32 +201,39 @@ function QuickSearch({ open, onClose }: { open: boolean; onClose: () => void }) 
               <span>
                 {item.short_name || item.name}
                 <small className="muted" style={{ display: "block", fontWeight: 400 }}>
-                  {item.city || "—"} · {countLabel(item.contracts_count || 0, ["договор", "договора", "договоров"])}
+                  {item.city || "—"} ·{" "}
+                  {countLabel(item.interactions_count || 0, ["взаимодействие", "взаимодействия", "взаимодействий"])}
                 </small>
               </span>
             </button>
           ))}
           {universities.data && universities.data.items.length === 0 && <div className="menu__item muted">Не найдено</div>}
-          <div className="search-results__group">Договоры</div>
-          {(contracts.data?.items || []).map((item) => (
-            <button key={item.id} type="button" className="menu__item" onClick={() => go(`/contracts/${item.id}`)}>
-              <FileText size={16} />
-              <span>
-                {item.number}
-                <small className="muted" style={{ display: "block", fontWeight: 400 }}>
-                  {item.university?.short_name || item.university?.name} · {item.process?.stage_name || "процесс не запущен"}
-                </small>
-              </span>
-            </button>
-          ))}
-          {contracts.data && contracts.data.items.length === 0 && <div className="menu__item muted">Не найдено</div>}
-          <button
-            type="button"
-            className="menu__item"
-            onClick={() => go(`/contracts?search=${encodeURIComponent(query.trim())}`)}
-          >
-            <Search size={16} /> Все договоры по запросу «{query.trim()}»
-          </button>
+          {business && (
+            <>
+              <div className="search-results__group">Взаимодействия</div>
+              {(interactions.data?.items || []).map((item) => (
+                <button key={item.id} type="button" className="menu__item" onClick={() => go(`/interactions/${item.id}`)}>
+                  <Handshake size={16} />
+                  <span>
+                    {item.title || item.university.short_name || item.university.name}
+                    <small className="muted" style={{ display: "block", fontWeight: 400 }}>
+                      {item.university.short_name || item.university.name}
+                      {item.contract ? ` · договор ${item.contract.number}` : ""} ·{" "}
+                      {item.stage?.stage_name || "процесс не запущен"}
+                    </small>
+                  </span>
+                </button>
+              ))}
+              {interactions.data && interactions.data.items.length === 0 && <div className="menu__item muted">Не найдено</div>}
+              <button
+                type="button"
+                className="menu__item"
+                onClick={() => go(`/interactions?search=${encodeURIComponent(query.trim())}`)}
+              >
+                <Search size={16} /> Все взаимодействия по запросу «{query.trim()}»
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -233,7 +261,7 @@ function AlertsMenu() {
             <strong>Требует внимания</strong>
             <span className="muted">{countLabel(items.length, ["проблема", "проблемы", "проблем"])}</span>
           </div>
-          {items.length === 0 && <div className="state">Проблем нет - все процессы идут по плану.</div>}
+          {items.length === 0 && <div className="state">Проблем нет - всё идёт по плану.</div>}
           {items.slice(0, 30).map((item, index) => {
             const body = (
               <>
@@ -241,12 +269,15 @@ function AlertsMenu() {
                 <span className="alert-item__text">
                   <strong>{item.kind_label}</strong>
                   <span>{item.message}</span>
-                  <small>{[item.university_name, item.contract_number, item.manager_name].filter(Boolean).join(" · ")}</small>
+                  <small title={item.university_full_name || undefined}>
+                    {[item.university_name, item.contract_number, item.manager_name].filter(Boolean).join(" · ")}
+                  </small>
                 </span>
               </>
             );
-            return item.contract_id ? (
-              <Link key={index} className="alert-item" to={`/contracts/${item.contract_id}`} onClick={() => setOpen(false)}>
+            const target = item.interaction_id ? `/interactions/${item.interaction_id}` : item.link;
+            return target ? (
+              <Link key={index} className="alert-item" to={target} onClick={() => setOpen(false)}>
                 {body}
               </Link>
             ) : (

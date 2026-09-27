@@ -2,7 +2,9 @@
  * Заявки с сайта ИТ Школы.
  *
  * Список содержит персональные данные (ФИО, телефон, почта), поэтому
- * открыт только руководителю и администратору - это же проверяет сервер.
+ * открыт только по отдельному праву «Персональные данные студентов» - из
+ * роли оно не следует; это же проверяет сервер. Заявка студента - только
+ * статистика: взаимодействие с вузом она не создаёт.
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -80,15 +82,12 @@ export function ApplicationsList() {
     },
     {
       key: "university",
-      title: "Вуз и договор",
+      title: "Вуз заявителя",
       render: (row) =>
-        row.contract_id ? (
-          <div className="cell-title">
-            <span>{row.university_name || "—"}</span>
-            <Link to={`/contracts/${row.contract_id}`}>{row.contract_number}</Link>
-          </div>
+        row.university_id ? (
+          <Link to={`/universities/${row.university_id}`}>{row.university_name || "—"}</Link>
         ) : (
-          <span className="muted">{row.university_name || "Не привязана"}</span>
+          <span className="muted">Не указан</span>
         ),
     },
     {
@@ -132,8 +131,8 @@ export function ApplicationsList() {
         />
       </div>
       <p className="muted" style={{ fontSize: 13 }}>
-        Персональные данные заявителей: используйте только для работы с заявками (152-ФЗ). Просмотр доступен руководителю и
-        администратору.
+        Персональные данные заявителей: используйте только для работы с заявками (152-ФЗ). Просмотр - по отдельному праву
+        «Персональные данные студентов», выданному администратором.
       </p>
       <Card flush>
         {applications.isPending ? (

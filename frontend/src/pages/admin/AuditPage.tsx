@@ -20,10 +20,12 @@ import { usePersistentState } from "../../lib/storage";
 import { usePageTitle } from "../../lib/usePageTitle";
 
 export const ENTITY_LABELS: Record<string, string> = {
+  workflow_instances: "Взаимодействие",
+  interaction_programs: "Программа во взаимодействии",
+  interaction_products: "Продукт во взаимодействии",
+  interaction_program_products: "Продукт в программе",
+  interaction_contacts: "Контакт по взаимодействию",
   contracts: "Договор",
-  contract_programs: "Программа в договоре",
-  contract_products: "Продукт в договоре",
-  contract_contacts: "Контакт по договору",
   licenses: "Лицензия",
   universities: "Вуз",
   university_contacts: "Контакт вуза",
@@ -37,6 +39,9 @@ export const ENTITY_LABELS: Record<string, string> = {
   workflow_stages: "Этап процесса",
   workflow_transitions: "Переход процесса",
   integration_sources: "Источник данных",
+  integration_mappings: "Сопоставление записи",
+  learning_streams: "Поток обучения",
+  enrollments: "Зачисление",
   users: "Пользователь",
   user_university_access: "Доступ к вузу",
   app_settings: "Настройка",
@@ -52,7 +57,7 @@ const ACTIONS: Record<string, { label: string; tone: "success" | "info" | "error
 
 // Ссылки на карточки для сущностей, у которых они есть.
 const LINKS: Record<string, (id: string) => string> = {
-  contracts: (id) => `/contracts/${id}`,
+  workflow_instances: (id) => `/interactions/${id}`,
   universities: (id) => `/universities/${id}`,
 };
 
@@ -81,11 +86,29 @@ const FIELD_LABELS: Record<string, string> = {
   valid_to: "Действует по",
   implementation_status: "Статус внедрения",
   transfer_status: "Статус передачи",
+  outcome: "Результат",
+  closure_reason: "Причина закрытия",
+  closure_comment: "Комментарий к закрытию",
+  blocked_reason: "Причина блокировки",
+  head_id: "Руководитель",
+  permissions: "Дополнительные права",
+  data_scope_reason: "Основание доступа",
+  data_scope_expires_at: "Доступ до",
+  reason: "Основание",
+  expires_at: "Действует до",
+  revoked_at: "Отозван",
+  inn: "ИНН",
+  is_initial: "Стартовый",
+  required_documents: "Обязательные документы",
+  document_type: "Тип документа",
+  is_exception: "Исключение",
+  exception_comment: "Комментарий к исключению",
+  source: "Источник",
   is_active: "Используется",
   is_primary: "Основной контакт",
   role: "Роль",
   roles: "Роли",
-  data_scope: "Доступ к данным",
+  data_scope: "Область данных",
   email: "Почта",
   phone: "Телефон",
   position: "Должность",
@@ -97,10 +120,22 @@ const FIELD_LABELS: Record<string, string> = {
   key: "Параметр",
 };
 
+// Статусы у разных сущностей свои: подпись ищется по таблице записи.
 const STATUS_GROUPS: Record<string, string> = {
-  status: "contract_status",
-  implementation_status: "implementation_status",
-  transfer_status: "implementation_status",
+  implementation_status: "program_status",
+  transfer_status: "product_status",
+  outcome: "interaction_outcome",
+  closure_reason: "closure_reason",
+  data_scope: "data_scope",
+  document_type: "document_type",
+};
+const STATUS_BY_ENTITY: Record<string, string> = {
+  contracts: "contract_status",
+  licenses: "license_status",
+  workflow_instances: "interaction_status",
+  universities: "university_status",
+  workflow_versions: "workflow_version_status",
+  integration_mappings: "mapping_status",
 };
 
 /** Идентификаторы в журнале показываются именами: кого назначили, какой вуз. */
@@ -145,7 +180,7 @@ function Changes({ entry }: { entry: AuditEntry }) {
   const value = (field: string, raw: unknown) => {
     const text = show(raw);
     if (typeof raw === "string" && names[field]?.[raw]) return names[field][raw];
-    const group = field === "status" && entry.entity_type === "licenses" ? "license_status" : STATUS_GROUPS[field];
+    const group = field === "status" ? STATUS_BY_ENTITY[entry.entity_type] : STATUS_GROUPS[field];
     if (typeof raw === "string" && group) return label(group, raw);
     return text;
   };

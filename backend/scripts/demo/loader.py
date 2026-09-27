@@ -1127,22 +1127,20 @@ class DemoLoader:
         """Что показывает раздел «Пользователи и права» сразу после загрузки.
 
         * Иванова замещает Петрова в отпуске - точечный доступ к его вузу
-          со сроком и основанием;
+          со сроком и основанием, выдал администратор;
         * Фёдорову на время годового отчёта временно открыта вся организация;
         * Орлова видит персональные данные студентов и журнал обмена - это
-          отдельные права, из роли руководителя они не следуют.
+          отдельные права, из роли руководителя они не следуют;
+        * у администратора бизнес-данных нет: ни области данных, ни
+          персональных данных студентов.
         """
-        orlova, fedorov, admin = (
-            self.users["orlova"],
-            self.users["fedorov"],
-            self.users["admin"],
-        )
+        orlova, fedorov = self.users["orlova"], self.users["fedorov"]
         self.session.add(
             UserUniversityAccess(
                 user_id=self.users["ivanova"].id,
                 university_id=self.universities["mirea"].id,
                 reason="Замещает Петрова на время отпуска",
-                granted_by_id=orlova.id,
+                granted_by_id=self.users["admin"].id,
                 expires_at=self.now + timedelta(days=12),
                 created_at=self._ago(2),
             )
@@ -1154,7 +1152,6 @@ class DemoLoader:
             str(Permission.VIEW_PERSONAL_DATA),
             str(Permission.VIEW_INTEGRATION_LOG),
         ]
-        admin.permissions = [str(Permission.VIEW_PERSONAL_DATA)]
         await self.session.flush()
 
     # --- Журналы обмена и загрузок ---------------------------------------------

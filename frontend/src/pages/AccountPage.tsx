@@ -14,12 +14,21 @@ import { useSession } from "../auth/session";
 import { useToast } from "../components/Toasts";
 import { Avatar, Button, Card, DescriptionList, PageHeader, StatusBadge } from "../components/ui";
 import { ROLE_SHORT } from "../lib/labels";
+import { formatDate } from "../lib/format";
 import { usePageTitle } from "../lib/usePageTitle";
 
 const ROLE_DUTIES: Record<string, string> = {
-  manager: "ведёт взаимодействия с закреплёнными вузами: этапы процесса, комментарии, файлы, отчёты",
-  head: "контролирует работу команды, назначает и меняет ответственных, формирует сводные отчёты",
-  admin: "управляет пользователями и правами, справочниками, шаблонами процессов и настройками",
+  manager: "ведёт свои взаимодействия с вузами: процесс, программы и продукты, договор, файлы",
+  head: "контролирует работу команды: назначает ответственных, решает исключения, подтверждает вузы",
+  admin: "управляет пользователями и правами, справочниками, шаблонами процессов, интеграциями и настройками",
+};
+
+const SCOPE_TEXT: Record<string, string> = {
+  own: "Вы видите свои взаимодействия, вузы, где вы менеджер по умолчанию, и вузы, открытые вам отдельно.",
+  team: "Вы видите взаимодействия своей команды и те, что ждут назначения ответственного.",
+  all: "Вы видите все взаимодействия организации.",
+  none: "Бизнес-данные (взаимодействия, договоры, отчёты) вам недоступны - только административные функции.",
+  default: "",
 };
 
 export default function AccountPage() {
@@ -72,9 +81,8 @@ export default function AccountPage() {
             ))}
           </ul>
           <p className="muted account-note">
-            {me.sees_all_contracts
-              ? "Вы видите данные по всем вузам."
-              : "Вы видите данные по вузам, за которыми закреплены, и вузам, открытым администратором."}
+            {SCOPE_TEXT[me.effective_scope || "none"]}
+            {me.data_scope_expires_at ? ` Расширенный доступ действует до ${formatDate(me.data_scope_expires_at)}.` : ""}
           </p>
         </Card>
 
