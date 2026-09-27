@@ -16,7 +16,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { Ban, FileJson, GitMerge, PlugZap, Plus, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   createFromMapping,
@@ -78,6 +78,42 @@ function afterSync() {
   void queryClient.invalidateQueries({ queryKey: ["catalog"] });
 }
 
+/**
+ * Последний обмен в карточке источника - не длиннее двух строк. «Подробнее»
+ * появляется, только если текст не поместился: полный текст открывается
+ * в карточке запуска. Короткую строку ссылка бы только повторяла, а все
+ * запуски с подробностями - в журнале ниже.
+ */
+function LastRun({ run, source, onMore }: { run: IntegrationRun; source: string; onMore: () => void }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [clipped, setClipped] = useState(false);
+
+  // Поместится ли текст, зависит от ширины карточки - проверяем при каждом её изменении.
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const check = () => setClipped(node.scrollHeight > node.clientHeight + 1);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [run]);
+
+  return (
+    <div className="source-card__last">
+      <p ref={ref} className="source-card__summary">
+        Последний обмен {formatDateTime(run.started_at)}:{" "}
+        {run.status === "failed" ? <span className="field__error">{run.error_message}</span> : describeRun(run)}
+      </p>
+      {clipped && (
+        <button type="button" className="link-btn" aria-label={`Подробнее о последнем обмене: ${source}`} onClick={onMore}>
+          Подробнее
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Запуск целиком: счётчики, пояснения и ошибки по отдельным записям. */
 function RunDrawer({ runId, onClose }: { runId: string | null; onClose: () => void }) {
   const label = useLabel();
@@ -117,11 +153,11 @@ function RunDrawer({ runId, onClose }: { runId: string | null; onClose: () => vo
               </p>
             </Card>
           )}
-          <Card title="Ошибки по записям" flush>
+          {/* Список ошибок - во всю ширину карточки, как любой список; строка
+              «Ошибок нет» - с обычными полями, на одной линии с заголовком. */}
+          <Card title="Ошибки по записям" flush={(run.data.errors || []).length > 0}>
             {(run.data.errors || []).length === 0 ? (
-              <p className="muted" style={{ padding: 16 }}>
-                Ошибок нет.
-              </p>
+              <p className="muted">Ошибок нет.</p>
             ) : (
               <div className="list">
                 {(run.data.errors || []).map((item) => (
@@ -402,26 +438,7 @@ export default function IntegrationsPage() {
                       ? "Тестовый режим: адрес API не задан, обмен идёт на примере ответа в формате источника. Ответ настоящего API можно загрузить файлом JSON."
                       : `Адрес API: ${source.base_url}`}
                   </p>
-                  {last && (
-                    <div className="source-card__last">
-                      <p className="source-card__summary">
-                        Последний обмен {formatDateTime(last.started_at)}:{" "}
-                        {last.status === "failed" ? (
-                          <span className="field__error">{last.error_message}</span>
-                        ) : (
-                          describeRun(last)
-                        )}
-                      </p>
-                      <button
-                        type="button"
-                        className="link-btn"
-                        aria-label={`Подробнее о последнем обмене: ${source.name}`}
-                        onClick={() => setRunId(last.id)}
-                      >
-                        Подробнее
-                      </button>
-                    </div>
-                  )}
+                  {last && <LastRun run={last} source={source.name} onMore={() => setRunId(last.id)} />}
                   <div className="row source-card__actions">
                     {can("sync_integrations") && (
                       <>
