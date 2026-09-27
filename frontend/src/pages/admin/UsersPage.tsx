@@ -109,6 +109,14 @@ function RolesPicker({ value, onChange }: { value: Role[]; onChange: (value: Rol
             onChange={(checked) => onChange(ROLES.filter((item) => (item === role ? checked : value.includes(item))))}
           />
         ))}
+        {/* Раздел 12 решений: администратор по умолчанию бизнес-данных не видит,
+            служебный доступ - временный. Совмещение возможно, но осознанно. */}
+        {value.includes("admin") && (value.includes("manager") || value.includes("head")) && (
+          <span className="field__error">
+            Администратор с бизнес-ролью постоянно работает с взаимодействиями и вузами. Если доступ нужен на время, вместо роли
+            выдайте временную область данных.
+          </span>
+        )}
       </div>
     </Field>
   );

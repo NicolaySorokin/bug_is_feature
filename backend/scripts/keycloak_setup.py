@@ -30,6 +30,15 @@ Keycloak при каждом подъёме стенда: деплой запу�
 С ``--reset-passwords`` пароли из переменной ставятся всем перечисленным,
 даже если пароль уже есть.
 
+Переход ролей на модель без наследования (раздел 12 «Решений по
+бизнес-модели»). Раньше иерархию полномочий изображали сами назначения:
+руководителю добавляли ``manager``, администратору - ``manager`` и ``head``.
+Учётки заводятся из выгрузки только один раз, поэтому на работающем стенде
+старые назначения остались бы навсегда. Один раз (отметка - атрибут реалма)
+учётке из выгрузки, у которой роли всё ещё те, что дала старая выгрузка,
+ставятся роли новой. Изменённые на сайте и заведённые там учётки не
+трогаются: это решение администратора.
+
     python -m scripts.keycloak_setup                    # обычный запуск
     python -m scripts.keycloak_setup --reset-passwords  # сменить пароли на заданные
     python -m scripts.keycloak_setup --loadtest on      # включить клиент нагрузки
@@ -58,6 +67,10 @@ REALM_FILE = Path(os.environ.get("KEYCLOAK_REALM_FILE", "/realm/realm-export.jso
 WEB_CLIENT_ID = os.environ.get("KEYCLOAK_WEB_CLIENT_ID", "edu-crm-web")
 LOADTEST_CLIENT_ID = "edu-crm-loadtest"
 ADMIN_ROLE = "admin"
+OUR_ROLES = frozenset({"manager", "head", "admin"})
+# Атрибут реалма с версией модели ролей: переход выполняется один раз.
+ROLE_MODEL_ATTRIBUTE = "eduCrmRoleModel"
+ROLE_MODEL_VERSION = "2"
 
 # Разделы выгрузки, которые не являются настройками реалма: их переносят
 # отдельные шаги, а PUT реалма с ними заменил бы роли и клиентов целиком.
@@ -204,6 +217,42 @@ class Keycloak:
             self.realm_path(f"/users/{user_id}/reset-password"),
             json_body={"type": "password", "value": password, "temporary": temporary},
         )
+
+    def realm_attributes(self) -> dict[str, str]:
+        return self.request("GET", self.realm_path()).json().get("attributes") or {}
+
+    def set_realm_attribute(self, key: str, value: str) -> None:
+        # Атрибуты передаются целиком: так не важно, дополняет Keycloak
+        # набор или заменяет его.
+        attributes = {**self.realm_attributes(), key: value}
+        self.request("PUT", self.realm_path(), json_body={"attributes": attributes})
+
+    def user_roles(self, user_id: str) -> set[str]:
+        """Роли реалма, назначенные пользователю напрямую."""
+        response = self.request(
+            "GET", self.realm_path(f"/users/{user_id}/role-mappings/realm")
+        )
+        return (
+            {role["name"] for role in response.json()}
+            if response.status_code == 200
+            else set()
+        )
+
+    def change_user_roles(self, user_id: str, *, add: set[str], remove: set[str]) -> None:
+        def representations(names: set[str]) -> list[dict[str, Any]]:
+            found = []
+            for name in sorted(names):
+                response = self.request("GET", self.realm_path(f"/roles/{name}"))
+                if response.status_code != 200:
+                    raise SetupError(f"Роли {name} нет в реалме")
+                found.append(response.json())
+            return found
+
+        path = self.realm_path(f"/users/{user_id}/role-mappings/realm")
+        if remove:
+            self.request("DELETE", path, json_body=representations(remove))
+        if add:
+            self.request("POST", path, json_body=representations(add))
 
 
 def load_realm() -> dict[str, Any]:
@@ -355,6 +404,46 @@ def apply_passwords(
             print(f"    {username}: {password}")
 
 
+def legacy_roles(roles: set[str]) -> set[str]:
+    """Роли, которые та же учётка получала из выгрузки до отказа от наследования."""
+    legacy = set(roles)
+    if "head" in roles:
+        legacy.add("manager")
+    if ADMIN_ROLE in roles:
+        legacy |= {"manager", "head"}
+    return legacy
+
+
+def align_role_model(kc: Keycloak, realm: dict[str, Any]) -> None:
+    """Один раз приводит роли учёток из выгрузки к модели без наследования.
+
+    Меняется только учётка, у которой роли совпадают со старыми
+    назначениями по выгрузке (``legacy_roles``): их никто не менял на сайте.
+    Так у администратора пропадают ``manager`` и ``head``, а сотрудник,
+    которому роль сознательно дали или сняли на сайте, остаётся как есть.
+    """
+    if kc.realm_attributes().get(ROLE_MODEL_ATTRIBUTE) == ROLE_MODEL_VERSION:
+        return
+    changed: list[str] = []
+    for account in realm.get("users", []):
+        target = set(account.get("realmRoles", [])) & OUR_ROLES
+        user = kc.find_user(account["username"])
+        if user is None:
+            continue
+        have = kc.user_roles(user["id"]) & OUR_ROLES
+        if have == target or have != legacy_roles(target):
+            continue
+        kc.change_user_roles(user["id"], add=target - have, remove=have - target)
+        changed.append(
+            f"{account['username']}: {', '.join(sorted(have))} -> {', '.join(sorted(target))}"
+        )
+    kc.set_realm_attribute(ROLE_MODEL_ATTRIBUTE, ROLE_MODEL_VERSION)
+    if changed:
+        log("Роли приведены к модели без наследования: " + "; ".join(changed))
+    else:
+        log("Роли уже соответствуют модели без наследования")
+
+
 def _admin_without_access(kc: Keycloak, usernames: list[str]) -> dict[str, Any] | None:
     """Администратор, которому нужен первый пароль, - если войти не может ни один.
 
@@ -428,6 +517,12 @@ def main() -> int:
             return 0
 
         apply_realm(kc, realm, web_origins())
+        try:
+            align_role_model(kc, realm)
+        except (SetupError, httpx.HTTPError) as exc:
+            # Деплою это не помеха: отметка о переходе не ставится, и он
+            # повторится при следующем запуске; роли можно поправить и на сайте.
+            log(f"Роли не приведены к модели без наследования: {exc}")
         apply_passwords(
             kc,
             realm,
