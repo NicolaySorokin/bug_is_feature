@@ -1,13 +1,17 @@
-"""Настройка реалма Keycloak: начальные пароли, разбор переменной, адреса возврата."""
+"""Настройка реалма Keycloak: начальные пароли, разбор переменной, адреса
+возврата, переход ролей на модель без наследования."""
 
 import re
 
 import pytest
 
 from scripts.keycloak_setup import (
+    ROLE_MODEL_ATTRIBUTE,
     SetupError,
+    align_role_model,
     apply_passwords,
     generate_password,
+    legacy_roles,
     parse_passwords,
     web_client,
 )
@@ -182,3 +186,92 @@ def test_weak_console_password_gives_clear_error() -> None:
         apply_passwords(kc, REALM, {}, reset=False, production=True, console_password="admin")
     assert "KEYCLOAK_USER_PASSWORDS" in str(error.value)
     assert "admin" in str(error.value)
+
+
+class RolesKeycloak:
+    """Реалм в памяти: роли пользователей и атрибуты реалма."""
+
+    def __init__(self, roles: dict[str, set[str]]) -> None:
+        self.roles = {username: set(items) for username, items in roles.items()}
+        self.attributes: dict[str, str] = {"frontendUrl": "https://edu-crm.example"}
+        self.changes = 0
+
+    def realm_attributes(self) -> dict[str, str]:
+        return dict(self.attributes)
+
+    def set_realm_attribute(self, key: str, value: str) -> None:
+        self.attributes[key] = value
+
+    def find_user(self, username: str) -> dict | None:
+        return {"id": username, "username": username} if username in self.roles else None
+
+    def user_roles(self, user_id: str) -> set[str]:
+        return set(self.roles[user_id])
+
+    def change_user_roles(self, user_id: str, *, add: set[str], remove: set[str]) -> None:
+        self.roles[user_id] = (self.roles[user_id] - remove) | add
+        self.changes += 1
+
+
+ROLES_REALM = {
+    "users": [
+        {"username": "admin", "realmRoles": ["admin"]},
+        {"username": "fedorov", "realmRoles": ["head"]},
+        {"username": "orlova", "realmRoles": ["manager", "head"]},
+        {"username": "petrov", "realmRoles": ["manager"]},
+        {"username": "ivanova", "realmRoles": ["manager"]},
+    ]
+}
+
+
+def test_legacy_roles_emulated_hierarchy() -> None:
+    assert legacy_roles({"admin"}) == {"admin", "head", "manager"}
+    assert legacy_roles({"head"}) == {"head", "manager"}
+    assert legacy_roles({"manager"}) == {"manager"}
+
+
+def test_old_hierarchy_roles_are_aligned_once() -> None:
+    """Раздел 12 решений: у администратора пропадают manager и head, у
+    руководителя без своих вузов - manager. Второй запуск ничего не меняет."""
+    kc = RolesKeycloak(
+        {
+            "admin": {"admin", "head", "manager", "default-roles-edu-crm"},
+            "fedorov": {"head", "manager"},
+            "orlova": {"head", "manager"},
+            "petrov": {"manager"},
+        }
+    )
+    align_role_model(kc, ROLES_REALM)
+
+    assert kc.roles["admin"] == {"admin", "default-roles-edu-crm"}
+    assert kc.roles["fedorov"] == {"head"}
+    assert kc.roles["orlova"] == {"head", "manager"}
+    assert kc.roles["petrov"] == {"manager"}
+    assert kc.attributes[ROLE_MODEL_ATTRIBUTE] == "2"
+    assert kc.attributes["frontendUrl"] == "https://edu-crm.example"
+
+    # Дальше роли ведёт администратор на сайте - деплой их не трогает.
+    kc.roles["admin"].add("manager")
+    align_role_model(kc, ROLES_REALM)
+    assert "manager" in kc.roles["admin"]
+    assert kc.changes == 2
+
+
+def test_roles_changed_on_site_are_left_alone() -> None:
+    """Роли, которые администратор уже поменял, - его решение."""
+    kc = RolesKeycloak(
+        {
+            # Сознательно оставлен менеджером и руководителем, но без admin.
+            "admin": {"head", "manager"},
+            # Руководителю вернули роль менеджера и добавили администратора.
+            "fedorov": {"head", "manager", "admin"},
+            # Менеджеру дали руководство.
+            "ivanova": {"manager", "head"},
+        }
+    )
+    align_role_model(kc, ROLES_REALM)
+
+    assert kc.roles["admin"] == {"head", "manager"}
+    assert kc.roles["fedorov"] == {"head", "manager", "admin"}
+    assert kc.roles["ivanova"] == {"manager", "head"}
+    assert kc.changes == 0
