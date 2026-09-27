@@ -1,5 +1,7 @@
 """Обмен с LMS и сайтом на тестовых ответах адаптеров."""
 
+import logging
+import re
 from pathlib import Path
 
 import httpx
@@ -191,30 +193,38 @@ def _unreachable(request: httpx.Request) -> httpx.Response:
 
 
 @pytest.mark.parametrize(
-    ("respond", "expected"),
+    ("respond", "reason"),
     [
-        (lambda _: httpx.Response(502), "ответила ошибкой 502"),
-        (lambda _: httpx.Response(401), "проверьте токен"),
+        (lambda _: httpx.Response(502), "ответ 502"),
+        (lambda _: httpx.Response(401), "ответ 401"),
         (lambda _: httpx.Response(200, text="<html>не JSON</html>"), "не в формате JSON"),
-        (lambda request: _unreachable(request), "Не удалось связаться"),
+        (lambda request: _unreachable(request), "нет связи"),
     ],
 )
 async def test_external_errors_are_readable(
-    monkeypatch: pytest.MonkeyPatch, respond: object, expected: str
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    respond: object,
+    reason: str,
 ) -> None:
-    """Текст ошибки виден сотрудникам в журнале обмена: без адресов и английского."""
+    """Сотрудник видит одну понятную фразу - без кодов ответа, адресов
+    и английского; причина сбоя - в журнале сервера для разработчика."""
     real_client = httpx.AsyncClient
 
     def client_with_mock(**kwargs: object) -> httpx.AsyncClient:
         return real_client(transport=httpx.MockTransport(respond), **kwargs)
 
     monkeypatch.setattr(base.httpx, "AsyncClient", client_with_mock)
+    monkeypatch.setattr(base, "FETCH_BACKOFF_SECONDS", (0.0,))
+    caplog.set_level(logging.WARNING, logger=base.__name__)
     with pytest.raises(AppError) as error:
         await base.fetch_json("https://lms.internal.example/api/v1/programs", "token")
 
-    assert expected in error.value.message
-    assert "lms.internal.example" not in error.value.message
+    assert error.value.message == base.UNAVAILABLE_MESSAGE
+    assert not re.search(r"\d", error.value.message)
     assert error.value.code == ErrorCode.INTEGRATION_FAILED
+    assert reason in caplog.text
+    assert "lms.internal.example" in caplog.text
 
 
 async def test_sync_all_skips_disabled_source(client: AsyncClient) -> None:
