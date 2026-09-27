@@ -55,13 +55,7 @@ export function LoginPage({ auth, onLogin }: { auth: AuthSession; onLogin: (acco
         <a className="login__brand" href="/">
           <img src="/rostelecom-it-school.png" alt="Ростелеком ИТ Школа" width={216} height={56} />
         </a>
-        <div className="stack login__intro" style={{ gap: 20 }}>
-          <h1>Система контроля взаимодействия ИТ Школы с вузами и школами</h1>
-          <p>
-            Договоры и ИТ-программы, рабочие процессы с вузами, лицензии на ИТ-продукты, статистика обучения студентов и отчёты
-            для руководства - в одном месте.
-          </p>
-        </div>
+        <h1 className="login__intro">Система контроля взаимодействия ИТ Школы с вузами и школами</h1>
       </section>
 
       <section className="login__panel">

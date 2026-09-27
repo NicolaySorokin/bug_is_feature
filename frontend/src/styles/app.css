@@ -1040,6 +1040,67 @@ select.control--s {
   background: var(--error-10, #fef8f9) !important;
 }
 
+/* Иконки lucide в кнопках. Atomaro красит иконку кнопки заливкой (fill) -
+   иконки набора залитые. Иконки lucide контурные: от заливки их фигуры
+   становились сплошными пятнами (стрелка «Сбросить» - тёмный круг, лист
+   «Загрузить JSON» - чёрный прямоугольник), а обводка брала цвет текста
+   страницы. Заливку снимаем, обводку красим токеном иконки Atomaro для
+   варианта кнопки и её состояния - в наборе он совпадает с цветом подписи.
+   !important у fill: селекторы набора точнее, а подключаются они позже. */
+.button svg.lucide {
+  fill: none !important;
+  stroke: var(--btn-icon, currentColor);
+}
+
+.button--primary.button--accent {
+  --btn-icon: var(--button-primary-accent-icon-color-default);
+  --btn-icon-hover: var(--button-primary-accent-icon-color-hover);
+  --btn-icon-active: var(--button-primary-accent-icon-color-active);
+  --btn-icon-disabled: var(--button-primary-accent-icon-color-disabled);
+}
+
+.button--secondary.button--accent {
+  --btn-icon: var(--button-secondary-accent-icon-color-default);
+  --btn-icon-hover: var(--button-secondary-accent-icon-color-hover);
+  --btn-icon-active: var(--button-secondary-accent-icon-color-active);
+  --btn-icon-disabled: var(--button-secondary-accent-icon-color-disabled);
+}
+
+.button--outline.button--neutral {
+  --btn-icon: var(--button-outline-neutral-icon-color-default);
+  --btn-icon-hover: var(--button-outline-neutral-icon-color-hover);
+  --btn-icon-active: var(--button-outline-neutral-icon-color-active);
+  --btn-icon-disabled: var(--button-outline-neutral-icon-color-disabled);
+}
+
+.button--ghost.button--neutral {
+  --btn-icon: var(--button-ghost-neutral-icon-color-default);
+  --btn-icon-hover: var(--button-ghost-neutral-icon-color-hover);
+  --btn-icon-active: var(--button-ghost-neutral-icon-color-active);
+  --btn-icon-disabled: var(--button-ghost-neutral-icon-color-disabled);
+}
+
+/* Опасное действие: иконка красная, недоступная - бледная, как у всех. */
+.button.btn-danger {
+  --btn-icon: var(--bad);
+  --btn-icon-hover: var(--bad);
+  --btn-icon-active: var(--bad);
+}
+
+@media not all and (hover: none) {
+  .button:hover:enabled svg.lucide {
+    stroke: var(--btn-icon-hover, var(--btn-icon, currentColor));
+  }
+}
+
+.button:active:enabled svg.lucide {
+  stroke: var(--btn-icon-active, var(--btn-icon, currentColor));
+}
+
+.button:disabled svg.lucide {
+  stroke: var(--btn-icon-disabled, var(--btn-icon, currentColor));
+}
+
 .notice {
   width: 100%;
 }
@@ -1184,6 +1245,14 @@ select.control--s {
 .tab[aria-selected="true"] .tab__count {
   background: var(--accent-50, #f1e6ff);
   color: var(--accent-700, #5500b8);
+}
+
+/* Счётчик того, что требует внимания, - оранжевый, как счётчики проблем
+   в меню и у колокольчика. Цвет тот же и у выбранной вкладки. */
+.tab__count--alert,
+.tab[aria-selected="true"] .tab__count--alert {
+  background: var(--rt-orange);
+  color: #fff;
 }
 
 .tab__dot {
@@ -2849,13 +2918,6 @@ a.list-item:hover {
   letter-spacing: -0.02em;
 }
 
-.login__hero p {
-  max-width: 560px;
-  color: #dccdff;
-  font-size: 16px;
-  line-height: 26px;
-}
-
 .login__brand {
   align-self: flex-start;
 }
@@ -2866,7 +2928,7 @@ a.list-item:hover {
   height: 56px;
 }
 
-/* Текст - посередине оставшейся высоты, под логотипом. */
+/* Заголовок - посередине оставшейся высоты, под логотипом. */
 .login__intro {
   margin: auto 0;
 }
