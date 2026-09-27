@@ -41,6 +41,9 @@ import { countLabel, formatDateTime, formatLongDate, formatNumber } from "../lib
 import { IMPORT_TYPE_LABELS, RUN_TONE, SEVERITY_TONE } from "../lib/labels";
 import { usePageTitle } from "../lib/usePageTitle";
 
+const DASHBOARD_CHARTS = ["by_status", "by_outcome"];
+const DASHBOARD_CHARTS_HEAD = ["by_status", "by_outcome", "by_stage", "by_program"];
+
 function greeting(): string {
   const hour = new Date().getHours();
   if (hour < 5) return "Доброй ночи";
@@ -422,8 +425,10 @@ export default function DashboardPage() {
   const business = data.scope !== "none";
   const head = can("assign_responsible");
   const canCreate = can("create_interaction");
-  // Нагрузку показывает таблица команды - диаграмма по менеджерам не дублирует её.
-  const charts = (data.charts || []).filter((chart) => chart.key !== "by_manager").slice(0, head ? 4 : 2);
+  // Руководителю - статусы и результаты, текущие этапы и программы (пункт 35);
+  // нагрузку менеджеров показывает таблица команды, диаграмма её не дублирует.
+  const chartKeys = head ? DASHBOARD_CHARTS_HEAD : DASHBOARD_CHARTS;
+  const charts = chartKeys.flatMap((key) => (data.charts || []).filter((chart) => chart.key === key));
   const listByStatus = (status: string) => navigate(`/interactions?status=${status}`);
 
   return (
@@ -551,7 +556,7 @@ export default function DashboardPage() {
               <Card title="Последние изменения" actions={<Clock size={16} className="muted" />}>
                 <Recent data={data} />
               </Card>
-              {role === "head" && counters.cancelled > 0 && (
+              {role === "head" && counters.unsuccessful > 0 && (
                 <Card title="Закрыто без успеха">
                   <p className="muted" style={{ marginBottom: 12 }}>
                     {countLabel(counters.unsuccessful, ["взаимодействие", "взаимодействия", "взаимодействий"])} с причиной
@@ -583,7 +588,7 @@ export default function DashboardPage() {
 
         <AdminBlock data={data} />
         <p className="muted" style={{ fontSize: 12 }}>
-          Данные на {formatDateTime(data.generated_at)}. Обновляются автоматически раз в 5 минут и сразу после ваших действий.
+          Данные на {formatDateTime(data.generated_at)}
         </p>
       </div>
     </div>

@@ -15,6 +15,7 @@ import {
   Loader as AtomaroLoader,
   Switch as AtomaroSwitch,
   TextArea as AtomaroTextArea,
+  Tooltip as AtomaroTooltip,
 } from "@atomaro/ui-kit";
 import { AlertTriangle, Inbox, Search, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useRef, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
@@ -238,6 +239,47 @@ export function StatusBadge({ tone = "neutral", children, title }: { tone?: Tone
 
 export function Tag({ children, tone }: { children: ReactNode; tone?: "accent" | "warn" | "bad" }) {
   return <span className={`tag ${tone ? `tag--${tone}` : ""}`}>{children}</span>;
+}
+
+/**
+ * Всплывающая подсказка дизайн-системы (Tooltip Atomaro) вместо системной
+ * подсказки браузера из атрибута title: появляется при наведении, с
+ * заголовком и в оформлении системы.
+ *
+ * Atomaro скрывает содержимое триггера от экранного диктора (aria-hidden),
+ * поэтому значение вместе с подсказкой продублировано скрытым текстом label.
+ * По той же причине внутрь не кладутся кнопки и ссылки.
+ */
+export function Hint({
+  title,
+  content,
+  label,
+  children,
+  placement = "top",
+}: {
+  title?: string;
+  content?: ReactNode;
+  /** Значение и подсказка одной фразой - для экранного диктора. */
+  label: string;
+  children: ReactNode;
+  placement?: "top" | "bottom" | "left" | "right";
+}) {
+  return (
+    <span className="hint">
+      <AtomaroTooltip
+        className="hint__tooltip"
+        trigger="hover"
+        size="m"
+        closeButton={false}
+        placement={placement}
+        title={title}
+        subtitle={content}
+      >
+        {children}
+      </AtomaroTooltip>
+      <span className="visually-hidden">{label}</span>
+    </span>
+  );
 }
 
 // --- Раскладка -----------------------------------------------------------------------

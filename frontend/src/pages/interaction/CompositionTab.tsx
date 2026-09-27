@@ -50,7 +50,18 @@ import type {
 import { useSession } from "../../auth/session";
 import { useConfirm } from "../../components/Confirm";
 import { Modal } from "../../components/Modal";
-import { Button, Card, Checkbox, EmptyState, SelectField, StatusBadge, Tag, TextAreaField, TextField } from "../../components/ui";
+import {
+  Button,
+  Card,
+  Checkbox,
+  EmptyState,
+  Hint,
+  SelectField,
+  StatusBadge,
+  Tag,
+  TextAreaField,
+  TextField,
+} from "../../components/ui";
 import { countLabel, DAYS, daysUntil, formatDate } from "../../lib/format";
 import { LICENSE_TONE, PRODUCT_STATUSES, PRODUCT_TONE, PROGRAM_STATUSES, PROGRAM_TONE } from "../../lib/labels";
 
@@ -397,6 +408,7 @@ export function CompositionTab({ interaction }: { interaction: InteractionDetail
         title: "Связи нет в справочнике",
         message: "Продукт не используется в этой программе по справочнику. Такую связь добавляет руководитель как исключение.",
         confirmLabel: "Понятно",
+        notice: true,
       });
       return;
     }
@@ -473,11 +485,20 @@ export function CompositionTab({ interaction }: { interaction: InteractionDetail
                             className="icon-btn"
                             aria-label={`Убрать программу ${item.program?.name}`}
                             onClick={async () => {
+                              // Программу со связанными продуктами сервер не уберёт: сначала
+                              // связи переносят на другую программу или убирают (раздел 13).
+                              if (used.length) {
+                                await confirm({
+                                  title: `С программой «${item.program?.name}» связаны продукты`,
+                                  message:
+                                    "Сначала уберите связи в блоке «ИТ-продукты и лицензии» или свяжите продукты с другой программой - потом программу можно будет убрать.",
+                                  confirmLabel: "Понятно",
+                                  notice: true,
+                                });
+                                return;
+                              }
                               const ok = await confirm({
                                 title: `Убрать программу «${item.program?.name}»?`,
-                                message: used.length
-                                  ? "Уберутся и связи продуктов с этой программой. Продукт, который останется без программ, убрать не получится - сначала свяжите его с другой программой."
-                                  : undefined,
                                 confirmLabel: "Убрать",
                                 danger: true,
                               });
@@ -597,13 +618,20 @@ export function CompositionTab({ interaction }: { interaction: InteractionDetail
                     </span>
                     {used.length === 0 && <Tag tone="bad">ни в одной программе - поправьте данные</Tag>}
                     {used.map((pair) => (
-                      <span
-                        key={pair.program_link_id}
-                        className={`tag ${pair.is_exception ? "tag--warn" : ""}`}
-                        title={pair.is_exception ? `Исключение: ${pair.exception_comment || "без комментария"}` : undefined}
-                      >
-                        {programById[pair.program_link_id]?.program?.name || "Программа"}
-                        {pair.is_exception ? " · исключение" : ""}
+                      <span key={pair.program_link_id} className={`tag ${pair.is_exception ? "tag--warn" : ""}`}>
+                        {pair.is_exception ? (
+                          <Hint
+                            title="Связь вне справочника"
+                            content={pair.exception_comment || "Без комментария"}
+                            label={`${programById[pair.program_link_id]?.program?.name || "Программа"} · исключение: ${
+                              pair.exception_comment || "без комментария"
+                            }`}
+                          >
+                            <span>{programById[pair.program_link_id]?.program?.name || "Программа"} · исключение</span>
+                          </Hint>
+                        ) : (
+                          programById[pair.program_link_id]?.program?.name || "Программа"
+                        )}
                         {canWork && used.length > 1 && (
                           <button
                             type="button"

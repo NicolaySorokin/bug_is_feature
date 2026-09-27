@@ -1044,6 +1044,55 @@ select.control--s {
   width: 100%;
 }
 
+/* Подсказка (Tooltip Atomaro). Стандартные 200px узки для русских
+   формулировок - даём подсказке место, перенос строк сохраняется; текст
+   чуть крупнее, заголовок - под размер строки таблицы. Стили набора
+   подключаются позже app.css, поэтому селекторы точнее, чем у Atomaro. */
+.hint {
+  display: inline-flex;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.tooltip.tooltip--size-m.hint__tooltip {
+  max-width: min(320px, calc(100vw - 32px));
+}
+
+.tooltip.tooltip--size-m.hint__tooltip .tooltip__content_wrapper .tooltip__title {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.tooltip.tooltip--size-m.hint__tooltip .tooltip__content_wrapper .tooltip__subtitle {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.hint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding-left: 16px;
+}
+
+/* Счётчик дополнительных прав в списке пользователей: метка в стиле тега,
+   чтобы было видно, что при наведении есть подробности. */
+.perm-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border: 1px solid var(--accent-100, #ddc2ff);
+  border-radius: 6px;
+  background: var(--accent-25, #f8f2ff);
+  color: var(--accent-700, #5500b8);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Вкладки раздела. Строка с тонкой границей снизу; выбранная вкладка -
    фиолетовый текст и фирменная полоса поверх границы. Ширина по тексту,
    на узком экране строка прокручивается без полосы прокрутки. */
@@ -1544,30 +1593,26 @@ select.control--s {
   font-size: 13px;
 }
 
-.role-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.role-list li {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
-.role-list .status-badge {
-  flex: 0 0 132px;
-}
-
+/* Строка карточки учётной записи: значок, заголовок с пояснением и действие
+   справа. Пояснение занимает всю оставшуюся ширину и переносится; на узком
+   экране кнопка уходит под текст (см. «Адаптив»). */
 .account-action {
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 14px 0;
+}
+
+.account-action__text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account-action__button {
+  flex: 0 0 auto;
 }
 
 .account-action + .account-action {
@@ -3338,6 +3383,30 @@ a.list-item:hover {
 
   .dl dd {
     margin-bottom: 8px;
+  }
+
+  /* Учётная запись: бейдж состояния - под именем, кнопка действия - под
+     пояснением, с отступом на ширину значка. */
+  .account-profile {
+    flex-wrap: wrap;
+  }
+
+  .account-profile > .stack-s {
+    flex: 1 1 180px;
+  }
+
+  .account-profile .status-badge {
+    margin-left: 58px;
+  }
+
+  .account-action {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .account-action__button {
+    width: 100%;
+    padding-left: 54px;
   }
 
   /* Таблица -> карточки: подписи колонок берутся из data-label. */

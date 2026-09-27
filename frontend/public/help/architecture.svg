@@ -8,9 +8,10 @@
   <rect width="960" height="520" fill="#ffffff"/>
   <!-- Пользователи -->
   <rect x="24" y="200" width="150" height="96" rx="12" fill="#f8f2ff" stroke="#7700ff" stroke-width="1.5"/>
-  <text x="99" y="232" text-anchor="middle" font-weight="700">Браузер</text>
-  <text x="99" y="252" text-anchor="middle" fill="#5f6a80">КАМ, руководитель,</text>
-  <text x="99" y="270" text-anchor="middle" fill="#5f6a80">администратор</text>
+  <text x="99" y="227" text-anchor="middle" font-weight="700">Браузер</text>
+  <text x="99" y="247" text-anchor="middle" fill="#5f6a80">менеджер,</text>
+  <text x="99" y="264" text-anchor="middle" fill="#5f6a80">руководитель,</text>
+  <text x="99" y="281" text-anchor="middle" fill="#5f6a80">администратор</text>
   <!-- Сервер -->
   <rect x="220" y="24" width="516" height="472" rx="16" fill="#fcfbff" stroke="#c5cad6" stroke-dasharray="6 5"/>
   <text x="238" y="50" font-weight="700" fill="#3a4760">Сервер: Docker Compose</text>

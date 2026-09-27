@@ -81,17 +81,27 @@ export function FilesTab({
   const send = async () => {
     setBusy(true);
     const eventId = toStage ? arrival?.id : undefined;
+    const text = draft.trim();
+    let saved = false;
     try {
-      if (draft.trim()) await createComment(interaction.id, draft.trim(), eventId);
-      for (const file of files) await uploadAttachment(interaction.id, file, eventId, documentType);
-      toast.success(draft.trim() ? "Комментарий добавлен" : "Файлы загружены");
-      clearDraft();
-      setFiles([]);
-      invalidateInteractionData(interaction.id);
+      // Отправленное сразу уходит из формы: повтор после сбоя одного из
+      // файлов не задвоит комментарий и уже загруженные файлы.
+      if (text) {
+        await createComment(interaction.id, text, eventId);
+        saved = true;
+        clearDraft();
+      }
+      for (const file of files) {
+        await uploadAttachment(interaction.id, file, eventId, documentType);
+        saved = true;
+        setFiles((current) => current.filter((item) => item !== file));
+      }
+      toast.success(text ? "Комментарий добавлен" : "Файлы загружены");
     } catch (error) {
       toast.error(error, "Не удалось отправить");
     } finally {
       setBusy(false);
+      if (saved) invalidateInteractionData(interaction.id);
     }
   };
 

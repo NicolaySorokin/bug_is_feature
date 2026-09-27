@@ -148,6 +148,7 @@ function TransitionDialog({
     // загружаются к текущему этапу заранее, остальные - к самому переходу.
     const upfront = missing.length > 0 ? files : [];
     const afterwards = missing.length > 0 ? [] : files;
+    let result: WorkflowView;
     try {
       if (upfront.length > 0) {
         const arrival = [...(view.events || [])]
@@ -155,14 +156,22 @@ function TransitionDialog({
           .sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
         for (const file of upfront) {
           await uploadAttachment(interaction.id, file, arrival?.id, documentType);
+          // Файл уже на сервере: повторная попытка перехода его не задвоит.
+          setFiles((current) => current.filter((item) => item !== file));
         }
-        // Файлы уже на сервере: повторная попытка перехода их не задвоит.
-        setFiles([]);
         invalidateInteractionData(interaction.id);
       }
-      const result = dialog.skip
+      result = dialog.skip
         ? await skipStage(interaction.id, dialog.transition.to_stage_id, comment.trim())
         : await transition(interaction.id, dialog.transition.to_stage_id, comment.trim(), reason || null);
+    } catch (error) {
+      toast.error(error, "Переход не выполнен");
+      setBusy(false);
+      return;
+    }
+    // Переход уже сделан: сбой загрузки файла - не повод повторять переход,
+    // поэтому окно закрывается, а об ошибке сообщается отдельно.
+    try {
       const event = newestEvent(result);
       for (const file of afterwards) {
         await uploadAttachment(interaction.id, file, event?.id, documentType);
@@ -171,12 +180,12 @@ function TransitionDialog({
         to?.is_final ? "Взаимодействие завершено" : `Этап: «${to?.name}»`,
         files.length ? `Приложено файлов: ${files.length}` : undefined,
       );
-      invalidateInteractionData(interaction.id);
-      onClose();
     } catch (error) {
-      toast.error(error, "Переход не выполнен");
+      toast.error(error, "Переход выполнен, но файлы загрузились не все");
     } finally {
+      invalidateInteractionData(interaction.id);
       setBusy(false);
+      onClose();
     }
   };
 
@@ -362,6 +371,11 @@ function StagePanel({
   const backward = transitions.filter((item) => item.is_backward);
   const canWork = can("work_interaction");
   const canSkip = canWork && (stage.is_optional || can("skip_any_stage"));
+  // Пропуском не закрывают без успеха: для этого нужен переход с причиной закрытия.
+  const skippableTo = (id: string) => {
+    const target = stages.find((item) => item.id === id);
+    return !(target?.is_final && target.outcome && target.outcome !== "successful");
+  };
   const required = stage.required_documents || [];
   const missing = isCurrent ? interaction.missing_documents || [] : [];
   // Срок текущего этапа - тот же расчёт сервера, что в «Обзоре» и на главной.
@@ -383,17 +397,26 @@ function StagePanel({
   const addNote = async () => {
     if (!arrival) return;
     setBusy(true);
+    const text = note.trim();
+    let saved = false;
     try {
-      if (note.trim()) await createComment(interaction.id, note.trim(), arrival.id);
-      for (const file of files) await uploadAttachment(interaction.id, file, arrival.id, documentType);
+      // Отправленное сразу уходит из формы: повтор после сбоя не задваивает.
+      if (text) {
+        await createComment(interaction.id, text, arrival.id);
+        saved = true;
+        setNote("");
+      }
+      for (const file of files) {
+        await uploadAttachment(interaction.id, file, arrival.id, documentType);
+        saved = true;
+        setFiles((current) => current.filter((item) => item !== file));
+      }
       toast.success("Добавлено к этапу", `«${stage.name}»`);
-      setNote("");
-      setFiles([]);
-      invalidateInteractionData(interaction.id);
     } catch (error) {
       toast.error(error, "Не удалось добавить");
     } finally {
       setBusy(false);
+      if (saved) invalidateInteractionData(interaction.id);
     }
   };
 
@@ -470,7 +493,7 @@ function StagePanel({
                 <Button icon={ArrowRightCircle} onClick={() => onTransition({ transition: item, skip: false })}>
                   {item.name || `На «${stageName(item.to_stage_id)}»`}
                 </Button>
-                {canSkip && (
+                {canSkip && skippableTo(item.to_stage_id) && (
                   <button
                     type="button"
                     className="link-btn"

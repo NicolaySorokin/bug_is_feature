@@ -8,6 +8,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   Archive,
+  ArchiveRestore,
   ArrowLeft,
   CheckCircle2,
   ExternalLink,
@@ -256,6 +257,14 @@ export default function UniversityPage() {
     success: "Контакт удалён",
     onSuccess: () => invalidateInteractionData(),
   });
+  // Контакт из истории взаимодействий не удаляют, а переводят в архив.
+  const toggleContact = useApiMutation(
+    (item: UniversityContact) => updateContact(universityId, item.id, { is_active: !item.is_active }),
+    {
+      success: (saved) => (saved.is_active ? "Контакт возвращён из архива" : "Контакт переведён в архив"),
+      onSuccess: () => invalidateInteractionData(),
+    },
+  );
   const remove = useApiMutation(() => deleteUniversity(universityId), {
     success: "Вуз удалён",
     onSuccess: () => {
@@ -295,6 +304,8 @@ export default function UniversityPage() {
     data.in_scope !== false && (roles.includes("head") || (data.manager_id === me.id && can("edit_university_contacts")));
   const merged = Boolean(data.merged_into_id);
   const canCreate = can("create_interaction") && data.status === "confirmed" && data.in_scope !== false;
+  // Действующие контакты - сверху, архивные - после них (внутри групп - по ФИО).
+  const contacts = [...(data.contacts || [])].sort((a, b) => Number(!a.is_active) - Number(!b.is_active));
 
   return (
     <div className="page">
@@ -467,16 +478,19 @@ export default function UniversityPage() {
               )
             }
           >
-            {(data.contacts || []).length === 0 ? (
+            {contacts.length === 0 ? (
               <EmptyState title="Контактов нет">
                 Добавьте ответственных от вуза - их можно будет назначить во взаимодействиях.
               </EmptyState>
             ) : (
               <div className="list">
-                {(data.contacts || []).map((item) => (
+                {contacts.map((item) => (
                   <div key={item.id} className="list-item" style={{ alignItems: "flex-start" }}>
                     <div className="list-item__main">
-                      <strong>{item.full_name}</strong>
+                      <strong className="row" style={{ gap: 6 }}>
+                        {item.full_name}
+                        {!item.is_active && <Tag>в архиве</Tag>}
+                      </strong>
                       <small>{item.position || "Должность не указана"}</small>
                       <div className="row" style={{ gap: 12, marginTop: 4 }}>
                         {item.phone && (
@@ -501,6 +515,35 @@ export default function UniversityPage() {
                         >
                           <Pencil size={16} />
                         </button>
+                        {item.is_active ? (
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            aria-label={`Перевести в архив ${item.full_name}`}
+                            disabled={toggleContact.isPending}
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: `Перевести контакт ${item.full_name} в архив?`,
+                                message:
+                                  "В прошлых взаимодействиях контакт останется, но назначить его в новые будет нельзя. Вернуть из архива можно в любой момент.",
+                                confirmLabel: "В архив",
+                              });
+                              if (ok !== null) toggleContact.mutate(item);
+                            }}
+                          >
+                            <Archive size={16} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            aria-label={`Вернуть из архива ${item.full_name}`}
+                            disabled={toggleContact.isPending}
+                            onClick={() => toggleContact.mutate(item)}
+                          >
+                            <ArchiveRestore size={16} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="icon-btn"
@@ -508,7 +551,8 @@ export default function UniversityPage() {
                           onClick={async () => {
                             const ok = await confirm({
                               title: `Удалить контакт ${item.full_name}?`,
-                              message: "Контакт снимется со всех взаимодействий вуза.",
+                              message:
+                                "Удаляют контакт, заведённый по ошибке. Контакт, назначенный во взаимодействиях, не удаляется - его переводят в архив, чтобы история осталась читаемой.",
                               confirmLabel: "Удалить",
                               danger: true,
                             });
