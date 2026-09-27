@@ -68,6 +68,7 @@ export function ContactsTab({ interaction }: { interaction: InteractionDetail })
                   <strong className="row" style={{ gap: 6 }}>
                     {item.contact.full_name}
                     {item.is_primary && <Tag tone="accent">основной</Tag>}
+                    {!item.contact.is_active && <Tag>в архиве</Tag>}
                   </strong>
                   <small>{[item.role, item.contact.position].filter(Boolean).join(" · ") || "Роль не указана"}</small>
                   <div className="row" style={{ gap: 12, marginTop: 4 }}>
@@ -85,7 +86,8 @@ export function ContactsTab({ interaction }: { interaction: InteractionDetail })
                 </div>
                 {canWork && (
                   <div className="row">
-                    {!item.is_primary && (
+                    {/* Архивный контакт остаётся в истории, но заново не назначается. */}
+                    {!item.is_primary && item.contact.is_active && (
                       <Button
                         variant="ghost"
                         size="s"

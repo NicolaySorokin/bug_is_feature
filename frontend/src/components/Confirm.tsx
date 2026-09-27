@@ -16,6 +16,8 @@ export interface ConfirmOptions {
   danger?: boolean;
   /** Поле для причины или комментария: его текст вернёт confirm. */
   reason?: { label?: string; required?: boolean; placeholder?: string };
+  /** Только сообщение: одна кнопка, без «Отмены» - выбирать нечего. */
+  notice?: boolean;
 }
 
 type ConfirmFn = (options: ConfirmOptions) => Promise<string | null>;
@@ -52,9 +54,11 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         onClose={() => close(null)}
         footer={
           <>
-            <Button variant="outline" onClick={() => close(null)}>
-              Отмена
-            </Button>
+            {!options?.notice && (
+              <Button variant="outline" onClick={() => close(null)}>
+                Отмена
+              </Button>
+            )}
             <Button variant={options?.danger ? "danger" : "primary"} disabled={missingReason} onClick={() => close(text.trim())}>
               {options?.confirmLabel || "Подтвердить"}
             </Button>

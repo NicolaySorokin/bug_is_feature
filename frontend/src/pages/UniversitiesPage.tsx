@@ -20,6 +20,7 @@ import {
   Card,
   EmptyState,
   ErrorState,
+  Hint,
   Loading,
   PageHeader,
   SearchInput,
@@ -99,16 +100,28 @@ export default function UniversitiesPage() {
       key: "interactions",
       title: "Взаимодействия",
       className: "col-num",
-      render: (row) =>
-        row.in_scope === false ? (
-          <span className="muted" title="Вуз вне вашей области данных">
-            —
-          </span>
-        ) : (
-          <span title="Активные / все">
-            {formatNumber(row.active_interactions_count || 0)} / {formatNumber(row.interactions_count || 0)}
-          </span>
-        ),
+      render: (row) => {
+        if (row.in_scope === false) {
+          return (
+            <Hint
+              content="Вуз вне вашей области данных - его взаимодействия вам не видны."
+              label="Взаимодействия не показываются: вуз вне вашей области данных"
+            >
+              <span className="muted">—</span>
+            </Hint>
+          );
+        }
+        const active = row.active_interactions_count || 0;
+        const total = row.interactions_count || 0;
+        const summary = `Активных ${formatNumber(active)} из ${formatNumber(total)}`;
+        return (
+          <Hint title="Взаимодействия" content={summary} label={summary}>
+            <span className="num">
+              {formatNumber(active)} / {formatNumber(total)}
+            </span>
+          </Hint>
+        );
+      },
     },
     {
       key: "status",

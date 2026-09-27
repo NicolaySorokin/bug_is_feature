@@ -40,6 +40,7 @@ import {
   EmptyState,
   ErrorState,
   Field,
+  Hint,
   Loading,
   PageHeader,
   SearchInput,
@@ -599,18 +600,28 @@ export default function UsersPage() {
     {
       key: "extra",
       title: "Доп. права",
-      render: (row) =>
-        (row.permissions || []).length ? (
-          <span
-            className="row"
-            style={{ gap: 4 }}
-            title={(row.permissions || []).map((item) => label("permission", item)).join(", ")}
+      render: (row) => {
+        const names = (row.permissions || []).map((item) => label("permission", item));
+        if (names.length === 0) return <span className="muted">—</span>;
+        return (
+          <Hint
+            title="Дополнительные права"
+            content={
+              <ul className="hint-list">
+                {names.map((name) => (
+                  <li key={name}>{name}</li>
+                ))}
+              </ul>
+            }
+            label={`Дополнительные права: ${names.join(", ")}`}
           >
-            <ShieldCheck size={14} /> {(row.permissions || []).length}
-          </span>
-        ) : (
-          <span className="muted">—</span>
-        ),
+            <span className="perm-count">
+              <ShieldCheck size={14} aria-hidden="true" />
+              {names.length}
+            </span>
+          </Hint>
+        );
+      },
     },
     {
       key: "head",

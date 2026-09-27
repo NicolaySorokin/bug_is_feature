@@ -367,7 +367,12 @@ export default function IntegrationsPage() {
         }. Повторный запуск обновляет те же записи и не плодит дубли.`}
         actions={
           can("sync_integrations") && (
-            <Button icon={RefreshCw} loading={syncEverything.isPending} onClick={() => syncEverything.mutate(undefined)}>
+            <Button
+              icon={RefreshCw}
+              disabled={!sources.data?.some((source) => source.is_enabled)}
+              loading={syncEverything.isPending}
+              onClick={() => syncEverything.mutate(undefined)}
+            >
               Синхронизировать всё
             </Button>
           )
@@ -414,7 +419,12 @@ export default function IntegrationsPage() {
                         >
                           Синхронизировать
                         </Button>
-                        <Button variant="outline" icon={FileJson} onClick={() => setUploadFor(source)}>
+                        <Button
+                          variant="outline"
+                          icon={FileJson}
+                          disabled={!source.is_enabled}
+                          onClick={() => setUploadFor(source)}
+                        >
                           Загрузить JSON
                         </Button>
                       </>

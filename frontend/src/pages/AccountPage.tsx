@@ -7,8 +7,8 @@
  * Теперь всё показывается здесь, а пароль меняется на странице Keycloak
  * «Новый пароль» в оформлении системы: сама система пароль не видит.
  */
-import { KeyRound, LogOut, ShieldCheck } from "lucide-react";
-import { useEffect } from "react";
+import { Eye, EyeOff, Handshake, KeyRound, LogOut, Settings, ShieldCheck, Users, type LucideIcon } from "lucide-react";
+import { useEffect, type ReactNode } from "react";
 import { changePassword, logout, takeAccountAction } from "../auth/auth";
 import { useSession } from "../auth/session";
 import { useToast } from "../components/Toasts";
@@ -17,10 +17,12 @@ import { ROLE_SHORT } from "../lib/labels";
 import { formatDate } from "../lib/format";
 import { usePageTitle } from "../lib/usePageTitle";
 
+const ROLE_ICONS: Record<string, LucideIcon> = { manager: Handshake, head: Users, admin: Settings };
+
 const ROLE_DUTIES: Record<string, string> = {
-  manager: "ведёт свои взаимодействия с вузами: процесс, программы и продукты, договор, файлы",
-  head: "контролирует работу команды: назначает ответственных, решает исключения, подтверждает вузы",
-  admin: "управляет пользователями и правами, справочниками, шаблонами процессов, интеграциями и настройками",
+  manager: "Ведёт свои взаимодействия с вузами: процесс, программы и продукты, договор, файлы.",
+  head: "Контролирует работу команды: назначает ответственных, решает исключения, подтверждает вузы.",
+  admin: "Управляет пользователями и правами, справочниками, шаблонами процессов, интеграциями и настройками.",
 };
 
 const SCOPE_TEXT: Record<string, string> = {
@@ -30,6 +32,32 @@ const SCOPE_TEXT: Record<string, string> = {
   none: "Бизнес-данные (взаимодействия, договоры, отчёты) вам недоступны - только административные функции.",
   default: "",
 };
+
+/** Строка карточки: значок, заголовок, пояснение и, если нужно, действие справа. */
+function AccountRow({
+  icon: Icon,
+  title,
+  children,
+  action,
+}: {
+  icon: LucideIcon;
+  title: ReactNode;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="account-action">
+      <span className="account-action__icon" aria-hidden="true">
+        <Icon size={18} />
+      </span>
+      <div className="account-action__text">
+        <strong>{title}</strong>
+        <span className="muted">{children}</span>
+      </div>
+      {action && <div className="account-action__button">{action}</div>}
+    </div>
+  );
+}
 
 export default function AccountPage() {
   const { me, roles, mode } = useSession();
@@ -46,6 +74,7 @@ export default function AccountPage() {
   }, [toast]);
 
   const keycloak = mode === "keycloak";
+  const scope = me.effective_scope || "none";
 
   return (
     <div className="page page--narrow">
@@ -71,50 +100,47 @@ export default function AccountPage() {
         </Card>
 
         <Card title="Роли и доступ">
-          <ul className="role-list">
-            {roles.length === 0 && <li className="muted">Роли не назначены - обратитесь к администратору.</li>}
-            {roles.map((role) => (
-              <li key={role}>
-                <StatusBadge tone="accent">{ROLE_SHORT[role] || role}</StatusBadge>
-                <span className="soft">{ROLE_DUTIES[role]}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="muted account-note">
-            {SCOPE_TEXT[me.effective_scope || "none"]}
+          {roles.length === 0 && (
+            <AccountRow icon={ShieldCheck} title="Роли не назначены">
+              Обратитесь к администратору системы.
+            </AccountRow>
+          )}
+          {roles.map((role) => (
+            <AccountRow key={role} icon={ROLE_ICONS[role] || ShieldCheck} title={ROLE_SHORT[role] || role}>
+              {ROLE_DUTIES[role]}
+            </AccountRow>
+          ))}
+          <AccountRow icon={scope === "none" ? EyeOff : Eye} title="Доступ к данным">
+            {SCOPE_TEXT[scope]}
             {me.data_scope_expires_at ? ` Расширенный доступ действует до ${formatDate(me.data_scope_expires_at)}.` : ""}
-          </p>
+          </AccountRow>
         </Card>
 
         <Card title="Безопасность">
-          <div className="account-action">
-            <span className="account-action__icon">
-              <KeyRound size={18} />
-            </span>
-            <div className="stack-s" style={{ gap: 2, minWidth: 0, flex: 1 }}>
-              <strong>Пароль</strong>
-              <span className="muted">
-                {keycloak
-                  ? "Новый пароль вводится на странице единого входа: не короче 12 символов, с заглавной и строчной буквой и цифрой."
-                  : "В режиме разработки вход выполняется без пароля - менять нечего."}
-              </span>
-            </div>
-            <Button variant="secondary" icon={KeyRound} disabled={!keycloak} onClick={() => void changePassword()}>
-              Сменить пароль
-            </Button>
-          </div>
-          <div className="account-action">
-            <span className="account-action__icon">
-              <ShieldCheck size={18} />
-            </span>
-            <div className="stack-s" style={{ gap: 2, minWidth: 0, flex: 1 }}>
-              <strong>Сеанс</strong>
-              <span className="muted">Закончили работу на чужом компьютере - выйдите из системы.</span>
-            </div>
-            <Button variant="outline" icon={LogOut} onClick={() => void logout()}>
-              Выйти
-            </Button>
-          </div>
+          <AccountRow
+            icon={KeyRound}
+            title="Пароль"
+            action={
+              <Button variant="secondary" icon={KeyRound} disabled={!keycloak} onClick={() => void changePassword()}>
+                Сменить пароль
+              </Button>
+            }
+          >
+            {keycloak
+              ? "Новый пароль вводится на странице единого входа: не короче 12 символов, с заглавной и строчной буквой и цифрой."
+              : "В режиме разработки вход выполняется без пароля - менять нечего."}
+          </AccountRow>
+          <AccountRow
+            icon={ShieldCheck}
+            title="Сеанс"
+            action={
+              <Button variant="outline" icon={LogOut} onClick={() => void logout()}>
+                Выйти
+              </Button>
+            }
+          >
+            Закончили работу на чужом компьютере - выйдите из системы.
+          </AccountRow>
         </Card>
       </div>
     </div>
