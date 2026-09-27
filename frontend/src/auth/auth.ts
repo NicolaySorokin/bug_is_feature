@@ -60,7 +60,8 @@ function saveTokens(): void {
 
 async function loadConfig(): Promise<AuthConfig> {
   const response = await fetch(`${apiBase()}/meta/auth`);
-  if (!response.ok) throw new Error(`Сервер недоступен (${response.status})`);
+  // Текст - для консоли разработчика: человеку Root показывает общее сообщение.
+  if (!response.ok) throw new Error(`Настройки входа не получены: ответ ${response.status}`);
   return (await response.json()) as AuthConfig;
 }
 

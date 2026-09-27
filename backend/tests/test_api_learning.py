@@ -283,3 +283,6 @@ async def test_bad_json_is_reported(client: AsyncClient) -> None:
     )
     assert response.status_code == 400
     assert response.json()["code"] == "integration_failed"
+    # Понятный текст без сообщения разборщика («Expecting property name...»).
+    assert response.json()["message"].startswith("Файл не похож на JSON")
+    assert "Expecting" not in response.json()["message"]
