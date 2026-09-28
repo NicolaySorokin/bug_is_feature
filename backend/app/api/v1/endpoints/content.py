@@ -1,10 +1,7 @@
 """Комментарии и файлы взаимодействия.
 
-Функциональные требования 2 и 3 ТЗ: комментарий при переходе от статуса
-к статусу и файлы в статусах. И комментарий, и файл можно привязать
-к событию процесса - тогда они видны в карточке этапа. У файла есть тип
-документа: по нему проверяется комплектность этапа (пункт 21 перечня
-исправлений).
+Их можно привязать к событию процесса, тогда они видны в карточке этапа.
+По типу документа проверяется комплектность этапа.
 """
 
 import uuid
@@ -49,7 +46,7 @@ async def check_event(
         raise NotFoundError("Событие процесса не найдено в этом взаимодействии")
 
 
-# --- Комментарии --------------------------------------------------------------
+# Комментарии
 
 
 @router.get(
@@ -99,7 +96,7 @@ async def create_comment(
     return CommentRead.model_validate(comment)
 
 
-# --- Вложения -----------------------------------------------------------------
+# Вложения
 
 
 @router.get(
@@ -215,7 +212,7 @@ async def delete_attachment(
 ) -> None:
     attachment = await _get_attachment(session, attachment_id, principal, user)
     await access.ensure_interaction_write(session, attachment.interaction, principal, user)
-    # Свой файл удаляет автор, чужой - только руководитель.
+    # Свой файл удаляет автор, чужой только руководитель.
     if attachment.uploaded_by != user.id and not access.can(
         principal, user, Action.ASSIGN_RESPONSIBLE
     ):

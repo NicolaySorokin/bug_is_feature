@@ -23,12 +23,12 @@ async def test_sources_are_registered_with_fixtures(client: AsyncClient) -> None
     sources = (await client.get("/api/v1/integrations/sources", headers=ADMIN)).json()
     codes = {source["code"] for source in sources}
     assert codes == {"lms", "site"}
-    # Адрес внешней системы не задан - работаем на тестовых данных.
+    # Адрес внешней системы не задан, работаем на тестовых данных.
     assert all(source["uses_fixture"] for source in sources)
 
 
 async def test_integration_log_is_not_for_business_roles(client: AsyncClient) -> None:
-    """Технический журнал обмена - администратору и по отдельному праву."""
+    """Технический журнал обмена видят администратор и владельцы отдельного права."""
     for headers in (MANAGER, HEAD):
         response = await client.get("/api/v1/integrations/runs", headers=headers)
         assert response.status_code == 403
@@ -49,7 +49,7 @@ async def test_new_universities_wait_for_confirmation(
     programs = (await client.get("/api/v1/catalog/programs", headers=ADMIN)).json()
     assert "Инженер DevOps" in {program["name"] for program in programs}
 
-    # Вузы с сайта - на проверку; заявки по ним ждут подтверждения вузов.
+    # Вузы с сайта идут на проверку, заявки по ним ждут подтверждения.
     pending = (
         await client.get("/api/v1/universities", params={"status": "pending"}, headers=HEAD)
     ).json()
@@ -99,7 +99,7 @@ async def test_repeated_sync_does_not_duplicate(
 async def test_same_name_goes_to_mapping_queue(
     client: AsyncClient, workflow_version: dict
 ) -> None:
-    """Запись без связи по одному названию не сопоставляется - решает администратор."""
+    """Запись без связи по одному названию не сопоставляется, решает администратор."""
     existing = await client.post(
         "/api/v1/universities",
         json={"name": "Новосибирский государственный технический университет"},
@@ -207,8 +207,7 @@ async def test_external_errors_are_readable(
     respond: object,
     reason: str,
 ) -> None:
-    """Сотрудник видит одну понятную фразу - без кодов ответа, адресов
-    и английского; причина сбоя - в журнале сервера для разработчика."""
+    """Сотрудник видит одну понятную фразу без кодов ответа и адресов."""
     real_client = httpx.AsyncClient
 
     def client_with_mock(**kwargs: object) -> httpx.AsyncClient:

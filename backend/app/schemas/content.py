@@ -12,7 +12,7 @@ from app.enums import DocumentType
 from app.schemas.common import ORMModel
 from app.schemas.user import UserBrief
 
-if TYPE_CHECKING:  # pragma: no cover - только для подсказок типов
+if TYPE_CHECKING:  # pragma: no cover (только для подсказок типов)
     from app.models.content import Attachment
 
 
@@ -48,7 +48,7 @@ class AttachmentRead(ORMModel):
 
     @classmethod
     def from_model(cls, attachment: Attachment, prefix: str) -> AttachmentRead:
-        """Ссылку на скачивание собираем здесь, чтобы клиент её не строил сам."""
+        """Ссылку на скачивание собираем на сервере, клиент её не строит."""
         model = cls.model_validate(attachment)
         model.download_url = f"{prefix}/attachments/{attachment.id}/download"
         return model

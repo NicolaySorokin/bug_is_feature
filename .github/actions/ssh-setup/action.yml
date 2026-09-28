@@ -29,8 +29,8 @@ runs:
         SSH_KNOWN_HOSTS: ${{ inputs.known-hosts }}
       run: |
         set -euo pipefail
-        # Секреты вставлены из Windows: \r в конце строк ломает и ключ,
-        # и known_hosts, а в адресе и логине даёт «неизвестный хост».
+        # Секреты вставлены из Windows: \r в конце
+        # строк ломает ключ, known_hosts и адрес.
         host=$(printf '%s' "$SSH_HOST" | tr -d '\r\n\t ')
         user=$(printf '%s' "$SSH_USER" | tr -d '\r\n\t ')
 

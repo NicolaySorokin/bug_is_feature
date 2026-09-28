@@ -2,19 +2,13 @@
 # Сертификат Let's Encrypt для стенда. Запускается от root при каждом деплое.
 #
 #   sudo env DOMAIN=... LE_EMAIL=... bash certificate.sh issue
-#       Первый выпуск, до запуска Nginx: certbot сам слушает 80-й порт
-#       (--standalone). Если сертификат уже есть, ничего не делает.
+#       Первый выпуск до запуска Nginx, certbot сам слушает 80-й порт.
 #
 #   sudo env DOMAIN=... bash certificate.sh webroot
-#       Когда Nginx поднят: переводит продление на webroot. Проверочные
-#       файлы certbot кладёт в CERTBOT_WEBROOT, Nginx отдаёт их по
-#       /.well-known/acme-challenge/ (см. cicd/prod/nginx.conf), так что
-#       продление идёт без остановки стенда. certbot reconfigure перед
-#       сохранением делает пробное продление на тестовом сервере Let's Encrypt,
-#       то есть заодно проверяет всю цепочку. Если уже webroot - ничего не делает.
+#       Переводит продление на webroot, чтобы стенд не останавливался.
+#       Перед этим certbot делает пробное продление.
 #
-# Продление - таймер certbot.timer, после него хук из bootstrap.sh
-# перезагружает Nginx.
+# Продлевает таймер certbot.timer, затем хук перезагружает Nginx.
 set -euo pipefail
 
 DOMAIN=${DOMAIN:?не задан DOMAIN}
@@ -39,8 +33,8 @@ issue() {
     fi
     : "${LE_EMAIL:?не задан LE_EMAIL}"
 
-    # 80-й порт должен быть свободен. Nginx без сертификата не стартует,
-    # но если каталог сертификатов пропал на живом стенде - останавливаем.
+    # 80-й порт должен быть свободен. Если сертификат пропал на живом стенде,
+    # останавливаем Nginx.
     if docker ps --format '{{.Names}}' 2> /dev/null | grep -qx "$NGINX_CONTAINER"; then
         log "Останавливаю $NGINX_CONTAINER, чтобы освободить 80-й порт"
         docker stop "$NGINX_CONTAINER" > /dev/null

@@ -1,26 +1,9 @@
 """Роли, права и область данных.
 
-Раздел 12 «Решений по бизнес-модели» и пункты 6-9 перечня исправлений:
-роль, функциональные права и область данных разделены.
-
-* **Роль -> действия.** Роли не наследуются: руководитель не получает права
-  менеджера, администратор - права руководителя. Сотруднику, который
-  совмещает функции, назначают несколько ролей явно.
-* **Дополнительные права** (запуск обмена, журнал обмена, персональные
-  данные студентов, представление схемы процесса) выдаёт администратор
-  отдельно - из роли руководителя они не следуют.
-* **Область данных -> какие взаимодействия и вузы видны:** ``own`` - свои
-  взаимодействия, вузы, где сотрудник менеджер по умолчанию, и явно
-  открытые вузы; ``team`` - плюс взаимодействия менеджеров своей команды
-  и взаимодействия без ответственного (очередь назначения); ``all`` - всё;
-  ``none`` - только административные функции. По умолчанию область
-  следует из ролей; администратор может задать её явно, в том числе
-  временно - со сроком и основанием.
-* **Точечный доступ** к вузу - со сроком, основанием и отметкой, кто выдал;
-  отозванный или истёкший доступ не действует.
-
-Сервер решает всё; клиент получает готовый список действий в /me
-и только прячет кнопки, которые роль всё равно не применит.
+Роли не наследуются и задают действия. Дополнительные права выдаёт
+администратор. Область данных задаёт, какие взаимодействия и вузы видны:
+own свои и открытые вузы, team ещё и команда с очередью без ответственного,
+all всё, none ничего. Сервер проверяет всё сам, клиент только прячет кнопки.
 """
 
 from __future__ import annotations
@@ -97,7 +80,7 @@ ROLE_ACTIONS: dict[Role, frozenset[Action]] = {
             Action.VIEW_STATISTICS,
             Action.EDIT_UNIVERSITY_CONTACTS,
             Action.MANAGE_UNIVERSITIES,
-            # Типовой договор - бизнес-документ: его текст задаёт руководитель.
+            # Типовой договор это бизнес-документ, его текст задаёт руководитель.
             Action.EDIT_CONTRACT_TEMPLATES,
         }
     ),
@@ -118,7 +101,7 @@ ROLE_ACTIONS: dict[Role, frozenset[Action]] = {
     ),
 }
 
-# Дополнительные права сверх роли - какие действия они открывают.
+# Какие действия открывают дополнительные права.
 PERMISSION_ACTIONS: dict[Permission, frozenset[Action]] = {
     Permission.SYNC_INTEGRATIONS: frozenset(
         {Action.SYNC_INTEGRATIONS, Action.VIEW_INTEGRATION_LOG}
@@ -130,8 +113,7 @@ PERMISSION_ACTIONS: dict[Permission, frozenset[Action]] = {
 
 BUSINESS_ROLES = frozenset({Role.MANAGER, Role.HEAD})
 
-# Где на объекте пользователя запоминаются вычисленные множества: запрос
-# делается один раз на обработку запроса, а не на каждую проверку.
+# Вычисленные множества кэшируются на объекте пользователя на время запроса.
 _UNIVERSITIES_CACHE = "_scope_university_ids"
 _TEAM_CACHE = "_team_member_ids"
 
@@ -165,7 +147,7 @@ def has_business_role(principal: Principal) -> bool:
 
 
 def role_scope(principal: Principal) -> DataScope:
-    """Область данных по ролям - если явно не задано иное."""
+    """Область данных по ролям, если явно не задана другая."""
     roles = _roles(principal)
     if Role.HEAD in roles:
         return DataScope.TEAM
@@ -191,7 +173,7 @@ def sees_all(principal: Principal, user: User) -> bool:
     return effective_scope(principal, user) is DataScope.ALL
 
 
-# --- Команда и вузы в области -------------------------------------------------
+# Команда и вузы в области
 
 
 def _active_grants(user_id: uuid.UUID) -> Select:
@@ -204,7 +186,7 @@ def _active_grants(user_id: uuid.UUID) -> Select:
 
 
 def team_members(user: User) -> Select:
-    """Сотрудники, у которых руководитель - этот пользователь."""
+    """Сотрудники, у которых этот пользователь руководитель."""
     return select(User.id).where(User.head_id == user.id)
 
 
@@ -234,10 +216,7 @@ def team_universities(user: User) -> CompoundSelect:
 
 
 def university_scope(principal: Principal, user: User) -> ColumnElement[bool] | None:
-    """Условие видимости вуза с бизнес-данными (контакты, взаимодействия).
-
-    ``None`` - ограничений нет.
-    """
+    """Условие видимости вуза с бизнес-данными. None значит без ограничений."""
     scope = effective_scope(principal, user)
     if scope is DataScope.ALL:
         return None
@@ -249,7 +228,7 @@ def university_scope(principal: Principal, user: User) -> ColumnElement[bool] | 
 
 
 def interaction_scope(principal: Principal, user: User) -> ColumnElement[bool] | None:
-    """Условие видимости взаимодействий. ``None`` - ограничений нет."""
+    """Условие видимости взаимодействий. None значит без ограничений."""
     scope = effective_scope(principal, user)
     if scope is DataScope.ALL:
         return None
@@ -267,7 +246,7 @@ def interaction_scope(principal: Principal, user: User) -> ColumnElement[bool] |
     return or_(
         own,
         WorkflowInstance.manager_id.in_(team_members(user)),
-        # Взаимодействия без ответственного - очередь назначения руководителя.
+        # Взаимодействия без ответственного: очередь назначения для руководителя.
         WorkflowInstance.manager_id.is_(None),
     )
 
@@ -295,7 +274,7 @@ async def team_member_ids(session: AsyncSession, user: User) -> set[uuid.UUID]:
 async def scope_university_ids(
     session: AsyncSession, principal: Principal, user: User
 ) -> set[uuid.UUID] | None:
-    """Вузы в области сотрудника. ``None`` - все вузы."""
+    """Вузы в области сотрудника. None значит все вузы."""
     condition = university_scope(principal, user)
     if condition is None:
         return None
@@ -306,7 +285,7 @@ async def scope_university_ids(
     return cached
 
 
-# --- Проверки на конкретных записях -------------------------------------------
+# Проверки на конкретных записях
 
 
 async def can_read_interaction(
@@ -337,9 +316,9 @@ async def ensure_interaction_read(
 async def ensure_interaction_write(
     session: AsyncSession, interaction: WorkflowInstance, principal: Principal, user: User
 ) -> None:
-    """Менять взаимодействие может менеджер или руководитель, в чьей области
-    оно находится. Администратор без бизнес-роли только читает (если ему
-    временно открыта область)."""
+    """Менять взаимодействие может менеджер или руководитель, в чьей области оно
+    находится. Администратор без бизнес-роли только читает.
+    """
     await ensure_interaction_read(session, interaction, principal, user)
     ensure(
         principal,

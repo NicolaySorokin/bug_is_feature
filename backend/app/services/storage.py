@@ -1,10 +1,7 @@
 """Хранение загруженных файлов.
 
-Раздел 9.2 концепции: содержимое файла лежит на диске сервера, в PostgreSQL -
-только сведения о нём и путь. Путь хранится относительно каталога хранилища,
-поэтому стенд можно перенести на другую машину, не трогая базу.
-
-Список допустимых форматов взят из функционального требования 3 ТЗ.
+Файл лежит на диске, в базе путь относительно хранилища, поэтому стенд можно
+перенести, не трогая базу. Допустимые форматы взяты из ТЗ.
 """
 
 from __future__ import annotations
@@ -19,7 +16,7 @@ from fastapi import UploadFile
 from app.core.config import settings
 from app.core.errors import AppError, ErrorCode
 
-# Расширение -> тип содержимого. Ключ - то, что видим в имени файла.
+# Расширение и тип содержимого.
 ALLOWED_TYPES: dict[str, str] = {
     "png": "image/png",
     "jpg": "image/jpeg",
@@ -118,20 +115,15 @@ async def save_upload(
     return StoredFile(
         original_name=original_name,
         storage_path=relative,
-        # Тип содержимого - по проверенному расширению, а не со слов браузера:
-        # при скачивании файл отдаётся с ним, и подменить его («картинка»
-        # с типом text/html) нельзя.
+        # Тип содержимого берём по проверенному расширению, а не со слов браузера,
+        # чтобы нельзя было подсунуть картинку с типом text/html.
         mime_type=ALLOWED_TYPES.get(extension, "application/octet-stream"),
         size_bytes=size,
     )
 
 
 def save_bytes(content: bytes, original_name: str, subdir: str) -> StoredFile:
-    """Сохраняет файл, который сформировала сама система (договор по шаблону).
-
-    Правила те же, что для загрузки: допустимое расширение, предел размера,
-    имя на диске - случайное.
-    """
+    """Сохраняет файл, который сформировала сама система, например договор по шаблону."""
     extension = check_extension(original_name)
     if len(content) > settings.max_upload_bytes:
         raise AppError(

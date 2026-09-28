@@ -1,9 +1,6 @@
-"""Заявки с сайта и анкеты LMS в формате кейсодержателя, статистика обучения.
+"""Заявки сайта и анкеты LMS в формате кейсодержателя, статистика обучения.
 
-Выгрузки загружаются файлом через POST /integrations/sources/{code}/upload -
-тем же адаптером, что и ответ по сети. Данные вымышленные, форма - как
-в переданных кейсодержателем файлах: пустой элемент в начале списка,
-номер заявки с датой внутри (бывает испорченный), телефон со скобками.
+Выгрузки загружаются файлом тем же адаптером, что и ответ по сети.
 """
 
 import json
@@ -15,7 +12,7 @@ from tests.conftest import ADMIN, HEAD, MANAGER, make_interaction
 SITE = [
     None,
     {
-        "Номер заявки": "ORD-20260313051569-OYJRVN",  # секунда 69 - даты нет
+        "Номер заявки": "ORD-20260313051569-OYJRVN",  # секунда 69, даты нет
         "Курс": "Анализ данных без программирования",
         "Фамилия": "Гусева",
         "Имя": "Анна",
@@ -113,7 +110,7 @@ async def test_site_applications_in_case_format(client: AsyncClient) -> None:
     assert run["records_received"] == 5
     assert run["records_created"] == 3
     assert run["records_failed"] == 2
-    # Курсов нет в справочнике: по названию программу не выбираем - очередь.
+    # Курсов нет в справочнике: по названию программу не выбираем, идут в очередь.
     assert run["records_pending"] == 2
     assert "Ждут ручного сопоставления" in run["notes"]
     assert "взаимодействия с вузами они не создают" in run["notes"]
@@ -190,8 +187,8 @@ async def test_statistics_rank_programs(client: AsyncClient) -> None:
     education = charts["learners_by_education"]["items"]
     assert {"label": "Высшее образование – бакалавриат", "value": 1} in education
 
-    # Фильтр по периоду подачи. У заявки с испорченным номером даты нет -
-    # она датирована моментом получения и в период до 10 сентября не входит.
+    # Фильтр по периоду подачи. У заявки с испорченным номером даты нет, она
+    # датирована получением и в период до 10 сентября не входит.
     filtered = (
         await client.post(
             "/api/v1/statistics/programs",
@@ -205,8 +202,7 @@ async def test_statistics_rank_programs(client: AsyncClient) -> None:
 async def test_same_stream_number_in_other_period_is_other_stream(
     client: AsyncClient,
 ) -> None:
-    """Поток опознаётся стабильным ключом с периодом: «поток 1» весной и
-    осенью - разные потоки."""
+    """Поток опознаётся ключом с периодом: «поток 1» весной и осенью разные."""
     spring = dict(SITE[1]) | {"Номер заявки": "ORD-20260310090000-SPRNG1"}
     autumn = dict(SITE[1]) | {
         "Номер заявки": "ORD-20260915090000-AUTMN1",
@@ -253,7 +249,7 @@ async def test_personal_data_is_closed_without_permission(client: AsyncClient) -
 async def test_student_application_does_not_create_interaction(
     client: AsyncClient, university: dict, workflow_version: dict
 ) -> None:
-    """Заявка студента - только статистика: вуз заявителя - разрез отчёта."""
+    """Заявка студента идёт только в статистику, вуз заявителя нужен для разреза."""
     await make_interaction(client, university["id"], MANAGER)
     item = dict(SITE[3]) | {"Вуз": university["name"]}
     other = dict(SITE[1]) | {"Вуз": university["name"]}

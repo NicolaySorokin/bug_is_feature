@@ -360,7 +360,7 @@ export interface paths {
         };
         /**
          * Взаимодействия, по которым требуется действие
-         * @description Правила раздела 7 концепции: этап дольше нормы, взаимодействие заблокировано, заканчивается срок договора или лицензии, не назначен ответственный, не загружен обязательный документ, не начато внедрение, продукт без программы; для тех, кто может их разобрать, - ошибки обмена, записи на сопоставлении и вузы на проверке. is_read - сотрудник отметил уведомление прочитанным; стало серьёзнее - снова новое.
+         * @description Правила контроля: этап дольше нормы, взаимодействие заблокировано, заканчивается срок договора или лицензии, не назначен ответственный, не загружен обязательный документ, не начато внедрение, продукт без программы; для тех, кто может их разобрать, - ошибки обмена, записи на сопоставлении и вузы на проверке. is_read - сотрудник отметил уведомление прочитанным; стало серьёзнее - снова новое.
          */
         get: operations["read_alerts_api_v1_dashboard_alerts_get"];
         put?: never;
@@ -2068,7 +2068,7 @@ export interface components {
         };
         /**
          * AlertKind
-         * @description Причины, по которым взаимодействие попадает в проблемные (раздел 7).
+         * @description Почему взаимодействие попало в проблемные.
          * @enum {string}
          */
         AlertKind: "stage_stale" | "process_blocked" | "process_not_started" | "contract_expiring" | "license_expiring" | "no_manager" | "no_documents" | "implementation_not_started" | "product_without_program" | "integration_failed" | "mapping_pending" | "university_pending";
@@ -2130,7 +2130,7 @@ export interface components {
         AlertSeverity: "info" | "warning" | "critical";
         /**
          * AlertsReadRequest
-         * @description Какие уведомления отметить прочитанными - ключи из списка уведомлений.
+         * @description Ключи уведомлений, которые нужно отметить прочитанными.
          */
         AlertsReadRequest: {
             /** Keys */
@@ -2373,7 +2373,7 @@ export interface components {
         };
         /**
          * ContractBrief
-         * @description Краткое состояние договора - для реестра и обзора взаимодействия.
+         * @description Краткое состояние договора для реестра и обзора взаимодействия.
          */
         ContractBrief: {
             /** Days Left */
@@ -2399,7 +2399,7 @@ export interface components {
         ContractClosureReason: "fulfilled" | "expired" | "terminated";
         /**
          * ContractDocumentPreview
-         * @description Текст договора с подставленными значениями - до формирования файла.
+         * @description Текст договора с подставленными значениями, до формирования файла.
          */
         ContractDocumentPreview: {
             /** Filename */
@@ -2482,8 +2482,10 @@ export interface components {
         };
         /**
          * ContractTemplateWrite
-         * @description Шаблон: название и текст с полями ``{{поле}}``. Неизвестное поле -
-         *     ошибка: опечатка в шаблоне иначе всплыла бы только в готовом договоре.
+         * @description Шаблон: название и текст с полями {{поле}}.
+         *
+         *     Неизвестное поле считается ошибкой, иначе опечатка всплыла бы только
+         *     в готовом договоре.
          */
         ContractTemplateWrite: {
             /**
@@ -2501,7 +2503,7 @@ export interface components {
         };
         /**
          * ContractWrite
-         * @description Создание и правка договора. Проверки дат и статусов - здесь и в базе.
+         * @description Создание и правка договора. Даты и статусы проверяются здесь и в базе.
          */
         ContractWrite: {
             closure_reason?: components["schemas"]["ContractClosureReason"] | null;
@@ -2685,11 +2687,9 @@ export interface components {
         };
         /**
          * DataScope
-         * @description Область бизнес-данных, которые видит сотрудник.
+         * @description Область бизнес-данных сотрудника.
          *
-         *     ``default`` - по ролям: менеджер - ``own``, руководитель - ``team``,
-         *     администратор без бизнес-роли - ``none``. Остальные значения задаёт
-         *     администратор явно, в том числе временно (со сроком и основанием).
+         *     default значит по ролям: менеджеру own, руководителю team, администратору none.
          * @enum {string}
          */
         DataScope: "default" | "own" | "team" | "all" | "none";
@@ -2710,7 +2710,7 @@ export interface components {
         DocumentType: "contract" | "contract_draft" | "agreement" | "license" | "act" | "letter" | "curriculum" | "presentation" | "other";
         /**
          * DuplicateCandidate
-         * @description Похоже, что два вуза - одна организация.
+         * @description Похоже, что два вуза на самом деле одна организация.
          */
         DuplicateCandidate: {
             first: components["schemas"]["UniversityBrief"];
@@ -2801,9 +2801,9 @@ export interface components {
         };
         /**
          * ImportMappingRequest
-         * @description Сопоставление «поле системы -> заголовок колонки файла».
+         * @description Сопоставление «поле системы: заголовок колонки файла».
          *
-         *     Пустое сопоставление означает «взять предложенное при загрузке».
+         *     Пустое сопоставление значит «взять предложенное при загрузке».
          */
         ImportMappingRequest: {
             /** Mapping */
@@ -2869,7 +2869,7 @@ export interface components {
         };
         /**
          * ImportRunStatus
-         * @description Состояния загрузки из раздела 6.2: от файла до итогов импорта.
+         * @description Состояния загрузки: от файла до итогов импорта.
          * @enum {string}
          */
         ImportRunStatus: "uploaded" | "validated" | "completed" | "failed";
@@ -2914,10 +2914,8 @@ export interface components {
         };
         /**
          * InstanceView
-         * @description Полное представление процесса для вкладки «Процесс» взаимодействия.
-         *
-         *     Схема берётся из зафиксированной версии шаблона, состояния этапов
-         *     вычисляются из истории переходов.
+         * @description Процесс для вкладки «Процесс»: схема из версии шаблона, состояния этапов
+         *     из истории переходов.
          */
         InstanceView: {
             /**
@@ -3254,8 +3252,7 @@ export interface components {
         };
         /**
          * InteractionListItem
-         * @description Строка реестра: вуз, статус, этап, ответственный, результат; договор -
-         *     необязательные поля (до подписания его может не быть).
+         * @description Строка реестра. Поля договора необязательны: до подписания его может не быть.
          */
         InteractionListItem: {
             /** Blocked Reason */
@@ -3470,7 +3467,7 @@ export interface components {
         };
         /**
          * LayoutWrite
-         * @description Координаты узлов. На бизнес-логику не влияют (раздел 3.2).
+         * @description Координаты узлов на схеме, на логику не влияют.
          */
         LayoutWrite: {
             /** Stages */
@@ -3744,7 +3741,7 @@ export interface components {
         };
         /**
          * NextStep
-         * @description Взаимодействие, где ждут действий: три независимых блока.
+         * @description Взаимодействие, где ждут действий: статус, этап и срок этапа.
          */
         NextStep: {
             /** Blocked Reason */
@@ -3848,11 +3845,7 @@ export interface components {
         PeriodBasis: "created" | "activity" | "signed" | "closed";
         /**
          * Permission
-         * @description Дополнительные права сверх роли. Выдаёт администратор.
-         *
-         *     По решениям о бизнес-модели запуск обмена, правка представления схемы
-         *     процесса и просмотр персональных данных студентов не следуют из роли
-         *     руководителя автоматически - их назначают отдельно.
+         * @description Дополнительные права сверх роли, их выдаёт администратор.
          * @enum {string}
          */
         Permission: "sync_integrations" | "view_integration_log" | "view_personal_data" | "edit_workflow_presentation";
@@ -4018,7 +4011,7 @@ export interface components {
         };
         /**
          * ReportColumn
-         * @description Колонки отчёта. Первые пять - те, что перечислены в ТЗ.
+         * @description Колонки отчёта. Первые пять названы в ТЗ.
          * @enum {string}
          */
         ReportColumn: "university" | "direction" | "program" | "product" | "status" | "manager" | "interaction" | "stage" | "days_on_stage" | "outcome" | "closure_reason" | "source" | "implementation_status" | "contract_number" | "contract_status" | "signed_at" | "valid_to" | "created_at" | "closed_at" | "comment";
@@ -4093,9 +4086,7 @@ export interface components {
          * ReportRow
          * @description Строка отчёта: взаимодействие в разрезе одной ИТ-программы.
          *
-         *     В ячейке «ИТ-продукт» - только продукты, фактически связанные с этой
-         *     программой во взаимодействии (пункт 24 перечня исправлений), а не весь
-         *     список продуктов на каждую программу.
+         *     В ячейке «ИТ-продукт» только продукты, связанные с этой программой.
          */
         ReportRow: {
             /** Closed At */
@@ -4230,11 +4221,7 @@ export interface components {
         };
         /**
          * Role
-         * @description Роли из Keycloak (раздел 12 «Решений по бизнес-модели»).
-         *
-         *     Роли не наследуются: руководитель не получает права менеджера,
-         *     администратор - права руководителя. Совмещение задаётся явно
-         *     несколькими ролями.
+         * @description Роли из Keycloak. Роли не наследуются, совмещение задаётся несколькими ролями.
          * @enum {string}
          */
         Role: "manager" | "head" | "admin";
@@ -4273,8 +4260,8 @@ export interface components {
         };
         /**
          * SkipRequest
-         * @description Пропуск этапа обязательно требует причину. Обязательный этап
-         *     пропускает только руководитель - как исключение с записью в истории.
+         * @description Пропуск этапа с обязательной причиной. Обязательный этап пропускает только
+         *     руководитель.
          */
         SkipRequest: {
             /** Reason */
@@ -4353,11 +4340,8 @@ export interface components {
         };
         /**
          * StageRename
-         * @description Корректировка названия статуса (этапа).
-         *
-         *     Название и описание на ход процесса не влияют, поэтому их можно
-         *     поправить и в опубликованной версии - изменение сразу видно во всех
-         *     взаимодействиях этой версии и в их истории.
+         * @description Переименование этапа. Название на ход процесса не влияет, поэтому его можно
+         *     менять и в опубликованной версии.
          */
         StageRename: {
             /** Description */
@@ -4382,10 +4366,7 @@ export interface components {
         };
         /**
          * StageState
-         * @description Пять состояний этапа из раздела 3.4.
-         *
-         *     Состояние не хранится отдельно, а вычисляется из истории переходов
-         *     и текущего этапа экземпляра процесса.
+         * @description Пять состояний этапа. Не хранятся, а вычисляются из истории переходов.
          * @enum {string}
          */
         StageState: "not_started" | "active" | "completed" | "skipped" | "blocked";
@@ -4410,7 +4391,7 @@ export interface components {
         };
         /**
          * StageWrite
-         * @description Этап схемы. Опознаётся по коду - он же связывает этап с переходами.
+         * @description Этап схемы. Код этапа связывает его с переходами.
          */
         StageWrite: {
             /** Code */
@@ -5185,7 +5166,7 @@ export interface components {
         WorkflowEventType: "created" | "started" | "forward" | "backward" | "skipped" | "blocked" | "unblocked" | "completed" | "cancelled" | "reassigned" | "commented";
         /**
          * WorkflowVersionStatus
-         * @description Жизненный цикл версии шаблона (раздел 3 «Решений по бизнес-модели»).
+         * @description Жизненный цикл версии шаблона.
          * @enum {string}
          */
         WorkflowVersionStatus: "draft" | "active" | "deprecated" | "retired";

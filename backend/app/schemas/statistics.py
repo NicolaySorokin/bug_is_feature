@@ -47,9 +47,9 @@ class ProgramStatistics(BaseModel):
 
 class StatisticsTotals(BaseModel):
     applications: int
-    # Разные люди: один обучающийся на двух программах - один человек...
+    # Разные люди: один обучающийся на двух программах считается одним человеком,
     learners: int
-    # ...но два зачисления.
+    # но двумя зачислениями.
     enrollments: int = 0
     streams: int
     programs: int

@@ -13,8 +13,8 @@ const numberFormat = new Intl.NumberFormat("ru-RU");
 
 function parse(value?: string | Date | null): Date | null {
   if (!value) return null;
-  // Дата без времени (2026-09-25) - это день, а не полночь UTC: иначе
-  // в часовых поясах западнее Гринвича она съехала бы на день назад.
+  // Дата без времени (2026-09-25) это день, а не полночь UTC, иначе западнее Гринвича она съехала бы
+  // на день назад.
   const date = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00`) : new Date(value);
   return Number.isNaN(date.valueOf()) ? null : date;
 }
@@ -38,7 +38,7 @@ export function formatNumber(value?: number | null): string {
   return value === null || value === undefined ? "—" : numberFormat.format(value);
 }
 
-/** Склонение: plural(3, ["договор", "договора", "договоров"]) -> «договора». */
+/** Склонение: plural(3, ["договор", "договора", "договоров"]) даёт «договора». */
 export function plural(count: number, forms: [string, string, string]): string {
   const mod10 = Math.abs(count) % 10;
   const mod100 = Math.abs(count) % 100;
@@ -53,7 +53,7 @@ export function countLabel(count: number, forms: [string, string, string]): stri
 
 export const DAYS: [string, string, string] = ["день", "дня", "дней"];
 
-/** Сколько дней до даты: отрицательное число - дата уже прошла. */
+/** Сколько дней до даты. Отрицательное число: дата уже прошла. */
 export function daysUntil(value?: string | null): number | null {
   const date = parse(value);
   if (!date) return null;
@@ -78,7 +78,7 @@ export function initials(name?: string | null): string {
     .toUpperCase();
 }
 
-/** «Петров Пётр Алексеевич» -> «Петров П. А.» для плотных таблиц. */
+/** «Петров Пётр Алексеевич» в «Петров П. А.» для плотных таблиц. */
 export function shortName(name?: string | null): string {
   if (!name) return "—";
   const [last, first, middle] = name.split(/\s+/);
@@ -93,7 +93,7 @@ export function fileSize(bytes?: number | null): string {
   return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} МБ`;
 }
 
-/** yyyy-mm-dd в местном времени: значение для <input type="date">. */
+/** yyyy-mm-dd в местном времени для <input type="date">. */
 export function toInputDate(value: Date): string {
   const pad = (part: number) => String(part).padStart(2, "0");
   return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;

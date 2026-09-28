@@ -50,10 +50,10 @@ class Vendor(UUIDPrimaryKeyMixin, Base):
 
 
 class VendorContact(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Ответственный со стороны вендора (каталог «Вендоры» кейсодержателя).
+    """Ответственный со стороны вендора.
 
-    Отвечает за конкретные продукты: у одной компании по разным продуктам
-    бывают разные люди, поэтому связь «продукт -> контакт» лежит у продукта.
+    У одной компании по разным продуктам бывают разные люди, поэтому ссылка
+    на контакт лежит у продукта.
     """
 
     __tablename__ = "vendor_contacts"
@@ -64,7 +64,7 @@ class VendorContact(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     full_name: Mapped[str] = mapped_column(String(255))
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # «Способ связи»: почта, чат в Telegram и т. п. - как удобнее контакту.
+    # «Способ связи»: почта, Telegram и т. п.
     contact_channel: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 

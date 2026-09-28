@@ -1,12 +1,6 @@
-"""Коды ошибок и единый формат ответа при сбое.
+"""Коды ошибок и единый формат ответа (требование 3 ТЗ).
 
-Нефункциональное требование 3 ТЗ: «должны быть предусмотрены коды ошибок».
-Поэтому любой отказ API возвращает одно и то же тело::
-
-    {"code": "workflow_rule_violated", "message": "...", "details": {...}}
-
-``code`` машиночитаем и не меняется при правке текста сообщения - на него
-опирается клиент, ``message`` предназначен человеку.
+Любой отказ отдаёт code для клиента, message для человека и details.
 """
 
 from __future__ import annotations
@@ -94,8 +88,7 @@ _STATUS_TO_CODE = {
     status.HTTP_403_FORBIDDEN: ErrorCode.FORBIDDEN,
     status.HTTP_404_NOT_FOUND: ErrorCode.NOT_FOUND,
     status.HTTP_409_CONFLICT: ErrorCode.CONFLICT,
-    # Числами, а не константами starlette: их имена в последних версиях
-    # переименованы, и предупреждения об устаревании шумят в логах.
+    # Числа вместо констант starlette: их имена менялись, старые дают предупреждения.
     413: ErrorCode.FILE_TOO_LARGE,
     415: ErrorCode.FILE_TYPE_NOT_ALLOWED,
     422: ErrorCode.VALIDATION_ERROR,
@@ -114,12 +107,8 @@ _VALUE_ERROR_PREFIX = "Value error, "
 
 
 def validation_message(errors: list[dict[str, Any]]) -> str:
-    """Текст для человека: нарушенные правила предметной области как есть.
-
-    Проверки схем («подписанный договор не отменяют», «период начинается
-    позже окончания») пишут понятный текст - его и показываем, а не общее
-    «запрос не прошёл проверку». Технические ошибки формата (нет поля,
-    не тот тип) остаются в details.errors.
+    """Текст нарушенного правила показываем как есть,
+    ошибки формата уходят в details.errors.
     """
     rules = [
         str(error.get("msg", "")).removeprefix(_VALUE_ERROR_PREFIX).strip()
@@ -151,8 +140,8 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(IntegrityError)
     async def _integrity_error(_: Request, exc: IntegrityError) -> JSONResponse:
-        # Нарушение ограничений базы - дубль или ссылка на удалённую запись.
-        # Это ошибка запроса, а не сбой сервиса: отвечаем 409, а не 500.
+        # Нарушение ограничений базы, например дубль,
+        # считаем ошибкой запроса: 409, а не 500.
         logger.info("Нарушение ограничения базы: %s", exc.orig)
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
@@ -165,8 +154,8 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _unexpected_error(request: Request, exc: Exception) -> JSONResponse:
-        # Непредвиденный сбой: подробности - в журнал сервера, клиенту -
-        # общий код без внутренностей (стек и SQL наружу не уходят).
+        # Непредвиденный сбой: подробности пишем в
+        # журнал, клиенту отдаём общий код без стека.
         logger.exception("Необработанная ошибка: %s %s", request.method, request.url.path)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

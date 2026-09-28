@@ -1,6 +1,6 @@
 """Все модели импортируются здесь, чтобы Alembic видел полную метадату."""
 
-from app.db import guards  # noqa: F401 - триггеры неизменности опубликованных версий
+from app.db import guards  # noqa: F401 (триггеры неизменности опубликованных версий)
 from app.db.base import Base
 from app.models.access import UserUniversityAccess
 from app.models.audit import AuditLog

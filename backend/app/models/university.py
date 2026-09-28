@@ -1,10 +1,7 @@
-"""Вузы и их контактные лица.
+"""Вузы и их контакты.
 
-Раздел 10 списка исправлений: вуз заводят вручную, загрузкой из Excel
-и обменом с сайтом, поэтому у записи единый жизненный цикл: ``pending``
-(заведён не руководителем - ждёт проверки) -> ``confirmed`` -> ``archived``.
-Стабильный бизнес-ключ - ИНН организации; дубли объединяются процедурой
-слияния, а поглощённая запись остаётся в архиве со ссылкой на итоговую.
+Путь записи: pending, confirmed, archived. ИНН служит стабильным ключом,
+при объединении дублей поглощённая запись остаётся в архиве.
 """
 
 import uuid
@@ -23,17 +20,14 @@ class University(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     name: Mapped[str] = mapped_column(String(500), index=True)
     short_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    # ИНН - стабильный ключ: по нему вуз узнаётся в любом источнике.
+    # ИНН: по нему вуз узнаётся в любом источнике.
     inn: Mapped[str | None] = mapped_column(String(12), nullable=True, unique=True)
     city: Mapped[str | None] = mapped_column(String(255), nullable=True)
     website: Mapped[str | None] = mapped_column(String(500), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Реквизиты для договора так, как их пишут в договоре: юридический адрес,
-    # КПП, ОГРН, банковские реквизиты. Одним текстом - форматы у вузов разные.
+    # Реквизиты для договора одним текстом: у вузов разные форматы.
     requisites: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Менеджер по умолчанию: правило, кого назначать ответственным за новые
-    # взаимодействия этого вуза. Ответственный конкретного процесса хранится
-    # на взаимодействии.
+    # Менеджер по умолчанию для новых взаимодействий вуза.
     manager_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -43,7 +37,7 @@ class University(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         server_default=UniversityStatus.CONFIRMED,
         index=True,
     )
-    # Откуда запись: manual, import, site, lms - для очереди проверки.
+    # Откуда запись: manual, import, site, lms.
     origin: Mapped[str] = mapped_column(String(16), default="manual", server_default="manual")
     confirmed_by_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -51,7 +45,7 @@ class University(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     confirmed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    # Запись поглощена при объединении дублей - ссылка на итоговую.
+    # Если запись поглощена при объединении, ссылка на итоговую.
     merged_into_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("universities.id", ondelete="SET NULL"), nullable=True
     )
@@ -69,16 +63,12 @@ class University(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     @property
     def display_name(self) -> str:
-        """Краткое название для компактных мест, полное - если краткого нет."""
+        """Краткое название, а если его нет, полное."""
         return self.short_name or self.name
 
 
 class UniversityContact(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Контактное лицо хранится на уровне вуза.
-
-    Связь с конкретным взаимодействием задаётся через interaction_contacts,
-    поэтому один человек не дублируется для каждого взаимодействия.
-    """
+    """Контактное лицо вуза. С взаимодействиями связано через interaction_contacts."""
 
     __tablename__ = "university_contacts"
 

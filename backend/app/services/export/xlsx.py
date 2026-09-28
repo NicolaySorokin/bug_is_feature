@@ -1,9 +1,7 @@
 """Выгрузка отчёта в XLSX.
 
-Книга состоит из двух листов: «Отчёт» - табличная часть с выбранными
-колонками, «Диаграммы» - те же данные в виде сводных табличек и диаграмм
-Excel рядом с ними. Диаграмма строится из ячеек листа, поэтому получатель
-видит, из каких именно чисел она собрана, и может пересчитать их сам.
+Лист «Отчёт» с таблицей и лист «Диаграммы» со сводками и диаграммами Excel,
+построенными по ячейкам: видно, из каких чисел собрана диаграмма.
 """
 
 from __future__ import annotations
@@ -42,7 +40,7 @@ def _write_meta(sheet: Worksheet, report: ReportResponse) -> int:
         f"взаимодействий: {report.totals.interactions} · строк: {report.totals.rows}"
     )
     sheet["A3"].font = MUTED_FONT
-    return 5  # первая строка таблицы
+    return 5
 
 
 def _autosize(sheet: Worksheet, widths: dict[int, int]) -> None:
@@ -91,9 +89,9 @@ def _write_chart(sheet: Worksheet, chart: ChartData, top_row: int) -> int:
     last_row = top_row + 1 + len(chart.items)
     if chart.items:
         excel_chart = BarChart()
-        excel_chart.type = "bar"  # горизонтальные столбики
+        excel_chart.type = "bar"
         excel_chart.title = chart.title
-        excel_chart.legend = None  # один ряд - легенда не нужна
+        excel_chart.legend = None  # один ряд, легенда не нужна
         excel_chart.height = max(5.0, 0.7 * len(chart.items) + 2)
         excel_chart.width = 16
         excel_chart.add_data(
@@ -105,7 +103,7 @@ def _write_chart(sheet: Worksheet, chart: ChartData, top_row: int) -> int:
         )
         excel_chart.dataLabels = DataLabelList()
         excel_chart.dataLabels.showVal = True
-        # Наибольшее значение - сверху: по умолчанию Excel ставит его вниз.
+        # Наибольшее значение сверху, по умолчанию Excel ставит его вниз.
         excel_chart.y_axis.scaling.orientation = "maxMin"
         excel_chart.x_axis.majorGridlines = None
         series = excel_chart.series[0]

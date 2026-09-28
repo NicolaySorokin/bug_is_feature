@@ -14,37 +14,34 @@ class Settings(BaseSettings):
     environment: Literal["dev", "prod"] = "dev"
     api_v1_prefix: str = "/api/v1"
 
-    # --- PostgreSQL ---
+    # PostgreSQL
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_user: str = "edu_crm"
     postgres_password: str = "edu_crm"
     postgres_db: str = "edu_crm"
-    # Печатать каждый SQL-запрос в лог. Полезно при отладке, шумно в остальное время.
+    # Печатать все SQL-запросы в лог, для отладки.
     db_echo: bool = False
-    # Пул соединений на один рабочий процесс API. В бою процессов несколько
-    # (WEB_CONCURRENCY), сумма должна укладываться в max_connections PostgreSQL.
+    # Пул соединений на один процесс API. Сумма по всем процессам должна
+    # укладываться в max_connections PostgreSQL.
     db_pool_size: int = 5
     db_max_overflow: int = 10
 
-    # --- Авторизация ---
-    # dev      - заглушка, пользователь берётся из заголовков запроса;
-    # keycloak - проверка Bearer-токена по JWKS реалма.
+    # Авторизация: dev берёт пользователя из
+    # заголовков, keycloak проверяет Bearer-токен.
     auth_backend: Literal["dev", "keycloak"] = "dev"
-    # Адрес, по которому Keycloak виден браузеру: именно он попадает в токен
-    # полем iss, и по нему же проверяется издатель.
+    # Адрес Keycloak для браузера, он же издатель токена (iss).
     keycloak_base_url: str = "http://localhost:8080"
-    # Адрес изнутри сети контейнеров - по нему API забирает ключи реалма.
-    # Пусто - берётся keycloak_base_url.
+    # Адрес Keycloak внутри сети контейнеров, по нему API берёт ключи.
+    # Если пусто, берётся keycloak_base_url.
     keycloak_internal_url: str = ""
     keycloak_realm: str = "edu-crm"
     keycloak_audience: str = "edu-crm-api"
     # Публичный клиент, через который входит браузер (Authorization Code + PKCE).
     keycloak_web_client_id: str = "edu-crm-web"
     keycloak_jwks_ttl_seconds: int = 600
-    # Управление пользователями и ролями идёт через Admin REST API Keycloak
-    # с токеном самого администратора CRM: роль admin в реалме включает права
-    # realm-management на пользователей. Отдельных секретов не требуется.
+    # Пользователями управляем через Admin API Keycloak токеном самого
+    # администратора, отдельные секреты не нужны.
     keycloak_admin_timeout_seconds: float = 10.0
 
     # Пользователь, который подставляется dev-заглушкой, если заголовки не переданы.
@@ -54,41 +51,34 @@ class Settings(BaseSettings):
     dev_user_email: str = "dev@example.com"
     dev_user_roles: str = "manager,head,admin"
 
-    # --- Интеграции ---
-    # Контракты LMS и сайта организаторы предоставляют в ходе работы. Пока
-    # базовый адрес пуст, адаптер отвечает тестовыми данными из fixtures,
-    # а при появлении реального API достаточно задать переменные окружения.
+    # Интеграции. Пока адрес пуст, адаптер отвечает тестовыми данными из fixtures.
     lms_base_url: str = ""
     lms_token: str = ""
     site_base_url: str = ""
     site_token: str = ""
     integration_timeout_seconds: float = 15.0
-    # Обмен по расписанию: раз в сколько часов опрашивать источники.
-    # 0 - только вручную; администратор меняет значение в «Настройках».
+    # Обмен по расписанию раз в N часов, 0 значит только вручную.
+    # Администратор меняет значение в «Настройках».
     integration_sync_interval_hours: int = 0
 
-    # --- Файлы ---
+    # Файлы
     storage_dir: Path = Path("storage")
     max_upload_mb: int = 25
 
-    # --- Контроль проблемных процессов (раздел 7 концепции) ---
-    # Сколько дней без движения по этапу считать задержкой, если у этапа
-    # не задан свой sla_days.
+    # Контроль проблемных процессов. Норма этапа в
+    # днях, если у этапа нет своего sla_days.
     alert_default_sla_days: int = 14
     # За сколько дней до конца срока договора или лицензии поднимать тревогу.
     alert_expiring_days: int = 60
 
-    # --- Выгрузки ---
-    # Сколько файлов (PDF, Excel, диаграммы) один рабочий процесс API собирает
-    # одновременно; остальные выгрузки ждут очереди. Так 10 параллельных
-    # отчётов не отнимают процессор у запросов интерфейса.
+    # Сколько выгрузок один процесс API собирает одновременно, остальные ждут
+    # в очереди. Так отчёты не тормозят интерфейс.
     export_concurrency: int = 1
 
-    # --- Кэш тяжёлых выборок (требование 13 ТЗ) ---
-    # Сколько секунд живёт запись. 0 - кэш выключен.
+    # Кэш выборок: срок жизни записи в секундах, 0 выключает кэш.
     cache_ttl_seconds: int = 60
 
-    # --- Прочее ---
+    # Прочее
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
     @property
@@ -124,11 +114,8 @@ class Settings(BaseSettings):
 
     @property
     def keycloak_jwks_url(self) -> str:
-        """Ключи реалма берём по внутреннему адресу, издателя проверяем по внешнему.
-
-        В Docker это разные адреса: браузер ходит на localhost, а API -
-        на имя контейнера. Если их не разделить, токен не пройдёт проверку
-        издателя либо API не достучится до Keycloak.
+        """Ключи берём по внутреннему адресу, издателя проверяем по внешнему:
+        в Docker браузер и API видят Keycloak по разным адресам.
         """
         base = (self.keycloak_internal_url or self.keycloak_base_url).rstrip("/")
         return f"{base}/realms/{self.keycloak_realm}/protocol/openid-connect/certs"

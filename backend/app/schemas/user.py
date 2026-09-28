@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field, model_validator
 from app.enums import DataScope, Permission, Role
 from app.schemas.common import ORMModel
 
-# Политика паролей реалма Keycloak (deploy/keycloak/realm-export.json):
-# короче пароль Keycloak не примет, поэтому и API сразу его не пропускает.
+# Политика паролей реалма Keycloak: более короткий пароль он не примет,
+# поэтому API отсекает его сразу.
 PASSWORD_MIN_LENGTH = 12
 
 
@@ -79,7 +79,7 @@ class UserDetail(UserRead):
     created_at: datetime
     head: UserBrief | None = None
     grants: list[AccessGrantRead] = []
-    # Вузы, где сотрудник - менеджер по умолчанию.
+    # Вузы, где сотрудник менеджер по умолчанию.
     managed_university_ids: list[uuid.UUID] = []
     interactions_count: int = 0
     team: list[UserBrief] = []
@@ -93,8 +93,7 @@ class UserUpdate(BaseModel):
     permissions: list[Permission] | None = None
     head_id: uuid.UUID | None = None
     data_scope: DataScope | None = None
-    # Основание и срок области, отличной от ролевой: обязательно, если
-    # область шире, чем даёт роль (например, «все» для менеджера).
+    # Основание и срок обязательны, если область шире той, что даёт роль.
     data_scope_reason: str | None = Field(default=None, max_length=1000)
     data_scope_expires_at: datetime | None = None
 

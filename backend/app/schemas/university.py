@@ -1,9 +1,7 @@
 """Схемы вузов и контактных лиц.
 
-Краткое название - основное в компактных местах (списки, выпадающие
-списки, уведомления, результаты поиска); полное - в карточке вуза.
-Поэтому любая модель ответа с вузом отдаёт оба названия и готовое
-``display_name`` - клиент не сокращает названия сам.
+В ответах есть оба названия и готовое display_name: в компактных местах
+краткое, в карточке полное.
 """
 
 import uuid
@@ -36,7 +34,7 @@ class UniversityBrief(ORMModel):
     display_name: str = ""
 
     @classmethod
-    def of(cls, university) -> "UniversityBrief | None":  # noqa: ANN001 - модель
+    def of(cls, university) -> "UniversityBrief | None":  # noqa: ANN001 (модель)
         if university is None:
             return None
         return cls(
@@ -122,8 +120,7 @@ class UniversityRead(ORMModel):
     website: str | None
     description: str | None
     requisites: str | None = None
-    # Менеджер по умолчанию: его назначают ответственным за новые
-    # взаимодействия вуза.
+    # Менеджер по умолчанию для новых взаимодействий вуза.
     manager_id: uuid.UUID | None
     status: UniversityStatus
     origin: str = "manual"
@@ -146,7 +143,7 @@ class UniversityDetail(UniversityListItem):
 
 
 class DuplicateCandidate(BaseModel):
-    """Похоже, что два вуза - одна организация."""
+    """Похоже, что два вуза на самом деле одна организация."""
 
     first: UniversityBrief
     second: UniversityBrief

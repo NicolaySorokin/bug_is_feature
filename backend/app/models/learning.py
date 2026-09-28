@@ -1,21 +1,8 @@
 """Статистика обучения: заявки, потоки, обучающиеся и зачисления.
 
-ТЗ, раздел «Актуальность»: востребованность программы видна по статистике -
-заявкам на обучение, количеству обучающихся и параллельных потоков.
-Заявка студента используется только для статистики и сама по себе
-взаимодействие с вузом не создаёт (раздел 10 «Решений по бизнес-модели»).
-
-* Поток опознаётся стабильным ключом источника и периодом, а не только
-  номером: «поток 3» весной и осенью - разные потоки.
-* Зачисление - явная связь обучающегося с программой и потоком. Один
-  человек на двух программах - два зачисления, а не «обучающийся» без
-  программы, найденный где-то по телефону.
-
-Персональные данные хранятся в минимально нужном объёме (ст. 5 152-ФЗ):
-паспорт, СНИЛС, адрес и сведения о дипломе из анкеты LMS не сохраняются -
-их отбрасывает адаптер ещё до записи в базу. Телефон хранится цифрами,
-почта - в нижнем регистре: так заявка и анкета одного человека находят
-друг друга.
+Заявка студента нужна только для статистики и взаимодействие не создаёт.
+Поток опознаётся ключом источника и периодом. Паспорт, СНИЛС, адрес и диплом
+не сохраняются (152-ФЗ).
 """
 
 import uuid
@@ -61,7 +48,7 @@ class LearningStream(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class LearningApplication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Заявка студента на обучение по ИТ-программе - только для статистики."""
+    """Заявка студента на обучение, только для статистики."""
 
     __tablename__ = "learning_applications"
     __table_args__ = (UniqueConstraint("source_id", "external_id"),)
@@ -79,7 +66,7 @@ class LearningApplication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     stream_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("learning_streams.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    # Номер потока как пришёл - для отображения; поток опознаётся по stream_id.
+    # Номер потока как пришёл, для показа. Поток опознаётся по stream_id.
     stream_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_name: Mapped[str] = mapped_column(String(100), default="")
     first_name: Mapped[str] = mapped_column(String(100), default="")
@@ -90,7 +77,7 @@ class LearningApplication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     university_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("universities.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    # Дата подачи: из номера заявки, если он её содержит, иначе - дата получения.
+    # Дата подачи из номера заявки, иначе дата получения.
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
     program: Mapped[ItProgram | None] = relationship()
@@ -99,7 +86,7 @@ class LearningApplication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class Learner(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Обучающийся по данным LMS - только то, что нужно для статистики."""
+    """Обучающийся по данным LMS, только нужное для статистики."""
 
     __tablename__ = "learners"
 
@@ -141,12 +128,11 @@ class Enrollment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     stream_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("learning_streams.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    # Заявка, по которой человек пришёл, - если связь установлена.
+    # Заявка, по которой человек пришёл, если связь найдена.
     application_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("learning_applications.id", ondelete="SET NULL"), nullable=True
     )
-    # Как установлена связь: lms - передана LMS (надёжно), contact - по почте
-    # или телефону заявки (проверяемое допущение до получения контракта LMS).
+    # Как найдена связь: lms передала сама, contact по почте или телефону заявки.
     matched_by: Mapped[str] = mapped_column(String(16), default="lms", server_default="lms")
 
     learner: Mapped[Learner] = relationship()

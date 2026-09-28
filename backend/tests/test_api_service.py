@@ -29,15 +29,15 @@ async def test_meta_gives_labels_and_error_codes(client: AsyncClient) -> None:
 
 
 async def test_openapi_describes_errors_for_every_method(client: AsyncClient) -> None:
-    """Схема - контракт для клиентской части, поэтому проверяем её целиком."""
+    """Схема это контракт для клиента, поэтому проверяем её целиком."""
     schema = (await client.get("/api/v1/openapi.json")).json()
 
     assert len(schema["paths"]) > 40
     tags = {tag["name"] for tag in schema["tags"]}
     assert {"interactions", "reports", "workflow", "imports"} <= tags
-    assert "contracts" not in tags  # договор - блок взаимодействия, не свой раздел
+    assert "contracts" not in tags  # договор входит во взаимодействие, своего раздела нет
 
-    # Формат отказа описан у обычного метода, а не только в тексте README.
+    # Формат отказа описан у обычного метода в самой схеме.
     card = schema["paths"]["/api/v1/interactions/{interaction_id}"]["get"]["responses"]
     assert {"401", "403", "404", "422"} <= set(card)
     example = card["403"]["content"]["application/json"]["example"]

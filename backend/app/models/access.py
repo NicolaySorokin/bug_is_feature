@@ -1,10 +1,6 @@
-"""Точечный доступ к вузу сверх области данных сотрудника.
+"""Точечный доступ к вузу сверх области данных, например на время отпуска коллеги.
 
-Менеджер видит свои взаимодействия. Чтобы открыть ему другой вуз - на время
-отпуска коллеги или для совместной работы - администратор или руководитель
-выдаёт доступ: со сроком, основанием и отметкой, кто выдал. Отзыв не удаляет
-запись, а помечает её: так видно, кто и когда закрыл доступ. Каждое
-изменение попадает и в журнал изменений.
+Отзыв не удаляет запись, а помечает её: видно, кто и когда закрыл доступ.
 """
 
 import uuid
@@ -29,7 +25,7 @@ class UserUniversityAccess(CreatedAtMixin, Base):
     granted_by_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    # Пусто - бессрочно.
+    # Пусто значит бессрочно.
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_by_id: Mapped[uuid.UUID | None] = mapped_column(

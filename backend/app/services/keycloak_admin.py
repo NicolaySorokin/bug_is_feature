@@ -1,18 +1,8 @@
-"""Управление учётными записями в Keycloak.
+"""Управление учётными записями в Keycloak через Admin REST API.
 
-ТЗ: администратор управляет правами пользователей из интерфейса системы.
-Роли при этом остаются в Keycloak (раздел 8 концепции), поэтому CRM не
-хранит их у себя, а вызывает Admin REST API реалма.
-
-Вызов идёт с токеном самого администратора CRM: роль ``admin`` в реалме
-составная и включает права realm-management на пользователей
-(deploy/keycloak/realm-export.json). Отсюда два следствия:
-
-* в API не нужно хранить секрет служебной учётной записи;
-* в журнале событий Keycloak видно, какой именно администратор что менял.
-
-Keycloak вызывается по внутреннему адресу (сеть контейнеров), издатель
-токена у него при этом общий - внешний адрес стенда.
+Вызываем с токеном самого администратора CRM: роль admin в реалме включает
+права на пользователей. Секрет служебной учётки не нужен, а в журнале
+Keycloak видно, кто что менял.
 """
 
 from __future__ import annotations
@@ -109,10 +99,10 @@ class KeycloakAdmin:
             raise _error(f"Keycloak ответил ошибкой {response.status_code}")
         return response
 
-    # --- Роли --------------------------------------------------------------
+    # Роли
 
     async def role_members(self) -> dict[str, set[str]]:
-        """Пользователи каждой роли системы: роль -> идентификаторы пользователей."""
+        """Пользователи каждой роли системы: роль и идентификаторы."""
         members: dict[str, set[str]] = {}
         for role in MANAGED_ROLES:
             response = await self._request(
@@ -145,7 +135,7 @@ class KeycloakAdmin:
             await self._request("POST", f"/users/{user_id}/role-mappings/realm", json=to_add)
         return wanted
 
-    # --- Учётные записи ----------------------------------------------------
+    # Учётные записи
 
     async def get_user(self, user_id: str) -> KeycloakUser:
         data = (await self._request("GET", f"/users/{user_id}")).json()
@@ -202,7 +192,7 @@ class KeycloakAdmin:
         return user_id
 
     async def reset_password(self, user_id: str, password: str) -> None:
-        """Временный пароль: постоянный сотрудник задаёт сам при первом входе."""
+        """Временный пароль, постоянный сотрудник задаёт сам при первом входе."""
         await self._request(
             "PUT",
             f"/users/{user_id}/reset-password",
@@ -211,9 +201,8 @@ class KeycloakAdmin:
 
 
 def split_full_name(full_name: str) -> tuple[str, str]:
-    """«Фамилия Имя Отчество» -> (имя, фамилия) для полей Keycloak.
-
-    В Keycloak нет отчества; оно остаётся в CRM, где ФИО хранится целиком.
+    """«Фамилия Имя Отчество» в (имя, фамилия) для Keycloak. Отчества там нет,
+    полное ФИО хранит CRM.
     """
     parts = full_name.split()
     if not parts:

@@ -1,14 +1,8 @@
 """Взаимодействия с вузами: реестр, карточка, ход процесса, состав и договор.
 
-Взаимодействие - экземпляр рабочего процесса (раздел 1 «Решений по
-бизнес-модели»). Договор - необязательный блок внутри: не больше одного
-на взаимодействие.
-
-Права (раздел 12): менеджер заводит взаимодействие только в своей области
-и сам становится ответственным; руководитель заводит и назначает
-ответственного менеджера; администратор без бизнес-роли взаимодействий
-не заводит и не меняет. Начатое взаимодействие не удаляется, а отменяется
-с причиной.
+Менеджер заводит взаимодействие в своей области и сам становится
+ответственным. Руководитель назначает ответственного. Начатое
+взаимодействие не удаляют, а отменяют с причиной.
 """
 
 import uuid
@@ -101,9 +95,9 @@ async def _default_sla(session: AsyncSession) -> int:
 async def _assignable_manager(
     session: AsyncSession, principal: Principal, user: User, manager_id: uuid.UUID
 ) -> User:
-    """Кого руководитель может назначить ответственным: менеджера своей
-    команды (или любого - если его область «все»), либо себя, если он и сам
-    менеджер."""
+    """Кого руководитель может назначить: менеджера своей команды (при области
+    «все» любого) или себя, если он и сам менеджер.
+    """
     manager = await session.get(User, manager_id)
     if manager is None or not manager.is_active:
         raise NotFoundError("Сотрудник для назначения ответственным не найден")
@@ -294,9 +288,8 @@ async def create_interaction(
                 await _assignable_manager(session, principal, user, payload.manager_id)
             ).id
         elif university.manager_id is not None:
-            # Менеджер по умолчанию - подсказка, а не требование: если этого
-            # менеджера руководитель назначить не может (другая команда, нет
-            # роли, отключён), взаимодействие уходит в очередь назначения.
+            # Менеджер по умолчанию только подсказка. Если руководитель не может
+            # его назначить, взаимодействие уходит в очередь назначения.
             try:
                 manager_id = (
                     await _assignable_manager(session, principal, user, university.manager_id)
@@ -420,12 +413,12 @@ async def delete_interaction(
     await session.delete(interaction)
 
 
-# --- Ход процесса ----------------------------------------------------------------
+# Ход процесса
 
 
 async def _view(session: AsyncSession, instance: WorkflowInstance) -> InstanceView:
     fresh = await workflow_service.get_instance(session, instance.id)
-    assert fresh is not None  # noqa: S101 - взаимодействие только что прочитано
+    assert fresh is not None  # noqa: S101 (взаимодействие только что прочитано)
     return await build_view(session, fresh)
 
 
@@ -579,13 +572,13 @@ async def cancel(
     return await _view(session, interaction)
 
 
-# --- Программы и продукты ------------------------------------------------------------
+# Программы и продукты
 
 
 async def _note(
     session: AsyncSession, instance: WorkflowInstance, user: User, text: str
 ) -> None:
-    """Ручное изменение в обход процесса - комментарием в карточке и истории."""
+    """Ручное изменение в обход процесса попадает комментарием в карточку и историю."""
     event_id = await session.scalar(
         select(WorkflowEvent.id)
         .where(WorkflowEvent.workflow_instance_id == instance.id)
@@ -800,7 +793,7 @@ async def delete_link(
     await interactions.unlink(session, interaction, program_link_id, product_link_id)
 
 
-# --- Ответственные от вуза ------------------------------------------------------------
+# Ответственные от вуза
 
 
 @router.get(
@@ -875,7 +868,7 @@ async def remove_contact(
     await session.delete(link)
 
 
-# --- Договор и лицензии --------------------------------------------------------------
+# Договор и лицензии
 
 
 @router.get(

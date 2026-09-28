@@ -16,7 +16,7 @@ class IntegrationSourceRead(ORMModel):
     name: str
     base_url: str | None
     is_enabled: bool
-    # Адрес внешней системы не задан - адаптер отвечает тестовыми данными.
+    # Адрес внешней системы не задан, адаптер отвечает тестовыми данными.
     uses_fixture: bool = False
 
 

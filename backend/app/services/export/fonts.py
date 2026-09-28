@@ -1,9 +1,8 @@
 """Шрифты для PDF.
 
-Встроенные шрифты reportlab кириллицу не содержат, поэтому подключаем
-DejaVu: в образе он ставится пакетом fonts-dejavu-core, при локальном
-запуске ищется среди системных. Если ничего не нашли, отчёт всё равно
-формируется - но латиницей, и об этом пишем в лог один раз.
+Встроенные шрифты reportlab без кириллицы, поэтому подключаем DejaVu.
+Если его нет, отчёт всё равно строится латиницей, а в лог пишется
+предупреждение.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ logger = logging.getLogger(__name__)
 REGULAR = "DejaVuSans"
 BOLD = "DejaVuSans-Bold"
 
-# Порядок важен: сначала Linux-образ, затем типичные локальные установки.
+# Сначала путь в образе, затем типичные локальные установки.
 _CANDIDATES: list[tuple[str, str]] = [
     (
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
@@ -62,7 +61,7 @@ def ensure_fonts() -> tuple[str, str]:
     regular_path, bold_path = found
     pdfmetrics.registerFont(TTFont(REGULAR, str(regular_path)))
     pdfmetrics.registerFont(TTFont(BOLD, str(bold_path)))
-    # Чтобы разметка вида <b>…</b> в Paragraph находила жирное начертание.
+    # Чтобы разметка <b>…</b> в Paragraph находила жирное начертание.
     addMapping(REGULAR, 0, 0, REGULAR)
     addMapping(REGULAR, 1, 0, BOLD)
     _registered = (REGULAR, BOLD)

@@ -1,21 +1,8 @@
 """Взаимодействие с вузом: реестр, карточка, состав и договор.
 
-Правила состава (раздел 13 «Решений по бизнес-модели»):
-
-* сначала во взаимодействие добавляется программа, затем для неё
-  выбираются продукты; продукт без связи хотя бы с одной программой
-  взаимодействия не существует;
-* по умолчанию продукты берутся из справочного соответствия программ
-  и продуктов; связь вне справочника - исключение руководителя
-  с комментарием;
-* один продукт в нескольких программах - одна строка продукта и несколько
-  связей, без дублей;
-* программу со связанными продуктами удалить нельзя, пока связи не
-  перенесены или не удалены; продукт, у которого не осталось программ,
-  удаляется из состава вместе со связью;
-* выбирать можно только активные программы и продукты: архивные
-  сохраняются в существующих взаимодействиях, но недоступны для нового
-  выбора.
+Сначала добавляется программа, затем её продукты. Продукт без программы
+во взаимодействии не существует, а связь вне справочника разрешает только
+руководитель. Выбирать можно только активные программы и продукты.
 """
 
 from __future__ import annotations
@@ -62,7 +49,7 @@ from app.schemas.interaction import (
 from app.schemas.university import UniversityBrief
 from app.schemas.user import UserBrief
 
-# Доля израсходованного срока, с которой срок этапа «на исходе».
+# С какой доли израсходованного срока этап считается «на исходе».
 SLA_WARNING_SHARE = 0.75
 
 
@@ -94,7 +81,7 @@ def stage_sla(
 def next_actions(
     transitions: list[WorkflowTransition], stage_names: dict[uuid.UUID, str]
 ) -> list[str]:
-    """Разрешённые шаги вперёд с текущего этапа - «что делать дальше»."""
+    """Разрешённые шаги вперёд с текущего этапа, то есть «что делать дальше»."""
     return [
         transition.name or stage_names.get(transition.to_stage_id, "")
         for transition in transitions
@@ -133,7 +120,7 @@ def list_options() -> list:
 async def transitions_by_stage(
     session: AsyncSession, stage_ids: set[uuid.UUID]
 ) -> dict[uuid.UUID, list[str]]:
-    """Следующие действия для набора текущих этапов - одним запросом."""
+    """Следующие действия для набора текущих этапов одним запросом."""
     if not stage_ids:
         return {}
     rows = await session.execute(
@@ -270,7 +257,7 @@ async def detail(
     )
 
 
-# --- Фильтры реестра ------------------------------------------------------------
+# Фильтры реестра
 
 
 def apply_filters(
@@ -330,8 +317,8 @@ def apply_filters(
             )
         )
     if stage_name:
-        # Этапы разных версий шаблона - разные записи с одним названием,
-        # поэтому фильтр «по этапу» ведётся по названию.
+        # У разных версий шаблона свои записи этапов с одним названием, поэтому
+        # фильтр по этапу идёт по названию.
         statement = statement.where(
             WorkflowInstance.current_stage_id.in_(
                 select(WorkflowStage.id).where(WorkflowStage.name == stage_name)
@@ -361,7 +348,7 @@ def apply_filters(
             )
         )
     if overdue_only:
-        # Просрочка этапа: дней на этапе больше нормы - своей или по умолчанию.
+        # Этап просрочен, если дней на нём больше нормы.
         norm = func.coalesce(WorkflowStage.sla_days, default_sla)
         statement = statement.where(
             WorkflowInstance.status == InteractionStatus.IN_PROGRESS,
@@ -386,7 +373,7 @@ def apply_filters(
                         )
                     )
                 ),
-                # Номер договора - один из поисковых атрибутов взаимодействия.
+                # Номер договора тоже ищем.
                 WorkflowInstance.id.in_(
                     select(Contract.workflow_instance_id).where(Contract.number.ilike(pattern))
                 ),
@@ -395,7 +382,7 @@ def apply_filters(
     return statement
 
 
-# --- Состав: программы, продукты, связи ---------------------------------------------
+# Состав: программы, продукты, связи
 
 
 async def _active_program(session: AsyncSession, program_id: uuid.UUID) -> ItProgram:
@@ -489,10 +476,8 @@ async def link_product(
     may_make_exception: bool,
     user: User,
 ) -> None:
-    """Связывает продукт с программами взаимодействия.
-
-    Связь по справочному соответствию - обычная; вне справочника - только
-    как исключение руководителя с комментарием.
+    """Связывает продукт с программами взаимодействия. Связь вне справочника
+    возможна только как исключение руководителя с комментарием.
     """
     in_catalog = await _catalog_pairs(
         session, {link.program_id for link in program_links}, product_link.product_id
@@ -544,10 +529,8 @@ async def add_product(
     may_make_exception: bool,
     user: User,
 ) -> InteractionProduct:
-    """Продукт добавляется сразу вместе с программами, где он используется.
-
-    Если продукт уже в составе - добавляются только новые связи: один
-    продукт в нескольких программах не дублируется.
+    """Добавляет продукт сразу с программами. Если он уже в составе, добавляются
+    только новые связи.
     """
     await _active_product(session, product_id)
     program_links = await _program_links(session, instance, program_link_ids)
@@ -584,7 +567,7 @@ async def unlink(
     program_link_id: uuid.UUID,
     product_link_id: uuid.UUID,
 ) -> bool:
-    """Убирает связь. Продукт без программ уходит из состава. True - продукт удалён."""
+    """Убирает связь, продукт без программ уходит из состава. True, если продукт удалён."""
     link = await session.get(InteractionProgramProduct, (program_link_id, product_link_id))
     product_link = await session.get(InteractionProduct, product_link_id)
     if (
@@ -650,7 +633,7 @@ async def remove_program(
 
 
 async def unlinked_products(session: AsyncSession, instance_ids: list[uuid.UUID]) -> set:
-    """Продукты без единой программы - данные, требующие правки."""
+    """Продукты без единой программы: данные нужно поправить."""
     if not instance_ids:
         return set()
     return set(
@@ -665,13 +648,13 @@ async def unlinked_products(session: AsyncSession, instance_ids: list[uuid.UUID]
     )
 
 
-# --- Удаление ошибочного черновика --------------------------------------------------
+# Удаление ошибочного черновика
 
 
 async def deletable(session: AsyncSession, instance: WorkflowInstance) -> bool:
-    """Физически удалить можно только ошибочно созданный черновик без
-    зависимостей: без договора, файлов, комментариев и движения по процессу.
-    Всё остальное отменяют с причиной."""
+    """Удалить можно только черновик без договора, файлов, комментариев
+    и движения по процессу. Остальное отменяют с причиной.
+    """
     if instance.status != InteractionStatus.DRAFT:
         return False
     for model, column in (

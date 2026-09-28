@@ -1,34 +1,18 @@
 #!/usr/bin/env bash
-# Релизы стенда на сервере. Запускается от пользователя деплоя (он в группе
-# docker), sudo не нужен.
+# Релизы стенда на сервере. Запускается от пользователя деплоя, sudo не нужен.
 #
-#   release.sh activate <релиз>    сделать релиз текущим и поднять стенд;
-#                                  не поднялся - вернуть прежний релиз
-#   release.sh rollback [<релиз>]  откат на предыдущий (или указанный) релиз
+#   release.sh activate <релиз>    сделать релиз текущим и поднять стенд,
+#                                  если не поднялся, вернуть прежний
+#   release.sh rollback [<релиз>]  откат на предыдущий или указанный релиз
 #   release.sh list                релизы, текущий отмечен звёздочкой
-#   release.sh compose <команда>   docker compose текущего релиза:
-#                                  compose ps, compose logs -f api ...
-#   release.sh keycloak-setup [<параметры>]
-#                                  перенести настройку из realm-export.json
-#                                  в Keycloak и поставить начальные пароли
-#                                  тем, у кого их нет (см. keycloak_setup.py)
-#   release.sh backup              резервная копия: база системы, база
-#                                  Keycloak, файлы вложений (backups/)
+#   release.sh compose <команда>   docker compose текущего релиза
+#   release.sh keycloak-setup      настройка реалма и начальные пароли
+#   release.sh backup              резервная копия базы, базы Keycloak и файлов
 #   release.sh keycloak-tag <каталог>
 #                                  тег образа Keycloak для кода в каталоге
 #
-# Каталог приложения (APP_DIR, по умолчанию /opt/edu-crm):
-#   releases/<дата>-<время>-<коммит>/  код коммита и файл REVISION
-#   current -> releases/...            текущий релиз, compose работает отсюда
-#   shared/prod.env                    секреты из PROD_ENV; при активации
-#                                      из него собирается cicd/prod/.env релиза
-#   backups/                           резервные копии (release.sh backup,
-#                                      таймер edu-crm-backup.timer)
-#
-# Образы релиза - edu-crm-api:<коммит> (API), edu-crm-web:<коммит> (Nginx
-# с клиентской частью) и edu-crm-keycloak:<тег по содержимому
-# deploy/keycloak/image>, их привозит деплой.
-# Данные (PostgreSQL - и система, и Keycloak, файлы) лежат в томах Docker
+# В /opt/edu-crm лежат releases/, ссылка current на текущий релиз,
+# shared/prod.env с секретами и backups/. Данные хранятся в томах Docker
 # и между релизами не меняются.
 set -euo pipefail
 
@@ -46,12 +30,11 @@ releases() { find "$APP_DIR/releases" -mindepth 1 -maxdepth 1 -type d -printf '%
 current_release() {
     if [ -L "$APP_DIR/current" ]; then basename "$(readlink "$APP_DIR/current")"; fi
 }
-# Имя релиза - <дата>-<время>-<коммит>, тег образов API и Nginx - коммит.
+# Имя релиза: <дата>-<время>-<коммит>, тег образов API и Nginx равен коммиту.
 image_tag() { printf '%s\n' "${1##*-}"; }
 
-# Тег образа Keycloak - по содержимому deploy/keycloak/image: пока тема
-# и Dockerfile те же, образ не собирается и не возится заново, а контейнер
-# Keycloak не пересоздаётся. Так же тег считает деплой (keycloak-tag).
+# Тег образа Keycloak считается по содержимому deploy/keycloak/image, поэтому без
+# изменений образ не собирается заново. Так же тег считает деплой.
 keycloak_tag() {
     local dir=$1/deploy/keycloak/image
     [ -d "$dir" ] || return 0
@@ -75,9 +58,8 @@ compose() {
         --profile keycloak "$@"
 }
 
-# .env релиза: секреты среды плюс то, что относится к самому релизу.
-# Собирается при каждой активации, поэтому откат на старый код идёт
-# с актуальными секретами.
+# .env релиза собирается при каждой активации, поэтому откат идёт с актуальными
+# секретами.
 write_env() {
     local dir=$1 env=$1/cicd/prod/.env
     [ -f "$APP_DIR/shared/prod.env" ] || { echo "Нет $APP_DIR/shared/prod.env" >&2; return 1; }
@@ -103,29 +85,29 @@ switch_to() {
     mv -Tf "$APP_DIR/current.new" "$APP_DIR/current"
 }
 
-# Есть ли в текущем релизе строка $1 в compose: релизы до перевода Keycloak
-# на PostgreSQL не знают ни базы keycloak, ни сервиса keycloak-setup.
+# Есть ли в текущем релизе строка $1 в compose: старые релизы не знают базы
+# keycloak и сервиса keycloak-setup.
 release_has() {
     grep -qs -- "$1" "$APP_DIR/current/docker-compose.yml" "$APP_DIR/current/cicd/prod/docker-compose.yml"
 }
 
 up() {
     log "Поднимаю стенд: релиз $(current_release)"
-    # База Keycloak живёт в том же PostgreSQL. На новом томе её заводит
-    # скрипт инициализации, на старом - этот же скрипт здесь.
+    # База Keycloak живёт в том же PostgreSQL. На новом томе её заводит скрипт
+    # инициализации, на старом этот же скрипт здесь.
     if release_has keycloak-db.sh; then
         compose up -d --wait --no-build db || return 1
         compose exec -T db sh /docker-entrypoint-initdb.d/keycloak-db.sh || return 1
     fi
     # --wait ждёт healthcheck API (то есть и окончания миграций) и Keycloak.
     compose up -d --wait --wait-timeout "${WAIT_TIMEOUT:-300}" --no-build --remove-orphans || return 1
-    # Nginx узнаёт адреса api и keycloak при запуске. Пересозданный
-    # контейнер получает новый адрес - перечитываем конфигурацию.
+    # Nginx узнаёт адреса api и keycloak при запуске, поэтому после пересоздания
+    # контейнеров перечитываем конфигурацию.
     docker exec "$NGINX_CONTAINER" nginx -s reload || return 1
     if release_has keycloak-setup; then keycloak_setup; fi
 }
 
-# Реалм Keycloak - к выгрузке релиза, пароли - из секрета PROD_ENV.
+# Реалм Keycloak по выгрузке релиза, пароли из секрета PROD_ENV.
 keycloak_setup() {
     log "Настройка реалма Keycloak"
     compose run --rm -T keycloak-setup python -m scripts.keycloak_setup "$@"
@@ -218,10 +200,9 @@ rollback() {
     activate "$target"
 }
 
-# Резервная копия: база системы, база Keycloak и файлы вложений. Файлы
-# содержат персональные данные - доступ только у пользователя деплоя.
-# Копии старше KEEP_BACKUP_DAYS дней удаляются. Восстановление - в
-# руководстве системного администратора (cicd/README.md, «Резервные копии»).
+# Резервная копия базы системы, базы Keycloak и файлов вложений. В ней
+# персональные данные, доступ только у пользователя деплоя. Копии старше
+# KEEP_BACKUP_DAYS дней удаляются.
 backup() {
     local stamp dir
     stamp=$(date +%Y%m%d-%H%M%S)

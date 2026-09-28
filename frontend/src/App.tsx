@@ -1,9 +1,5 @@
 /**
- * Маршруты приложения.
- *
- * Страницы загружаются по мере надобности (lazy): первый экран открывается
- * быстро, а код администрирования и справки скачивается, только когда
- * пользователь туда переходит.
+ * Маршруты приложения. Страницы грузятся лениво, поэтому первый экран открывается быстро.
  */
 import { lazy, Suspense, type ReactNode } from "react";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
@@ -34,15 +30,13 @@ function Page({ children }: { children: ReactNode }) {
 }
 
 /**
- * Раздел только для тех, у кого есть одно из действий (или доступ к
- * бизнес-данным): остальные видят объяснение, а не пустую страницу.
+ * Раздел для тех, у кого есть одно из действий. Остальные видят объяснение, а не пустую страницу.
  */
 function Guard({ any, business, children }: { any?: Action[]; business?: boolean; children: ReactNode }) {
   const session = useSession();
   const allowed = (!any || any.some((action) => session.can(action))) && (!business || session.business);
   if (!allowed) {
-    // Администратору не советуем «обратиться к администратору»: бизнес-доступ ему
-    // выдаётся отдельно, временно и с основанием (пункт 7 перечня исправлений).
+    // Администратору не советуем «обратиться к администратору»: бизнес-доступ ему выдают отдельно.
     const admin = session.can("manage_users");
     const noBusiness = business && !session.business;
     return (

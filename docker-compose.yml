@@ -1,13 +1,8 @@
-# Базовый состав стенда, общий для всех сред. Ничего, специфичного для
-# разработки, здесь нет: код не монтируется, порты наружу не публикуются.
-# Отличия среды лежат в cicd/<среда>/docker-compose.yml и подключаются
-# вторым файлом - это делает Makefile, см. переменную ENV.
+# Базовый состав стенда, общий для всех сред. Отличия сред лежат
+# в cicd/<среда>/docker-compose.yml, их подключает Makefile по переменной ENV.
 #
 #   make up             # то же, что ENV=dev
 #   make up ENV=prod
-#
-# Напрямую, без make:
-#   docker compose -f docker-compose.yml -f cicd/dev/docker-compose.yml up -d
 
 services:
   db:
@@ -51,14 +46,14 @@ services:
       KEYCLOAK_INTERNAL_URL: ${KEYCLOAK_INTERNAL_URL:-http://keycloak:8080}
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-edu-crm}
       KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-edu-crm-api}
-      # Контрактов LMS и сайта пока нет: по умолчанию адаптеры отдают
-      # тестовые ответы из backend/app/services/integrations/fixtures.
+      # Контрактов LMS и сайта нет, поэтому по умолчанию адаптеры отдают тестовые
+      # ответы из backend/app/services/integrations/fixtures.
       LMS_BASE_URL: ${LMS_BASE_URL:-}
       LMS_TOKEN: ${LMS_TOKEN:-}
       SITE_BASE_URL: ${SITE_BASE_URL:-}
       SITE_TOKEN: ${SITE_TOKEN:-}
-      # Обмен по расписанию, раз в N часов; 0 - только вручную (значение по
-      # умолчанию, администратор меняет его в «Настройках»).
+      # Обмен по расписанию раз в N часов, 0 только вручную. Администратор меняет
+      # в «Настройках».
       INTEGRATION_SYNC_INTERVAL_HOURS: ${INTEGRATION_SYNC_INTERVAL_HOURS:-0}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
       # Сколько выгрузок (PDF, XLSX, диаграммы) один процесс API собирает
@@ -81,11 +76,8 @@ services:
       retries: 20
       start_period: 5s
 
-  # Включается отдельно: make keycloak (в средах preprod и prod - всегда).
-  # Образ - Keycloak с темой страницы входа (deploy/keycloak/image), данные -
-  # в своей базе того же PostgreSQL. Реалм, клиенты, роли и пользователи
-  # приезжают из realm-export.json: при первом запуске - импортом, дальше -
-  # сервисом keycloak-setup.
+  # Keycloak включается отдельно: make keycloak, а в preprod и prod всегда.
+  # Данные в своей базе того же PostgreSQL, настройка из realm-export.json.
   keycloak:
     build: ./deploy/keycloak/image
     image: edu-crm-keycloak:${KEYCLOAK_IMAGE_TAG:-latest}
@@ -117,11 +109,8 @@ services:
       retries: 30
       start_period: 30s
 
-  # Разовая задача: переносит realm-export.json в работающий Keycloak
-  # и ставит пароли пользователей из KEYCLOAK_USER_PASSWORDS. Запускается
-  # после подъёма стенда (make up, release.sh):
-  #   docker compose ... run --rm keycloak-setup
-  # Подробности - backend/scripts/keycloak_setup.py.
+  # Разовая задача: переносит realm-export.json в работающий Keycloak и ставит
+  # начальные пароли. Запускается после подъёма стенда (make up, release.sh).
   keycloak-setup:
     image: edu-crm-api:${API_IMAGE_TAG:-latest}
     profiles: ["setup"]
@@ -136,16 +125,14 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
       KEYCLOAK_USER_PASSWORDS: ${KEYCLOAK_USER_PASSWORDS:-}
       KEYCLOAK_SSL_REQUIRED: ${KEYCLOAK_SSL_REQUIRED:-}
-      # Адреса веб-интерфейса среды - они же адреса возврата после входа.
+      # Адреса интерфейса среды, они же адреса возврата после входа.
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
     volumes:
       - ./deploy/keycloak/realm-export.json:/realm/realm-export.json:ro
     command: python -m scripts.keycloak_setup
 
-  # Единая точка входа: клиентская часть и прокси к API (и Keycloak -
-  # в preprod и prod). Образ собирается из frontend/: Node собирает
-  # статику, Nginx её раздаёт. Конфигурацию Nginx задаёт среда:
-  # cicd/<среда>/nginx.conf.
+  # Единая точка входа: клиентская часть и прокси к API, в preprod и prod ещё
+  # и к Keycloak. Конфигурацию Nginx задаёт среда (cicd/<среда>/nginx.conf).
   nginx:
     build: ./frontend
     image: edu-crm-web:${WEB_IMAGE_TAG:-latest}

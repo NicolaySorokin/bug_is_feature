@@ -1,26 +1,9 @@
 """Редактирование шаблонов рабочих процессов.
 
-Ключевое правило раздела 3.1 концепции: изменение шаблона не меняет уже
-запущенные процессы. Жизненный цикл версии (раздел 3 «Решений по
-бизнес-модели»)::
-
-    draft -> active -> deprecated -> retired
-
-* этапы и переходы правятся только в черновике; опубликованную версию
-  структурно не изменить и не удалить (это держит и база, триггером);
-* действующая версия у шаблона одна: публикация черновика переводит
-  прежнюю действующую в устаревшие, а если по ней не осталось открытых
-  взаимодействий - сразу в выведенные из использования;
-* новое взаимодействие получает действующую версию, начатое - идёт по своей;
-* отката «назад» нет: новая версия создаётся копией старой.
-
-Перед публикацией граф проверяется целиком (пункт 19 перечня исправлений):
-один стартовый этап, все этапы достижимы, нет тупиков, циклы - только через
-переходы-возвраты, из финальных этапов ничего не выходит, у финального
-этапа задан результат.
-
-Исключение одно - названия и координаты: их можно менять и в опубликованной
-версии, потому что на ход процесса они не влияют.
+Этапы и переходы правятся только в черновике. Публикация делает черновик
+действующей версией, прежняя становится устаревшей, начатые процессы идут
+по своей версии. Отката нет, новая версия создаётся копией старой.
+Перед публикацией граф проверяется целиком.
 """
 
 from __future__ import annotations
@@ -59,8 +42,7 @@ async def get_version(session: AsyncSession, version_id: uuid.UUID) -> WorkflowV
             selectinload(WorkflowVersion.stages),
             selectinload(WorkflowVersion.transitions),
         )
-        # Версию только что правили: без populate_existing в ответ уйдёт
-        # то, что осталось в сессии от прошлого чтения.
+        # Версию только что правили: без populate_existing вернётся старое из сессии.
         .execution_options(populate_existing=True)
     )
     version = (await session.execute(statement)).scalar_one_or_none()
@@ -105,7 +87,7 @@ async def create_version(
     from_version_id: uuid.UUID | None,
     copy_graph: bool,
 ) -> WorkflowVersion:
-    """Новая версия-черновик, по умолчанию - копия последней существующей."""
+    """Новая версия-черновик, по умолчанию копия последней."""
     last_number = (
         await session.scalar(
             select(func.max(WorkflowVersion.version_number)).where(
@@ -169,7 +151,7 @@ async def _copy_graph(
     for transition in source.transitions:
         from_code = code_by_id.get(transition.from_stage_id)
         to_code = code_by_id.get(transition.to_stage_id)
-        if from_code is None or to_code is None:  # pragma: no cover - битая схема
+        if from_code is None or to_code is None:  # pragma: no cover (битая схема)
             continue
         session.add(
             WorkflowTransition(
@@ -213,8 +195,8 @@ def validate_graph(
 ) -> list[str]:
     """Проверка графа перед публикацией. Возвращает список проблем.
 
-    ``stages`` - (код, название, стартовый, финальный, результат);
-    ``transitions`` - (откуда, куда, возврат назад).
+    stages: (код, название, стартовый, финальный, результат).
+    transitions: (откуда, куда, возврат назад).
     """
     problems: list[str] = []
     names = {code: name for code, name, *_ in stages}
@@ -267,7 +249,7 @@ def validate_graph(
         if not seen & finals:
             problems.append("Из стартового этапа не дойти ни до одного финального")
 
-    # Циклы допустимы только через переходы-возвраты: прямой ход - без петель.
+    # Циклы допустимы только через переходы-возвраты.
     forward: dict[str, list[str]] = {code: [] for code in names}
     for source, target, backward in transitions:
         if not backward:
@@ -310,12 +292,11 @@ def _graph_problems_of_version(version: WorkflowVersion) -> list[str]:
 async def replace_graph(
     session: AsyncSession, version: WorkflowVersion, graph: GraphWrite
 ) -> WorkflowVersion:
-    """Заменяет схему черновика целиком - так её сохраняет редактор."""
+    """Заменяет схему черновика целиком, так её сохраняет редактор."""
     ensure_draft(version)
     _check_references(graph)
 
-    # Версия могла быть только что создана: связи подгружаем явно, иначе
-    # обращение к ним попытается сходить в базу в неподходящий момент.
+    # Версия могла быть только что создана, поэтому связи подгружаем явно.
     await session.refresh(version, ["stages", "transitions"])
     for transition in list(version.transitions):
         await session.delete(transition)
@@ -339,7 +320,7 @@ async def replace_graph(
             required_documents=[str(value) for value in item.required_documents],
             program_status_on_enter=item.program_status_on_enter,
             product_status_on_enter=item.product_status_on_enter,
-            # Без координат этап раскладывает клиент - по порядку этапов.
+            # Без координат этапы раскладывает клиент по порядку.
             layout_x=item.layout_x,
             layout_y=item.layout_y,
         )
@@ -380,9 +361,8 @@ async def save_layout(
 async def publish(session: AsyncSession, version: WorkflowVersion) -> WorkflowVersion:
     """Черновик становится действующей версией шаблона.
 
-    Прежняя действующая версия - устаревшая: новые взаимодействия по ней не
-    заводятся, начатые продолжаются. Если открытых взаимодействий по ней нет,
-    она сразу выводится из использования.
+    Прежняя действующая становится устаревшей, а если открытых взаимодействий
+    по ней нет, сразу выводится из использования.
     """
     if not version.is_draft:
         raise ConflictError("Версия уже опубликована")
@@ -405,14 +385,14 @@ async def publish(session: AsyncSession, version: WorkflowVersion) -> WorkflowVe
     if previous is not None:
         previous.status = WorkflowVersionStatus.DEPRECATED
         previous.deprecated_at = now
-        # Индекс «одна действующая версия» проверяется сразу - сначала
+        # Индекс «одна действующая версия» проверяется сразу, поэтому сначала
         # снимаем статус с прежней.
         await session.flush()
     version.status = WorkflowVersionStatus.ACTIVE
     version.published_at = now
     await session.flush()
     if previous is not None:
-        # Импорт здесь: сервис процесса сам зависит от этого модуля не должен.
+        # Импорт здесь, чтобы не было циклической зависимости.
         from app.services.workflow import maybe_retire
 
         await maybe_retire(session, previous.id)

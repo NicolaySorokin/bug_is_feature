@@ -1,23 +1,8 @@
-"""Текущий пользователь, сотрудники и управление их правами.
+"""Текущий пользователь, сотрудники и их права.
 
-ТЗ, ролевая модель: администратор управляет правами пользователей
-и ограничениями по видимой информации. Роли живут в Keycloak - их CRM
-меняет через Admin API (app.services.keycloak_admin); права на данные
-хранятся у нас (раздел 12 «Решений по бизнес-модели»):
-
-* роли не наследуются - совмещение задаётся несколькими ролями явно;
-* дополнительные права (запуск обмена, журнал обмена, персональные данные
-  студентов, представление схемы процесса) выдаются отдельно;
-* область данных: по ролям или явно (свои, команда, все, нет доступа);
-  область шире ролевой выдаётся с основанием и, при необходимости, сроком;
-* точечный доступ к вузу - со сроком, основанием и отметкой, кто выдал;
-  отзыв помечает запись, а не удаляет её.
-
-Каждое изменение попадает в журнал изменений.
-
-Список сотрудников с почтой и ролями виден только администратору.
-Руководителю для назначения ответственных - краткий справочник
-менеджеров его области (ФИО без почты), менеджеру - только он сам.
+Роли меняются в Keycloak через Admin API, права на данные хранятся у нас.
+Область шире ролевой выдаётся с основанием. Список сотрудников с почтой
+и ролями видит только администратор.
 """
 
 import uuid
@@ -63,7 +48,7 @@ from app.services.keycloak_admin import KeycloakAdmin, split_full_name
 router = APIRouter(tags=["users"])
 admin_only = [require_action(Action.MANAGE_USERS, "Пользователями управляет администратор")]
 
-# Насколько широка область: шире ролевой - только с основанием.
+# Насколько широка область: шире ролевой только с основанием.
 _SCOPE_RANK = {DataScope.NONE: 0, DataScope.OWN: 1, DataScope.TEAM: 2, DataScope.ALL: 3}
 
 
@@ -89,7 +74,7 @@ async def _get_user(session: AsyncSession, user_id: uuid.UUID) -> User:
 
 
 def _role_principal(user: User) -> Principal:
-    """Сотрудник как носитель ролей из снимка - для расчёта области по ролям."""
+    """Сотрудник с ролями из снимка, для расчёта области по ролям."""
     return Principal(
         subject=user.keycloak_id,
         username=user.username,
@@ -177,7 +162,7 @@ async def _check_head(session: AsyncSession, user: User, head_id: uuid.UUID | No
 
 
 def _apply_scope(user: User, scope: DataScope, reason: str | None, expires_at) -> None:  # noqa: ANN001
-    """Область шире ролевой - только с основанием: это бизнес-доступ сверх роли."""
+    """Область шире ролевой выдаётся только с основанием."""
     role_scope = access.role_scope(_role_principal(user))
     wider = scope is not DataScope.DEFAULT and _SCOPE_RANK[scope] > _SCOPE_RANK[role_scope]
     if wider and not (reason or "").strip():
@@ -198,7 +183,7 @@ async def read_me(
     user: CurrentUserDep, principal: PrincipalDep, session: SessionDep
 ) -> MeRead:
     me = MeRead.model_validate(user)
-    # Роли - из токена этого запроса, а не из снимка: они точнее.
+    # Роли берём из токена этого запроса, а не из снимка: они точнее.
     me.roles = sorted(role for role in principal.roles if role in {r.value for r in Role})
     me.effective_scope = access.effective_scope(principal, user)
     me.actions = sorted(action.value for action in access.actions(principal, user))
@@ -378,7 +363,7 @@ async def update_user(
     data = payload.model_dump(exclude_unset=True)
 
     if user.id == current.id:
-        # Защита от того, чтобы администратор сам себя запер снаружи.
+        # Администратор не должен закрыть вход самому себе.
         if data.get("is_active") is False:
             raise ConflictError("Нельзя отключить собственную учётную запись")
         if "roles" in data and Role.ADMIN not in (payload.roles or []):
@@ -429,7 +414,7 @@ async def update_user(
     return await _detail(session, user)
 
 
-# --- Точечный доступ к вузам ------------------------------------------------------
+# Точечный доступ к вузам
 
 
 @router.put(
@@ -564,8 +549,8 @@ async def sync_roles(session: SessionDep, token: AccessTokenDep) -> RoleSyncResu
         elif set(user.roles or []) != roles:
             user.roles = sorted(roles)
             updated += 1
-    # Кого в Keycloak сняли со всех ролей системы, у того и в снимке ролей нет:
-    # иначе его продолжали бы предлагать ответственным до следующего входа.
+    # Если в Keycloak сняли все роли системы, убираем их и из снимка, иначе
+    # сотрудника предлагали бы ответственным до следующего входа.
     stale = (
         await session.execute(
             select(User).where(

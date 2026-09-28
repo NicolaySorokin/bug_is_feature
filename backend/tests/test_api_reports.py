@@ -1,8 +1,4 @@
-"""Отчёты, выгрузки и диаграммы по взаимодействиям.
-
-Строка отчёта - взаимодействие в разрезе ИТ-программы; договор - одна из
-колонок, а не основа выборки.
-"""
+"""Отчёты, выгрузки и диаграммы по взаимодействиям."""
 
 from httpx import AsyncClient
 
@@ -46,7 +42,7 @@ async def test_report_rows_and_charts_match_selection(
     assert report["totals"]["rows"] == 2  # одно взаимодействие с программой, одно без
     statuses = next(c for c in report["charts"] if c["key"] == "by_status")
     assert sum(item["value"] for item in statuses["items"]) == 2
-    # Статусы - полным рядом по порядку жизненного цикла, в том числе нулевые.
+    # Статусы полным рядом по порядку жизненного цикла, в том числе нулевые.
     assert [item["label"] for item in statuses["items"]] == [
         "Черновик",
         "В работе",
@@ -55,11 +51,11 @@ async def test_report_rows_and_charts_match_selection(
         "Отменено",
     ]
     assert [item["value"] for item in statuses["items"]] == [1, 1, 0, 0, 0]
-    # Закрытых нет - у результатов «Нет данных», а не ряд нулей.
+    # Закрытых нет, поэтому у результатов «Нет данных», а не ряд нулей.
     outcomes = next(c for c in report["charts"] if c["key"] == "by_outcome")
     assert outcomes["items"] == []
 
-    # Диаграмма строится по той же выборке: отфильтровали - изменилось и то, и то.
+    # Диаграмма строится по той же выборке: после фильтра изменились обе.
     filtered = (
         await client.post(
             "/api/v1/reports/preview",
@@ -153,7 +149,7 @@ async def test_period_by_signing_date_excludes_unsigned(
     ).json()
     assert report["totals"]["contracts"] == 1
     assert report["rows"][0]["contract_number"] == "ДГ-МАРТ"
-    # Неподписанное взаимодействие не потеряно молча - о нём сказано отдельно.
+    # Неподписанное взаимодействие не потеряно молча, о нём сказано отдельно.
     assert report["totals"]["unsigned_excluded"] == 1
 
 
@@ -162,13 +158,13 @@ async def test_exports_return_files(client: AsyncClient, university: dict) -> No
 
     xlsx = await client.post("/api/v1/reports/export?format=xlsx", json={}, headers=MANAGER)
     assert xlsx.status_code == 200
-    assert xlsx.content[:2] == b"PK"  # книга Excel - это zip-архив
+    assert xlsx.content[:2] == b"PK"  # книга Excel это zip-архив
     assert "attachment" in xlsx.headers["content-disposition"]
 
     pdf = await client.post("/api/v1/reports/export?format=pdf", json={}, headers=MANAGER)
     assert pdf.content[:4] == b"%PDF"
 
-    # xls - настоящий двоичный формат Excel 97 (контейнер OLE2), а не xlsx.
+    # xls это настоящий Excel 97 (OLE2), а не xlsx.
     xls = await client.post("/api/v1/reports/export?format=xls", json={}, headers=MANAGER)
     assert xls.status_code == 200
     assert xls.content[:4] == b"\xd0\xcf\x11\xe0"

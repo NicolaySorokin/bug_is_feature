@@ -22,7 +22,7 @@ class AuditEntryRead(ORMModel):
     created_at: datetime
 
     @classmethod
-    def from_model(cls, entry) -> AuditEntryRead:  # noqa: ANN001 - модель SQLAlchemy
+    def from_model(cls, entry) -> AuditEntryRead:  # noqa: ANN001 (модель SQLAlchemy)
         model = cls.model_validate(entry)
         user = entry.__dict__.get("user")
         if user is not None:

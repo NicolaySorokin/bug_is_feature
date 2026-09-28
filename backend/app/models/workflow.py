@@ -1,15 +1,7 @@
-"""Рабочий процесс и взаимодействие с вузом.
+"""Рабочий процесс: шаблон, версия, этапы, переходы, экземпляр и история.
 
-Шаблон описывает типовой путь, версия - его редакцию, экземпляр - конкретное
-взаимодействие с вузом (раздел 1 «Решений по бизнес-модели»). Отдельной
-таблицы взаимодействий нет: бизнес-сущностью стал ``workflow_instances``.
-Договор появляется в ходе взаимодействия и к запуску процесса не нужен
-(``Взаимодействие 0 -> 1 Договор``).
-
-Ключевое правило раздела 3.1: изменение шаблона не меняет уже запущенные
-процессы. Поэтому этапы и переходы принадлежат версии шаблона, экземпляр
-навсегда привязан к конкретной версии, а опубликованную версию структурно
-менять нельзя - это держит и база (триггеры в app.db.guards).
+Экземпляр процесса и есть взаимодействие с вузом. Он навсегда привязан
+к своей версии, а опубликованную версию менять нельзя (триггеры в app.db.guards).
 """
 
 import uuid
@@ -65,7 +57,7 @@ class WorkflowVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     __tablename__ = "workflow_versions"
     __table_args__ = (
         UniqueConstraint("template_id", "version_number"),
-        # Действующая версия у шаблона одна - это гарантирует база.
+        # Действующая версия у шаблона одна, это гарантирует база.
         Index(
             "uq_workflow_versions_active",
             "template_id",
@@ -129,19 +121,16 @@ class WorkflowStage(UUIDPrimaryKeyMixin, Base):
     # Какой бизнес-результат даёт финальный этап: successful / partial /
     # unsuccessful. У нефинальных этапов пусто.
     outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    # Через сколько дней без движения этап считается просроченным (раздел 7).
+    # Через сколько дней без движения этап просрочен.
     sla_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Типы документов, без которых с этапа нельзя уйти вперёд (DocumentType).
     required_documents: Mapped[list[str]] = mapped_column(
         ARRAY(String(32)), default=list, server_default="{}"
     )
-    # Статусы программ и продуктов взаимодействия, которые этап ставит сам
-    # при входе в него: внедрение согласовано с ходом процесса, а ручное
-    # изменение - исключение с комментарием.
+    # Статусы программ и продуктов, которые этап ставит при входе.
     program_status_on_enter: Mapped[str | None] = mapped_column(String(32), nullable=True)
     product_status_on_enter: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    # Координаты узла на схеме. Перемещение узла меняет только расположение
-    # схемы и не влияет на бизнес-логику (раздел 3.2).
+    # Координаты узла на схеме, на логику не влияют.
     layout_x: Mapped[int | None] = mapped_column(Integer, nullable=True)
     layout_y: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
@@ -164,7 +153,7 @@ class WorkflowTransition(UUIDPrimaryKeyMixin, Base):
         ForeignKey("workflow_stages.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Возврат назад по разрешённому переходу (раздел 3.3).
+    # Переход назад.
     is_backward: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     requires_comment: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false"
@@ -184,7 +173,7 @@ class WorkflowInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     university_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("universities.id", ondelete="RESTRICT"), index=True
     )
-    # Ответственный за это взаимодействие. Пусто - ждёт назначения руководителем.
+    # Ответственный. Пусто, пока руководитель не назначит.
     manager_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )

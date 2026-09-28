@@ -1,8 +1,5 @@
-# Предпродуктивная среда: то же, что на бою, но по HTTP и с доступом
-# к PostgreSQL снаружи для разбора данных. Наружу смотрит только Nginx.
-#
-# Обязательно задайте секреты в cicd/preprod/.env (см. .env.example)
-# и запускайте с ним:  make up ENV=preprod
+# Предпродуктивная среда: как на бою, но по HTTP. Секреты в cicd/preprod/.env,
+# запуск: make up ENV=preprod
 
 services:
   db:

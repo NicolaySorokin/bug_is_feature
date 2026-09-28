@@ -1,10 +1,7 @@
 """Демонстрационные данные: согласованность и то, что увидят на показе.
 
-Первые проверки базы не требуют: реалм Keycloak, ответы LMS и сайта и
-сюжеты договоров должны сходиться со справочниками и шаблонами процессов.
-Последние загружают демоданные в тестовую базу и смотрят на результат
-глазами менеджера и руководителя. Загрузка занимает секунды, поэтому
-проверки базы собраны в два теста, а не разложены по одной.
+Первые проверки идут без базы, последние загружают демоданные и смотрят
+на них глазами менеджера и руководителя.
 """
 
 from __future__ import annotations
@@ -74,10 +71,8 @@ def test_realm_matches_demo_users() -> None:
 def test_realm_keeps_no_secrets() -> None:
     """Репозиторий публичный: паролей и секретов клиентов в выгрузке нет.
 
-    Начальные пароли ставит scripts/keycloak_setup.py, дальше их меняют
-    на сайте. Войти можно только через страницу Keycloak - выдача токена
-    по паролю в обход неё включена лишь у выключенного клиента нагрузочной
-    проверки.
+    Вход по паролю в обход страницы Keycloak включён только у выключенного
+    клиента нагрузочной проверки.
     """
     if not REALM.is_file():
         pytest.skip("Реалм лежит вне каталога backend - в контейнере его нет")
@@ -110,7 +105,7 @@ def test_integration_fixtures_match_catalog() -> None:
     for item in site["universities"]:
         assert item["name"] in universities | NEW_ON_SITE, item["name"]
 
-    # Разобранные заявки из сюжетов есть на сайте - повторный обмен их пропустит.
+    # Разобранные заявки из сюжетов есть на сайте, повторный обмен их пропустит.
     requests = {item["id"] for item in site["requests"]}
     assert {plan.request for plan in STORIES if plan.request} <= requests
 
@@ -120,7 +115,7 @@ def test_integration_fixtures_match_catalog() -> None:
     [STORIES, generate(300, random.Random(7))],
     ids=["сюжеты", "сгенерированные"],
 )
-def test_routes_follow_templates(plans) -> None:  # noqa: ANN001 - параметр pytest
+def test_routes_follow_templates(plans) -> None:  # noqa: ANN001 (параметр pytest)
     """Каждый шаг истории разрешён схемой во всех версиях шаблона."""
     for plan in plans:
         if plan.template is None:
@@ -134,7 +129,7 @@ def test_routes_follow_templates(plans) -> None:  # noqa: ANN001 - параме�
                 current = target
 
 
-# --- Демоданные в базе --------------------------------------------------------
+# Демоданные в базе
 
 
 @pytest.fixture
@@ -182,8 +177,7 @@ async def test_demo_database(demo: tuple[AsyncSession, Summary]) -> None:
     )
     assert drafts_with_contract == 0
 
-    # Файлы всех форматов из ТЗ, кроме xls, действительно лежат на диске,
-    # у каждого - тип документа.
+    # Файлы всех форматов из ТЗ, кроме xls, лежат на диске, у каждого есть тип.
     attachments = (await session.execute(select(Attachment))).scalars().all()
     assert len(attachments) == summary.attachments > 100
     formats = {item.storage_path.rsplit(".", 1)[1] for item in attachments}
@@ -211,8 +205,8 @@ async def test_demo_database(demo: tuple[AsyncSession, Summary]) -> None:
     main = by_template[TEMPLATE_BY_KEY["main"].name]
     assert main[0] in (WorkflowVersionStatus.DEPRECATED, WorkflowVersionStatus.RETIRED)
 
-    # Продукт во взаимодействии используется в программе; без связи - один
-    # сюжетный (тревога «продукт без программы»).
+    # Продукт во взаимодействии связан с программой. Без связи только один
+    # сюжетный продукт.
     unlinked = await session.scalar(
         select(func.count())
         .select_from(InteractionProduct)
@@ -232,14 +226,14 @@ async def test_demo_database(demo: tuple[AsyncSession, Summary]) -> None:
     for_admin = await alerts.collect(session, admin, admin_user)
     assert {alert.kind for alert in [*for_head, *for_other, *for_admin]} == set(AlertKind)
     assert len(for_head) <= dashboard.ALERTS_LIMIT, [alert.message for alert in for_head]
-    # Технические очереди - администратору, бизнес-тревоги - руководителю.
+    # Технические очереди видит администратор, бизнес-тревоги руководитель.
     assert {alert.kind for alert in for_admin} >= {
         AlertKind.MAPPING_PENDING,
         AlertKind.INTEGRATION_FAILED,
         AlertKind.UNIVERSITY_PENDING,
     }
 
-    # Главный герой показа: почти все сюжеты - у него.
+    # Главный герой показа: почти все сюжеты у него.
     petrov, petrov_user = await _as(session, "petrov")
     kinds = {alert.kind for alert in await alerts.collect(session, petrov, petrov_user)}
     assert kinds >= {
@@ -265,7 +259,7 @@ async def test_demo_database(demo: tuple[AsyncSession, Summary]) -> None:
         assert contract.signed_at and contract.valid_to, contract.number
         assert contract.valid_from <= contract.valid_to, contract.number
 
-    # История идёт по порядку, текущий этап - это последний переход.
+    # История идёт по порядку, текущий этап совпадает с последним переходом.
     instances = await session.execute(
         select(WorkflowInstance).options(selectinload(WorkflowInstance.events))
     )
@@ -292,12 +286,12 @@ async def test_demo_database(demo: tuple[AsyncSession, Summary]) -> None:
         states |= set(
             workflow_service.compute_stage_states(version, instance, events).values()
         )
-    # На схемах встречаются все пять состояний этапа из раздела 3.4.
+    # На схемах встречаются все пять состояний этапа.
     assert states == set(StageState)
     assert {InteractionOutcome.SUCCESSFUL, InteractionOutcome.UNSUCCESSFUL} <= outcomes
 
     # Отчёт строится по всему объёму, хвост сворачивается в «Прочие».
-    # Фёдорову временно открыта вся организация - по демо-сюжету.
+    # Фёдорову по сюжету временно открыта вся организация.
     fedorov, fedorov_user = await _as(session, "fedorov")
     report = await reports.build_report(session, ReportRequest(), fedorov, fedorov_user)
     assert report.totals.interactions == summary.interactions

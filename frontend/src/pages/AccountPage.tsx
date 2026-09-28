@@ -1,11 +1,6 @@
 /**
- * Учётная запись текущего сотрудника: профиль, роли, доступ к данным
- * и смена пароля.
- *
- * Раньше пункт меню вёл в консоль учётной записи Keycloak - отдельное
- * приложение на английском, которое отвечало 401 без ролей клиента account.
- * Теперь всё показывается здесь, а пароль меняется на странице Keycloak
- * «Новый пароль» в оформлении системы: сама система пароль не видит.
+ * Учётная запись сотрудника: профиль, роли, доступ к данным и смена пароля. Пароль меняется
+ * на странице Keycloak, система его не видит.
  */
 import { Eye, EyeOff, Handshake, KeyRound, LogOut, Settings, ShieldCheck, Users, type LucideIcon } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
@@ -64,7 +59,7 @@ export default function AccountPage() {
   const toast = useToast();
   usePageTitle("Учётная запись");
 
-  // Вернулись со страницы смены пароля Keycloak - сообщаем итог.
+  // Вернулись со страницы смены пароля Keycloak, сообщаем итог.
   useEffect(() => {
     const result = takeAccountAction();
     if (!result) return;

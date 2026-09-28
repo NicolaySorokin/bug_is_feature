@@ -1,12 +1,4 @@
-"""Процесс взаимодействия и жизненный цикл шаблонов.
-
-* переходы - только разрешённые схемой версии;
-* финальный этап даёт бизнес-результат, неуспешный - с причиной;
-* обязательные документы этапа не дают уйти с него вперёд;
-* версия: черновик -> действующая -> устаревшая -> выведена; действующая
-  у шаблона одна, опубликованную структурно не меняют (это держит и база);
-* перед публикацией граф проверяется целиком.
-"""
+"""Процесс взаимодействия и жизненный цикл шаблонов."""
 
 from datetime import UTC, datetime
 
@@ -153,7 +145,7 @@ async def test_refusal_needs_reason_and_documents_block_forward(
     )
     assert upload.status_code == 201, upload.text
 
-    # На неуспешный финальный этап - только с причиной и комментарием.
+    # На неуспешный финальный этап только с причиной и комментарием.
     no_reason = await _move(
         client, interaction, _stage(view, "refusal"), comment="Вуз передумал"
     )
@@ -208,7 +200,7 @@ async def test_only_head_skips_required_stage(
     assert states[_stage(view, "contact")] == "skipped"
 
 
-# --- Шаблоны и версии ---------------------------------------------------------------
+# Шаблоны и версии
 
 
 async def test_published_version_cannot_be_edited(
@@ -240,7 +232,7 @@ async def test_database_guards_published_version(
                 {"id": stage_id},
             )
         await connection.rollback()
-        # Название поправить можно - на ход процессов оно не влияет.
+        # Название поправить можно, на ход процессов оно не влияет.
         await connection.execute(
             text("UPDATE workflow_stages SET name = 'Знакомство' WHERE id = :id"),
             {"id": stage_id},
@@ -299,7 +291,7 @@ async def test_new_version_replaces_active_and_keeps_running_process(
     assert current["workflow_version_id"] == view["workflow_version_id"]
     assert len(current["version"]["stages"]) == 3
 
-    # Процесс закрыт - устаревшая версия выводится из использования.
+    # Процесс закрыт, и устаревшая версия выводится из использования.
     await client.post(
         f"/api/v1/interactions/{interaction['id']}/cancel",
         json={"reason": "duplicate"},

@@ -61,7 +61,7 @@ async def test_vendor_catalog_in_case_format(client: AsyncClient) -> None:
     tdata = vendors["ООО «ТДата»"]
     assert tdata["contacts"][0]["contact_channel"] == "Чат в ТГ"
 
-    # Два продукта из одной ячейки, кавычки-ёлочки сняты, ответственный - у продукта.
+    # Два продукта из одной ячейки, кавычки сняты, ответственный у продукта.
     products = {
         item["name"]: item
         for item in (await client.get("/api/v1/catalog/products", headers=MANAGER)).json()
@@ -134,8 +134,8 @@ async def test_lms_questionnaire_import_keeps_only_needed_fields(client: AsyncCl
         headers=ADMIN,
     )
     body = preview.json()
-    # Испорченный заголовок «Отчествопри наличии)» узнан, паспорт и СНИЛС -
-    # не сопоставлены ни с одним полем, то есть не будут загружены.
+    # Испорченный заголовок «Отчествопри наличии)» узнан, а паспорт и СНИЛС
+    # ни с чем не сопоставлены и не загрузятся.
     assert body["suggested_mapping"]["middle_name"] == "Отчествопри наличии)"
     assert "СНИЛС" not in body["suggested_mapping"].values()
 

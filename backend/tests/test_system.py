@@ -45,11 +45,11 @@ async def test_cache_is_invalidated_by_changes(client: AsyncClient, university: 
         await make_interaction(client, university["id"], MANAGER)
         first = (await client.get("/api/v1/dashboard", headers=MANAGER)).json()
         again = (await client.get("/api/v1/dashboard", headers=MANAGER)).json()
-        # Второй ответ - из кэша: то же время построения.
+        # Второй ответ из кэша: то же время построения.
         assert again["generated_at"] == first["generated_at"]
         assert cache.stats()["hits"] >= 1
 
-        # Любое сохранение увеличивает версию данных - кэш больше не совпадает.
+        # Любое сохранение увеличивает версию данных, и кэш больше не совпадает.
         await make_interaction(client, university["id"], MANAGER)
         fresh = (await client.get("/api/v1/dashboard", headers=MANAGER)).json()
         assert fresh["counters"]["open"] == 2
@@ -58,12 +58,12 @@ async def test_cache_is_invalidated_by_changes(client: AsyncClient, university: 
 
 
 async def test_alert_counter_is_not_capped(client: AsyncClient, university: dict) -> None:
-    # 25 действующих договоров без скана - 25 тревог.
+    # 25 действующих договоров без скана дают 25 тревог.
     for _ in range(25):
         await make_contract(client, university["id"], HEAD)
     dashboard = (await client.get("/api/v1/dashboard", headers=HEAD)).json()
     assert len(dashboard["alerts"]) == 20  # список на главной ограничен
-    assert dashboard["counters"]["alerts"] == 25  # а счётчик - нет
+    assert dashboard["counters"]["alerts"] == 25  # а счётчик нет
     assert dashboard["alerts_summary"]["no_documents"] == 25
 
 
@@ -76,7 +76,7 @@ async def test_next_steps_for_manager(
     dashboard = (await client.get("/api/v1/dashboard", headers=MANAGER)).json()
     step = dashboard["next_steps"][0]
     assert step["stage_name"] == "Контакт"
-    assert step["next_actions"] == ["Встреча"]  # у перехода нет названия - берётся этап
+    assert step["next_actions"] == ["Встреча"]  # у перехода нет названия, берётся этап
     assert dashboard["admin"] is None
 
 
@@ -100,6 +100,6 @@ async def test_validation_errors_have_code(client: AsyncClient) -> None:
     assert response.status_code == 422
     body = response.json()
     assert body["code"] == "validation_error"
-    # Нет обязательного поля - ошибка формата: общий текст, подробности по полям.
+    # Нет обязательного поля: общий текст ошибки и подробности по полям.
     assert body["message"] == "Запрос не прошёл проверку"
     assert body["details"]["errors"]

@@ -42,12 +42,10 @@ async def commit(session: AsyncSession) -> None:
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """Зависимость FastAPI: сессия на время обработки запроса.
+    """Сессия на время запроса.
 
-    Подключается с ``scope="function"`` (см. app.api.deps): транзакция
-    фиксируется до отправки ответа. Иначе клиент получил бы «успех» раньше,
-    чем данные сохранены, - и сбой фиксации, и чтение сразу после записи
-    прошли бы мимо него.
+    Транзакция фиксируется до отправки ответа (scope="function" в app.api.deps),
+    чтобы клиент не получил успех раньше, чем данные сохранены.
     """
     async with SessionFactory() as session:
         try:

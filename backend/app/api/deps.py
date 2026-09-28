@@ -21,8 +21,7 @@ from app.services import access, audit
 # scope="function": транзакция фиксируется до отправки ответа, см. get_session.
 SessionDep = Annotated[AsyncSession, Depends(get_session, scope="function")]
 
-# Роли, которые понимает система. Остальные роли токена (служебные роли
-# Keycloak вроде offline_access) в снимок профиля не попадают.
+# Роли системы. Служебные роли Keycloak в профиль не попадают.
 KNOWN_ROLES = frozenset(role.value for role in Role)
 
 
@@ -41,13 +40,11 @@ PrincipalDep = Annotated[Principal, Depends(get_current_principal)]
 
 
 async def get_current_user(principal: PrincipalDep, session: SessionDep) -> User:
-    """Находит или заводит запись пользователя по его идентификатору в Keycloak.
+    """Находит или заводит пользователя по id из Keycloak.
 
-    ФИО берётся из токена только при первом входе: дальше им распоряжается
-    CRM (администратор, импорт каталога), потому что в Keycloak хранятся
-    лишь имя и фамилия, а в отчётах и при импорте нужно полное ФИО.
-    Почта, логин и снимок ролей обновляются при каждом обращении.
-    Отметка о последнем обращении пишется не чаще раза в пять минут.
+    ФИО берём из токена только при первом входе, дальше его ведёт CRM: в отчётах
+    нужно полное ФИО. Почта, логин и роли обновляются всегда, отметка о входе
+    не чаще раза в пять минут.
     """
     roles = sorted(KNOWN_ROLES.intersection(principal.roles))
     updates: dict[str, object] = {
@@ -77,7 +74,7 @@ async def get_current_user(principal: PrincipalDep, session: SessionDep) -> User
         )
         .on_conflict_do_update(index_elements=[User.keycloak_id], set_=updates)
         .returning(User)
-        # Строка могла быть в сессии от прошлого чтения - берём свежую.
+        # Строка могла остаться в сессии от прошлого чтения, берём свежую.
         .execution_options(populate_existing=True)
     )
     result = await session.execute(statement)
@@ -97,7 +94,7 @@ CurrentUserDep = Annotated[User, Depends(get_current_user)]
 
 
 def get_access_token(request: Request) -> str | None:
-    """Токен текущего запроса - для вызовов Admin API Keycloak от имени пользователя."""
+    """Токен текущего запроса для вызовов Admin API Keycloak."""
     return bearer_token(request)
 
 
@@ -105,10 +102,7 @@ AccessTokenDep = Annotated[str | None, Depends(get_access_token)]
 
 
 def require_roles(*roles: str) -> Callable[[Principal], Awaitable[Principal]]:
-    """Фабрика зависимостей для проверки ролей.
-
-    Пример: ``dependencies=[Depends(require_roles(Role.ADMIN))]``.
-    """
+    """Зависимость для проверки ролей: Depends(require_roles(Role.ADMIN))."""
 
     async def dependency(principal: PrincipalDep) -> Principal:
         if not principal.has_role(*roles):

@@ -18,7 +18,7 @@ from app.services import workflow as workflow_service
 
 
 async def build_view(session: AsyncSession, instance: WorkflowInstance) -> InstanceView:
-    """Схема из зафиксированной версии, состояния этапов - из истории."""
+    """Схема из версии шаблона, состояния этапов из истории."""
     version = await workflow_service.load_version(session, instance.workflow_version_id)
     events = list(
         (

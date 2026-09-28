@@ -1,23 +1,8 @@
 """Запись демонстрационных данных в базу.
 
-Главная сущность - взаимодействие с вузом (экземпляр процесса): у него
-ответственный, состав программ и продуктов, контакты вуза, комментарии
-и файлы. Договор появляется у взаимодействия на этапе обмена документами,
-лицензии оформляются по договору на продукты взаимодействия.
-
-История каждого взаимодействия строится от сегодняшнего дня назад:
-последний переход был ``days_on_stage`` дней назад, а каждый предыдущий
-этап занял от трети до почти полной нормы (``sla_days``). Поэтому «дней на
-этапе», контроль просрочек и фильтр отчёта по движениям процесса совпадают
-с тем, что задумано в сюжете, в какой бы день ни запустили сид.
-
-Переходы проверяются по схеме шаблона так же строго, как в рабочем
-процессе: сюжет с недопустимым шагом упадёт при загрузке, а не всплывёт
-странной историей на показе. Версия шаблона выбирается по дате запуска
-процесса - начатые до выхода второй версии идут по первой. Статусы
-программ и продуктов ставят этапы при входе - как и в работающей системе.
-
-Номера договоров, состав и сюжеты одинаковы при каждом запуске: случайность
+История каждого взаимодействия строится от сегодняшнего дня назад, поэтому
+сроки и просрочки выглядят так, как задумано в сюжете, в любой день.
+Переходы проверяются по схеме шаблона, как в рабочем процессе. Случайность
 идёт от фиксированного зерна, меняются только даты.
 """
 
@@ -124,12 +109,12 @@ _REMARKS = (
     "Интерес к расширению на магистратуру",
 )
 
-# Неудачный обмен в демоданных - той же фразой, что видит сотрудник при сбое.
+# Неудачный обмен описан той же фразой, что видит сотрудник при сбое.
 _SYNC_ERROR = UNAVAILABLE_MESSAGE
 _UNKNOWN_UNIVERSITY = "Вуз «site-99» не сопоставлен со справочником"
 
-# Вуз с сайта, который обмен не сопоставил сам: такое же название уже есть
-# в справочнике - решение за администратором (очередь сопоставления).
+# Вуз с сайта, который обмен не сопоставил сам: такое название уже есть,
+# решает администратор в очереди сопоставления.
 _MAPPING_SITE_ID = "site-10"
 
 # Вуз, который менеджер завёл сам: он ждёт проверки руководителем.
@@ -182,7 +167,7 @@ class Visit:
     code: str
     event: WorkflowEvent
     start: datetime
-    end: datetime | None = None  # None - взаимодействие и сейчас здесь
+    end: datetime | None = None  # None значит, что взаимодействие и сейчас здесь
     done: bool = False  # этап пройден, а не брошен возвратом назад
 
 
@@ -210,7 +195,7 @@ class Timeline:
         return self.visits[-1]
 
     def left_at(self, code: str) -> datetime | None:
-        """Когда этап впервые пройден вперёд - например, подписание."""
+        """Когда этап впервые пройден вперёд, например подписание."""
         return next(
             (visit.end for visit in self.visits if visit.code == code and visit.done), None
         )
@@ -237,7 +222,7 @@ class DemoLoader:
         self.numbers: set[str] = set()
         self.license_count = 0
 
-    # --- Общее -----------------------------------------------------------------
+    # Общее
 
     def _ago(self, days: float, minutes: int = 0) -> datetime:
         return self.now - timedelta(days=days, minutes=minutes)
@@ -248,9 +233,9 @@ class DemoLoader:
 
     @staticmethod
     def _subject(employee: Employee) -> str:
-        """Как пользователь представится API: так же его и заводим.
+        """Как пользователь представится API, так его и заводим.
 
-        Под Keycloak это id из реалма, под dev-заглушкой - ``dev:<логин>``.
+        Под Keycloak это id из реалма, под заглушкой dev:<логин>.
         """
         if settings.auth_backend == "keycloak":
             return employee.keycloak_id
@@ -265,7 +250,7 @@ class DemoLoader:
         )
         return not interactions and not templates
 
-    # --- Основной набор --------------------------------------------------------
+    # Основной набор
 
     async def load(self, generated: int = GENERATED) -> Summary:
         await self._users()
@@ -426,8 +411,8 @@ class DemoLoader:
             loaded: list[LoadedVersion] = []
             for version_spec in spec.versions:
                 published = self._ago(version_spec.published_days_ago)
-                # Этапы и переходы добавляются в черновик: опубликованную
-                # версию база менять не даст (app.db.guards).
+                # Этапы и переходы добавляются в черновик: опубликованную версию база
+                # менять не даст.
                 version = WorkflowVersion(
                     id=uuid.uuid4(),
                     template_id=template.id,
@@ -474,8 +459,8 @@ class DemoLoader:
                 await self.session.flush()
                 loaded.append(LoadedVersion(spec.key, version, stages, transitions))
 
-            # Публикация: последняя версия действует, прежние устарели - начатые
-            # по ним процессы доходят до конца по своей схеме.
+            # Публикация: последняя версия действует, прежние устарели, начатые по ним
+            # процессы идут по своей схеме.
             for index, item in enumerate(loaded):
                 item.model.published_at = self._ago(spec.versions[index].published_days_ago)
                 if index == len(loaded) - 1:
@@ -487,8 +472,7 @@ class DemoLoader:
             self.versions[spec.key] = loaded
 
     async def _retire_versions(self) -> None:
-        """Устаревшая версия без открытых взаимодействий выведена из использования,
-        с открытыми - остаётся устаревшей: начатые процессы идут по ней до конца."""
+        """Устаревшая версия без открытых взаимодействий выводится из использования."""
         replaced = (WorkflowVersionStatus.DEPRECATED, WorkflowVersionStatus.RETIRED)
         for loaded in self.versions.values():
             for item in loaded:
@@ -516,7 +500,7 @@ class DemoLoader:
                     item.model.retired_at = self._ago(self.rng.randint(5, 40))
         await self.session.flush()
 
-    # --- Взаимодействие --------------------------------------------------------
+    # Взаимодействие
 
     def _version_at(self, template_key: str, moment: datetime) -> LoadedVersion:
         """Последняя версия, опубликованная к моменту запуска процесса."""
@@ -541,8 +525,8 @@ class DemoLoader:
         moves = [step if isinstance(step, Move) else Move(step) for step in plan.route]
         latest = self.versions[plan.template][-1]
 
-        # Сначала моменты переходов по нормам последней версии, затем выбор
-        # версии по дате запуска: разница норм между версиями невелика.
+        # Сначала моменты переходов по нормам последней версии, затем выбор версии
+        # по дате запуска: нормы версий различаются мало.
         moments: list[datetime] = []
         moment = self._ago(plan.days_on_stage) - self._jitter()
         codes = [latest.initial.code, *(move.stage for move in moves)]
@@ -578,7 +562,7 @@ class DemoLoader:
             transition = version.transitions.get((source, move.stage))
             if transition is None:
                 if plan.light:
-                    break  # шаблон поменяли руками - дальше путь не пройти
+                    break  # шаблон поменяли руками, дальше путь не пройти
                 raise ValueError(
                     f"{plan.label}: переход «{source} -> {move.stage}» "
                     "не предусмотрен шаблоном"
@@ -662,7 +646,7 @@ class DemoLoader:
     def _valid_to(self, plan: InteractionPlan, signed: date) -> date:
         if plan.valid_days_left is not None:
             return self.today + timedelta(days=plan.valid_days_left)
-        # Договор заключают на целое число лет - берём первый срок с запасом.
+        # Договор заключают на целое число лет, берём первый срок с запасом.
         for years in range(1, 6):
             candidate = _add_years(signed, years) - timedelta(days=1)
             if candidate >= self.today + timedelta(days=75):
@@ -850,7 +834,7 @@ class DemoLoader:
                     for program in users
                 )
             elif programs:
-                # Связи нет в справочнике - осознанное исключение руководителя.
+                # Связи нет в справочнике: осознанное исключение руководителя.
                 self.session.add(
                     InteractionProgramProduct(
                         interaction_program_id=programs[0].id,
@@ -894,7 +878,7 @@ class DemoLoader:
         timeline: Timeline | None,
         last_activity: datetime,
     ) -> Contract | None:
-        """Договор появляется на обмене документами; до подписания - черновик."""
+        """Договор появляется на обмене документами, до подписания он черновик."""
         if timeline is None or not plan.has_contract:
             return None
         drafted = timeline.entered_at(CONTRACT_FROM) or timeline.started
@@ -980,7 +964,7 @@ class DemoLoader:
                 )
             )
 
-    # --- Комментарии и файлы этапов --------------------------------------------
+    # Комментарии и файлы этапов
 
     def _context(
         self,
@@ -1013,7 +997,7 @@ class DemoLoader:
         return start + (finish - start) * self.rng.uniform(0.1, 0.9)
 
     def _entry_comments(self, timeline: Timeline, context: dict[str, object]) -> None:
-        """Комментарии к переходам вперёд - если сюжет не задал свои."""
+        """Комментарии к переходам вперёд, если сюжет не задал свои."""
         texts = TEXTS[timeline.version.template_key]
         for visit in timeline.visits:
             entry = texts.get(visit.code, StageTexts()).entry
@@ -1133,18 +1117,14 @@ class DemoLoader:
         )
         self.summary.attachments += 1
 
-    # --- Права и доступ --------------------------------------------------------
+    # Права и доступ
 
     async def _access(self) -> None:
-        """Что показывает раздел «Пользователи и права» сразу после загрузки.
+        """Что видно в «Пользователи и права» сразу после загрузки.
 
-        * Иванова замещает Петрова в отпуске - точечный доступ к его вузу
-          со сроком и основанием, выдал администратор;
-        * Фёдорову на время годового отчёта временно открыта вся организация;
-        * Орлова видит персональные данные студентов и журнал обмена - это
-          отдельные права, из роли руководителя они не следуют;
-        * у администратора бизнес-данных нет: ни области данных, ни
-          персональных данных студентов.
+        Иванова замещает Петрова в отпуске: у неё точечный доступ к его вузу. Фёдорову
+        временно открыта вся организация, Орлова видит персональные данные студентов
+        и журнал обмена. У администратора бизнес-данных нет.
         """
         orlova, fedorov = self.users["orlova"], self.users["fedorov"]
         self.session.add(
@@ -1166,14 +1146,13 @@ class DemoLoader:
         ]
         await self.session.flush()
 
-    # --- Журналы обмена и загрузок ---------------------------------------------
+    # Журналы обмена и загрузок
 
     async def _external_links(self) -> None:
         """Связи с объектами LMS и сайта: повторный обмен обновит те же записи.
 
-        Одна запись сайта оставлена без связи: вуз с таким же названием уже
-        есть, и обмен по одному названию его не сопоставляет - администратор
-        решает в очереди сопоставления.
+        Одна запись сайта оставлена без связи, её решает администратор в очереди
+        сопоставления.
         """
         payloads = {
             "lms": LmsAdapter.parse(load_fixture("lms")),
@@ -1232,12 +1211,8 @@ class DemoLoader:
         await self.session.flush()
 
     async def _integration_history(self) -> None:
-        """Прошлые запуски синхронизации. Последний обмен с сайтом упал.
-
-        Из-за этого на главной висит тревога «синхронизация не удалась»:
-        на показе её снимает ручной запуск обмена в разделе «Интеграции».
-        Остальные обмены с сайтом - «частично»: заявка на неизвестный вуз
-        не загружается и видна строкой в журнале запуска.
+        """Прошлые запуски синхронизации. Последний обмен с сайтом упал, поэтому
+        на главной висит тревога, её снимает ручной запуск обмена.
         """
         admin = self.users["admin"]
         payloads = {
@@ -1352,7 +1327,7 @@ class DemoLoader:
                 for error in errors
             )
 
-    # --- Добавка для нагрузки --------------------------------------------------
+    # Добавка для нагрузки
 
     async def load_extra(self, count: int, batch: int = 200) -> int:
         """Ещё ``count`` взаимодействий поверх того, что уже в базе."""
@@ -1372,7 +1347,7 @@ class DemoLoader:
         return len(plans)
 
     async def _attach_existing(self) -> None:
-        """Справочники и шаблоны берутся из базы - в том виде, в каком они сейчас."""
+        """Справочники и шаблоны берём из базы в текущем виде."""
         users = (await self.session.execute(select(User))).scalars()
         self.users = {user.username: user for user in users}
 
@@ -1410,7 +1385,7 @@ class DemoLoader:
             )
 
     async def _attach_versions(self) -> None:
-        """Опубликованные версии шаблонов из базы - с этапами и переходами."""
+        """Опубликованные версии шаблонов из базы с этапами и переходами."""
         self.versions = {}
         template_keys = {spec.name: spec.key for spec in TEMPLATES}
         versions = (

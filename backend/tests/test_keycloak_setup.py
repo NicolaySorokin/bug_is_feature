@@ -71,7 +71,7 @@ class FakeKeycloak:
     """Реалм в памяти: пользователи, пароли и роль администратора."""
 
     def __init__(self, users: dict[str, bool], admins: set[str]) -> None:
-        # логин -> есть ли пароль
+        # логин и есть ли пароль
         self.passwords: dict[str, tuple[str, bool] | None] = {
             username: ("старый", False) if has else None for username, has in users.items()
         }
@@ -109,7 +109,7 @@ def test_initial_passwords_only_for_users_without_one() -> None:
     )
     assert kc.passwords["admin"] == ("старый", False)
     assert kc.passwords["orlova"] == ("Пароль-Орловой-2", False)
-    # Пароля в секрете нет - на бою не придумываем, пароль задаст администратор.
+    # Пароля в секрете нет: на бою не придумываем, его задаст администратор.
     assert kc.passwords["petrov"] is None
 
 
@@ -173,7 +173,7 @@ def test_development_generates_missing_passwords() -> None:
 
 
 def test_weak_console_password_gives_clear_error() -> None:
-    """Keycloak отклонил пароль консоли по политике - понятно, что делать дальше."""
+    """Keycloak отклонил пароль консоли по политике, и понятно, что делать дальше."""
 
     class StrictKeycloak(FakeKeycloak):
         def set_password(self, user_id: str, password: str, *, temporary: bool = False):
@@ -231,8 +231,9 @@ def test_legacy_roles_emulated_hierarchy() -> None:
 
 
 def test_old_hierarchy_roles_are_aligned_once() -> None:
-    """Раздел 12 решений: у администратора пропадают manager и head, у
-    руководителя без своих вузов - manager. Второй запуск ничего не меняет."""
+    """У администратора пропадают manager и head, у руководителя без своих вузов
+    manager. Второй запуск ничего не меняет.
+    """
     kc = RolesKeycloak(
         {
             "admin": {"admin", "head", "manager", "default-roles-edu-crm"},
@@ -250,7 +251,7 @@ def test_old_hierarchy_roles_are_aligned_once() -> None:
     assert kc.attributes[ROLE_MODEL_ATTRIBUTE] == "2"
     assert kc.attributes["frontendUrl"] == "https://edu-crm.example"
 
-    # Дальше роли ведёт администратор на сайте - деплой их не трогает.
+    # Дальше роли ведёт администратор на сайте, деплой их не трогает.
     kc.roles["admin"].add("manager")
     align_role_model(kc, ROLES_REALM)
     assert "manager" in kc.roles["admin"]
@@ -258,7 +259,7 @@ def test_old_hierarchy_roles_are_aligned_once() -> None:
 
 
 def test_roles_changed_on_site_are_left_alone() -> None:
-    """Роли, которые администратор уже поменял, - его решение."""
+    """Роли, которые администратор уже поменял, остаются его решением."""
     kc = RolesKeycloak(
         {
             # Сознательно оставлен менеджером и руководителем, но без admin.

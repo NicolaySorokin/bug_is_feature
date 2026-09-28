@@ -1,15 +1,6 @@
 /**
- * Справочники: ИТ-направления, ИТ-программы, вендоры с контактами,
- * ИТ-продукты. Массовое обновление - через «Загрузку из Excel».
- *
- * Права разделены (пункты 6 и 7 перечня исправлений): записи справочников
- * ведёт администратор, а какие ИТ-продукты используются в программе -
- * бизнес-решение руководителя. Каждый видит справочники целиком, но
- * меняет только своё. Типовые шаблоны договоров - тоже руководителя:
- * вкладка видна только ему (ContractTemplates.tsx).
- *
- * Запись не удаляется, а выключается: на неё ссылаются взаимодействия и отчёты
- * прошлых периодов.
+ * Справочники: направления, программы, вендоры, продукты. Записи ведёт администратор, продукты
+ * программ и шаблоны договоров руководитель. Запись не удаляется, а выключается.
  */
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -132,7 +123,7 @@ function ItemModal({ edit, onClose, canLink }: { edit: EditState | null; onClose
     }
   }, [edit, links.data]);
 
-  // Новые связи - только с действующими записями; уже выбранная остаётся в списке.
+  // Новые связи только с действующими записями, уже выбранная остаётся в списке.
   const vendorContacts = ((vendors.data || []).find((vendor) => vendor.id === vendorId)?.contacts || []).filter(
     (item) => item.is_active !== false || item.id === contactId,
   );
@@ -249,7 +240,7 @@ function ItemModal({ edit, onClose, canLink }: { edit: EditState | null; onClose
   );
 }
 
-/** Продукты программы - бизнес-связь, её задаёт руководитель. */
+/** Продукты программы задаёт руководитель. */
 function ProgramProductsModal({ program, onClose }: { program: Item | null; onClose: () => void }) {
   const products = useProducts();
   const links = useQuery({ queryKey: keys.programProducts, queryFn: listProgramProducts, enabled: program !== null });

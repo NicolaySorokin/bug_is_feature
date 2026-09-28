@@ -1,18 +1,11 @@
 /**
- * Собирает src/styles/rt-theme.css - тему Ростелекома для Atomaro.
+ * Собирает src/styles/rt-theme.css, тему Ростелекома для Atomaro.
  *
- * Пакет темы @atomaro-rt/theme-rostelecom закрытый, поэтому тема
- * повторяется так: берутся токены стандартной темы Atomaro
- * (@atomaro/ui-kit/theme/default-light.css), и в каждом, где стоит оттенок
- * акцентного синего #0055FF, он заменяется тем же по номеру оттенком
- * фирменного фиолетового #7700FF. Шкала фиолетового задана ниже: оттенки
- * подобраны на тех же ступенях светлоты, что синие, поэтому контраст
- * текста и фона не меняется.
+ * Пакет фирменной темы закрытый, поэтому берём стандартную тему Atomaro и в каждом токене заменяем
+ * оттенок синего #0055FF тем же по номеру оттенком фиолетового #7700FF. Ступени светлоты те же,
+ * поэтому контраст не меняется. После обновления @atomaro/ui-kit скрипт запускают заново:
  *
  *   node scripts/rt-theme.mjs
- *
- * После обновления @atomaro/ui-kit запустите скрипт заново: новые
- * токены компонентов с акцентным цветом подхватятся сами.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -22,7 +15,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = resolve(root, "node_modules/@atomaro/ui-kit/theme/default-light.css");
 const TARGET = resolve(root, "src/styles/rt-theme.css");
 
-/** Оттенки фиолетового по ступеням шкалы Atomaro (500 - базовый цвет). */
+/** Оттенки фиолетового по ступеням шкалы Atomaro, 500 базовый цвет. */
 const VIOLET = {
   990: "#12002b",
   950: "#250052",
@@ -44,17 +37,12 @@ const BLUE_RGB = "0, 85, 255";
 const VIOLET_RGB = "119, 0, 255";
 
 const HEADER = `/*
- * Тема Ростелекома для дизайн-системы Atomaro (@atomaro/ui-kit).
- *
- * Пакет темы @atomaro-rt/theme-rostelecom закрытый, поэтому здесь её
- * повторение: все токены Atomaro, в которых стоит акцентный синий,
- * получают фирменный фиолетовый Ростелекома #7700FF с той же шкалой
- * светлоты. Файл собирает scripts/rt-theme.mjs из default-light.css -
- * не править руками: см. frontend/README.md.
+ * Тема Ростелекома для Atomaro: акцентный синий заменён фиолетовым #7700FF.
+ * Файл собирает scripts/rt-theme.mjs, руками не править.
  */
 `;
 
-/** #37f -> #3377ff, регистр букв не важен. */
+/** #37f в #3377ff, регистр букв не важен. */
 function normalize(hex) {
   const value = hex.slice(1).toLowerCase();
   return "#" + (value.length === 3 ? [...value].map((char) => char + char).join("") : value);
@@ -65,7 +53,7 @@ const block = source.match(/:root\s*{([^}]*)}/);
 if (!block) throw new Error(`В ${SOURCE} не найден блок :root`);
 const tokens = [...block[1].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]);
 
-// Синяя шкала - из самой темы: так замена не зависит от записи цвета (#37f или #3377ff).
+// Синюю шкалу берём из самой темы, так замена не зависит от записи цвета (#37f или #3377ff).
 const blueToViolet = new Map();
 for (const [step, violet] of Object.entries(VIOLET)) {
   const blue = tokens.find(([name]) => name === `--accent-${step}`);

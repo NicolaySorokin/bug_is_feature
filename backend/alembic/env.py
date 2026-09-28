@@ -8,7 +8,7 @@ from sqlalchemy.pool import NullPool
 
 from alembic import context
 from app.core.config import settings
-from app.models import Base  # noqa: F401 - импорт наполняет Base.metadata
+from app.models import Base  # noqa: F401 (импорт наполняет Base.metadata)
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

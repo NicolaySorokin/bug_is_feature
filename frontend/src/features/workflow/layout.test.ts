@@ -9,7 +9,7 @@ describe("computeLayout", () => {
     const layout = computeLayout(stages(6), 3);
     expect(layout.s0.y).toBe(layout.s2.y);
     expect(layout.s3.y).toBeGreaterThan(layout.s0.y);
-    // Четвёртый этап стоит под третьим - переход короткий и вертикальный.
+    // Четвёртый этап стоит под третьим: переход короткий и вертикальный.
     expect(layout.s3.x).toBe(layout.s2.x);
     expect(layout.s5.x).toBe(layout.s0.x);
   });

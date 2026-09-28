@@ -1,8 +1,7 @@
 """Уведомления колокольчика: отметка «прочитано».
 
-Уведомление - текущая проблема, а не запись. Прочитанное снимается со
-счётчика, но возвращается, если проблема стала серьёзнее; отметки
-о решённых проблемах забываются.
+Прочитанное снимается со счётчика, но возвращается, если проблема стала
+серьёзнее. Отметки о решённых проблемах забываются.
 """
 
 from httpx import AsyncClient
@@ -46,7 +45,7 @@ async def test_read_one_and_all(
 ) -> None:
     await make_interaction(client, university["id"], MANAGER, start=False)
     await make_interaction(client, university["id"], MANAGER)
-    # У этапа «Контакт» норма 7 дней: 10 дней - просрочка, но ещё не критичная.
+    # У этапа «Контакт» норма 7 дней: 10 дней это просрочка, но ещё не критичная.
     await _age_current_stage(engine, 10)
 
     alerts = await _alerts(client, MANAGER)
@@ -68,7 +67,7 @@ async def test_read_one_and_all(
     response = await client.post(f"{ALERTS}/read-all", headers=MANAGER)
     assert response.status_code == 204, response.text
     assert all(alert["is_read"] for alert in (await _alerts(client, MANAGER)).values())
-    # И на главной видно, что уведомление прочитано, - сама проблема остаётся.
+    # На главной тоже видно, что уведомление прочитано, а проблема остаётся.
     dashboard = (await client.get("/api/v1/dashboard", headers=MANAGER)).json()
     assert dashboard["alerts"] and all(alert["is_read"] for alert in dashboard["alerts"])
 
@@ -83,7 +82,7 @@ async def test_worse_problem_is_new_again(
     await client.post(f"{ALERTS}/read", json={"keys": [stale["key"]]}, headers=MANAGER)
     assert (await _alerts(client, MANAGER))["stage_stale"]["is_read"]
 
-    # Просрочка больше двойной нормы - критично, и уведомление снова новое.
+    # Просрочка больше двойной нормы критична, и уведомление снова новое.
     await _age_current_stage(engine, 30)
     worse = (await _alerts(client, MANAGER))["stage_stale"]
     assert worse["key"] == stale["key"]

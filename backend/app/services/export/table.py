@@ -1,13 +1,7 @@
 """Выгрузка произвольной таблицы: XLS, XLSX и PDF.
 
-Отчёт по договорам и статистика обучения - разные выборки, но выгружаются
-одинаково: шапка с названием и периодом, таблица с понятными заголовками,
-диаграммы по той же выборке. Здесь собрано то, что у них общее.
-
-XLS - настоящий двоичный формат Excel 97 (xlwt), а не XLSX под другим
-расширением: ТЗ перечисляет xls отдельно, и такой файл открывается
-в старых версиях Excel и в системах, которые принимают только xls.
-Ограничение формата - 65 535 строк данных; больше - предлагаем XLSX.
+XLS это настоящий Excel 97 (xlwt), ТЗ называет формат отдельно. В нём
+не больше 65 535 строк, для большего объёма есть XLSX.
 """
 
 from __future__ import annotations
@@ -92,7 +86,7 @@ def to_xlsx(table: Table) -> bytes:
 
 
 def to_xls(table: Table) -> bytes:
-    """Excel 97 (BIFF8). Диаграммы в этом формате не пишутся - только сводки."""
+    """Excel 97 (BIFF8). Диаграммы формат не хранит, поэтому пишем сводки."""
     import xlwt
 
     if len(table.rows) > XLS_MAX_ROWS:
@@ -138,7 +132,7 @@ def to_xls(table: Table) -> bytes:
     sheet.set_panes_frozen(True)
     sheet.set_horz_split_pos(header_row + 1)
 
-    # Сводки диаграмм - отдельными листами: сами диаграммы xls не хранит.
+    # Сводки диаграмм отдельными листами.
     for chart in table.charts:
         chart_sheet = book.add_sheet(_sheet_name(chart.title))
         chart_sheet.write(0, 0, chart.title, title_style)

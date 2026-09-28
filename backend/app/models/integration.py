@@ -1,14 +1,7 @@
-"""Интеграции с внешними системами: источники, запуски, связи и сопоставление.
+"""Интеграции с LMS и сайтом: источники, запуски, связи, очередь сопоставления.
 
-Раздел 5 концепции: данные приходят из LMS и с сайта ИТ Школы. Источник
-описывает, куда ходить, запуск - что из этого вышло (включая ошибки по
-отдельным записям), а связь с внешним объектом позволяет при повторной
-синхронизации обновить ту же запись, а не создать дубль.
-
-Идентификатор внешнего объекта уникален в пределах источника и типа.
-Запись без связи по названию не сопоставляется молча: она попадает
-в очередь сопоставления, где администратор выбирает существующую запись
-системы или разрешает завести новую.
+Связь с внешним объектом нужна, чтобы повторный обмен обновил запись,
+а не создал дубль. Неопознанная запись идёт в очередь сопоставления.
 """
 
 import uuid
@@ -56,7 +49,7 @@ class IntegrationRun(UUIDPrimaryKeyMixin, Base):
     triggered_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    # manual - кнопка в интерфейсе, schedule - расписание, file - загрузка ответа файлом.
+    # manual из интерфейса, schedule по расписанию, file загрузка ответа файлом.
     trigger: Mapped[str] = mapped_column(String(16), default="manual", server_default="manual")
     status: Mapped[str] = mapped_column(
         String(32),
@@ -132,7 +125,7 @@ class IntegrationMapping(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     )
     entity_type: Mapped[str] = mapped_column(String(64))
     external_id: Mapped[str] = mapped_column(String(255))
-    # Как запись называется в источнике и её данные - для решения человеком.
+    # Название и данные записи в источнике, чтобы человек мог решить.
     external_name: Mapped[str] = mapped_column(String(500))
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     # Предложение системы: запись с таким же названием.

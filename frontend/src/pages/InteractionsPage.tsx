@@ -1,10 +1,6 @@
 /**
- * Реестр взаимодействий с вузами.
- *
- * Взаимодействие - центральная сущность: у него статус, этап процесса со
- * следующим действием и срок этапа - три отдельные колонки. Договор - один
- * из атрибутов строки (его может ещё не быть). Фильтры - в адресе страницы
- * и запоминаются между сеансами.
+ * Реестр взаимодействий. Статус, этап и срок этапа идут отдельными колонками, договора может
+ * ещё не быть. Фильтры хранятся в адресе и запоминаются.
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Handshake, Plus, RotateCcw, SlidersHorizontal } from "lucide-react";
@@ -53,7 +49,7 @@ const FILTER_KEYS = [
   "offset",
 ];
 
-// Реже нужные фильтры - под кнопкой «Ещё фильтры», чтобы реестр начинался с таблицы.
+// Редкие фильтры спрятаны под «Ещё фильтры», чтобы реестр начинался с таблицы.
 const SECONDARY_KEYS = [
   "outcome",
   "stage",
@@ -81,7 +77,7 @@ export default function InteractionsPage() {
   const [search, setSearch] = useState(filters.search || "");
   const [creating, setCreating] = useState(params.get("create") === "1");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  // null - «как получится»: дополнительные фильтры раскрыты, если среди них есть заданные.
+  // null: дополнительные фильтры раскрыты, если среди них есть заданные.
   const [moreOpen, setMoreOpen] = useState<boolean | null>(null);
   usePageTitle("Взаимодействия");
 
@@ -165,7 +161,7 @@ export default function InteractionsPage() {
       render: (row) => <StageCell stageName={row.stage?.stage_name} nextActions={row.stage?.next_actions} status={row.status} />,
     },
     { key: "sla", title: "Срок этапа", render: (row) => <SlaChip sla={row.stage?.sla} status={row.status} /> },
-    // В области «свои» ответственный всегда сам сотрудник - колонка ничего не добавляет.
+    // В области «свои» ответственный всегда сам сотрудник, колонка ничего не добавляет.
     ...(scope === "own"
       ? []
       : [

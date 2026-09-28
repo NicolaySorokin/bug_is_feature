@@ -1,14 +1,9 @@
 #!/bin/sh
 # База Keycloak рядом с базой системы, в том же PostgreSQL.
 #
-# Файл подключён в /docker-entrypoint-initdb.d, поэтому на новом томе
-# база заводится сама. На томе, который создан раньше, этот же файл
-# запускают `make up` и release.sh:
-#   docker compose exec -T db sh /docker-entrypoint-initdb.d/keycloak-db.sh
-# Повторный запуск ничего не меняет.
-#
-# Скрипт инициализации образ postgres может выполнить через source, поэтому
-# здесь нет set -e/-u и exit: они изменили бы поведение самого entrypoint.
+# На новом томе скрипт запускается сам из /docker-entrypoint-initdb.d, на старом
+# его запускают make up и release.sh. Повторный запуск ничего не меняет.
+# Образ может выполнить скрипт через source, поэтому здесь нет set -e и exit.
 
 keycloak_db=${KEYCLOAK_DB_NAME:-keycloak}
 

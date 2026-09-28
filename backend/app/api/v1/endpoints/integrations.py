@@ -1,14 +1,7 @@
-"""Обмен с LMS и сайтом ИТ Школы.
+"""Обмен с LMS и сайтом: источники, запуск, журнал и очередь сопоставления.
 
-Раздел «LMS и сайт» интерфейса: состояние источников, ручной запуск
-синхронизации, журнал запусков с ошибками по записям и очередь ручного
-сопоставления.
-
-Это технический раздел (пункт 28 перечня исправлений): журнал видят
-администратор и сотрудники с правом «Журнал обмена», запускают обмен -
-администратор и сотрудники с правом «Запуск обмена». Бизнес-пользователи
-видят результаты обмена там, где они касаются их данных, - в карточке
-взаимодействия (заявка вуза приходит комментарием).
+Журнал видят администратор и сотрудники с правом «Журнал обмена», запускают
+обмен администратор и сотрудники с правом «Запуск обмена».
 """
 
 import json
@@ -146,8 +139,7 @@ async def upload_payload(
     try:
         raw = json.loads(content.decode("utf-8-sig"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        # Без текста исключения («Expecting value: line 1 column 1»):
-        # сотруднику он ничего не скажет.
+        # Текст исключения сотруднику ничего не скажет, поэтому его не показываем.
         raise AppError(
             "Файл не похож на JSON. Загрузите ответ API источника, "
             "сохранённый в формате JSON.",
@@ -194,7 +186,7 @@ async def list_runs(
     return [IntegrationRunRead.from_model(run) for run in runs]
 
 
-# --- Ручное сопоставление ----------------------------------------------------------
+# Ручное сопоставление
 
 
 async def _names(session: SessionDep, entity_type: str, ids: set[uuid.UUID]) -> dict:
@@ -313,12 +305,12 @@ async def create_from_mapping(
         entity = await sync.create_product(session, data)
     elif mapping.entity_type == sync.UNIVERSITY:
         entity = await sync.create_university(session, data, "integration")
-        # Администратор принял решение - вуз подтверждён.
+        # Администратор принял решение, значит вуз подтверждён.
         entity.status = UniversityStatus.CONFIRMED
         entity.confirmed_by_id = user.id
         entity.confirmed_at = datetime.now(UTC)
         await sync.sync_contacts(session, entity, data.get("contacts") or [])
-    else:  # pragma: no cover - других типов в очереди нет
+    else:  # pragma: no cover (других типов в очереди нет)
         raise ConflictError("Для этого типа записи завести новую нельзя")
     await _finish(session, mapping, entity.id, user.id)
     return await _read(session, mapping)
