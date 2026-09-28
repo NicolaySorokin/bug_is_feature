@@ -16,6 +16,10 @@
 
 Показатели не дублируют друг друга: заблокированные видны в очереди
 контроля и в показателе, но не повторяются ещё и в «Требует внимания».
+Не повторяются - не значит пропадают: повод убирается из «Требует внимания»,
+только если его взаимодействие есть в шагах или очереди на этой же главной,
+и ``alerts_in_steps`` говорит, сколько таких. Всего поводов - ``counters.alerts``,
+столько же под колокольчиком.
 """
 
 import uuid
@@ -188,6 +192,9 @@ class DashboardResponse(BaseModel):
     alerts_summary: dict[str, int] = Field(default_factory=dict)
     # Поводы вмешаться, которых нет в шагах и очереди контроля.
     alerts: list[AlertRead] = Field(default_factory=list)
+    # Сколько поводов не повторено в alerts: их взаимодействия уже показаны
+    # в шагах или очереди контроля этой главной.
+    alerts_in_steps: int = 0
     recent: list[RecentChange] = Field(default_factory=list)
     charts: list[ChartData] = Field(default_factory=list)
     # Свои взаимодействия, где ждут действий (менеджер; руководитель-менеджер).

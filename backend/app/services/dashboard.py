@@ -405,8 +405,11 @@ async def _admin_summary(session: AsyncSession) -> AdminSummary:
     )
 
 
-# В шагах и в очереди контроля уже видны блокировки, просрочки, черновики
-# и отсутствие ответственного - в «Требует внимания» они не повторяются.
+# Строка шага или очереди контроля сама показывает блокировку, просрочку этапа
+# и отсутствие ответственного, поэтому в «Требует внимания» такие поводы не
+# повторяются - но только по взаимодействиям, которые на главной действительно
+# есть. Вуз коллеги, открытый на время замещения, в свои шаги не попадает:
+# его блокировка остаётся в «Требует внимания», а не пропадает с главной.
 SHOWN_IN_STEPS = {
     AlertKind.PROCESS_BLOCKED,
     AlertKind.STAGE_STALE,
@@ -437,9 +440,18 @@ async def _build(session: AsyncSession, principal: Principal, user: User) -> Das
         for instance in items
         if instance.manager_id == user.id and instance.status in OPEN
     ]
-    steps = sorted(
-        (_step(instance, actions, default_sla) for instance in own), key=_step_order
-    )
+    steps: list[NextStep] = []
+    if works:
+        steps = sorted(
+            (_step(instance, actions, default_sla) for instance in own), key=_step_order
+        )[:STEPS_LIMIT]
+    queue = _control_queue(items, actions, default_sla) if head else []
+    on_page = {item.interaction_id for item in (*steps, *queue)}
+    attention = [
+        alert
+        for alert in found
+        if alert.kind not in SHOWN_IN_STEPS or alert.interaction_id not in on_page
+    ]
 
     rows = reports.build_rows(items)
     read = await alert_marks.read_keys(session, user, found)
@@ -450,15 +462,12 @@ async def _build(session: AsyncSession, principal: Principal, user: User) -> Das
         generated_at=datetime.now(UTC),
         counters=_counters(items, user, found, default_sla),
         alerts_summary=alerts.summarize(found),
-        alerts=[
-            to_alert_read(alert, read)
-            for alert in found
-            if alert.kind not in SHOWN_IN_STEPS or alert.interaction_id is None
-        ][:ALERTS_LIMIT],
+        alerts=[to_alert_read(alert, read) for alert in attention[:ALERTS_LIMIT]],
+        alerts_in_steps=len(found) - len(attention),
         recent=await _recent(session, principal, user) if scope is not DataScope.NONE else [],
         charts=reports.build_charts(rows, with_managers=head) if items else [],
-        next_steps=steps[:STEPS_LIMIT] if works else [],
-        control_queue=_control_queue(items, actions, default_sla) if head else [],
+        next_steps=steps,
+        control_queue=queue,
         team_load=_team_load(items, found, default_sla) if head else [],
         admin=await _admin_summary(session)
         if access.can(principal, user, Action.MANAGE_USERS)

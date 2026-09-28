@@ -130,9 +130,19 @@ function ControlQueue({ items }: { items: ControlItem[] }) {
   );
 }
 
-function AlertList({ alerts, limit = 8 }: { alerts: Alert[]; limit?: number }) {
+/**
+ * «Требует внимания». Блокировку, просрочку и отсутствие ответственного сервер
+ * здесь не повторяет, если взаимодействие уже есть в шагах или очереди решений
+ * (alerts_in_steps). Тогда elsewhere говорит, где они: пустой список не должен
+ * выглядеть как «проблем нет», когда в показателях и под колокольчиком они есть.
+ */
+function AlertList({ alerts, elsewhere, limit = 8 }: { alerts: Alert[]; elsewhere?: string; limit?: number }) {
   if (alerts.length === 0) {
-    return (
+    return elsewhere ? (
+      <EmptyState icon={CheckCircle2} title="Других проблем нет">
+        {elsewhere}
+      </EmptyState>
+    ) : (
       <EmptyState icon={CheckCircle2} title="Проблем нет">
         Сроки договоров и лицензий, документы и данные в порядке.
       </EmptyState>
@@ -171,8 +181,18 @@ function AlertList({ alerts, limit = 8 }: { alerts: Alert[]; limit?: number }) {
           </div>
         );
       })}
+      {elsewhere && <p className="list__note">{elsewhere}</p>}
     </div>
   );
+}
+
+/** Где на главной поводы, которые не повторяются в «Требует внимания». */
+function alertsElsewhere(data: Dashboard, head: boolean): string | undefined {
+  const count = data.alerts_in_steps || 0;
+  if (!count) return undefined;
+  if (!head) return `Блокировки и просрочки (${formatNumber(count)}) - в блоке «Следующие шаги».`;
+  const place = (data.next_steps || []).length > 0 ? "в блоках «Очередь решений» и «Мои шаги»" : "в блоке «Очередь решений»";
+  return `Блокировки, просрочки и взаимодействия без ответственного (${formatNumber(count)}) - ${place}.`;
 }
 
 function Recent({ data }: { data: Dashboard }) {
@@ -557,7 +577,7 @@ export default function DashboardPage() {
                 description={`${countLabel(counters.alerts, ["повод", "повода", "поводов"])} ${data.scope_label}`}
                 flush
               >
-                <AlertList alerts={data.alerts || []} />
+                <AlertList alerts={data.alerts || []} elsewhere={alertsElsewhere(data, head)} />
               </Card>
               <Card title="Последние изменения" actions={<Clock size={16} className="muted" />}>
                 <Recent data={data} />

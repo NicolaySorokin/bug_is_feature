@@ -19,6 +19,7 @@ from tests.conftest import (
     contract_payload,
     make_contract,
     make_interaction,
+    me,
 )
 
 
@@ -210,3 +211,63 @@ async def test_admin_home_is_technical(client: AsyncClient, university: dict) ->
     assert view["next_steps"] == []
     # Бизнес-данных администратор без области не видит.
     assert view["counters"]["open"] == 0
+
+
+async def test_attention_does_not_repeat_problems_shown_in_steps(
+    client: AsyncClient, university: dict, engine: AsyncEngine
+) -> None:
+    """Просрочка своего взаимодействия видна в «Следующих шагах» и в
+    «Требует внимания» не повторяется, но и не теряется: ответ говорит,
+    сколько поводов ушло в шаги, и всего их столько же, сколько под
+    колокольчиком."""
+    await make_interaction(client, university["id"], MANAGER)
+    await _age_current_stage(engine, 30)
+
+    view = (await client.get("/api/v1/dashboard", headers=MANAGER)).json()
+    assert view["counters"]["overdue"] == 1
+    assert view["next_steps"][0]["sla"]["state"] == "overdue"
+    assert "stage_stale" not in _kinds(view["alerts"])
+    assert view["alerts_in_steps"] == 1
+
+    bell = (await client.get("/api/v1/dashboard/alerts", headers=MANAGER)).json()
+    assert view["counters"]["alerts"] == len(bell)
+    assert len(bell) == len(view["alerts"]) + view["alerts_in_steps"]
+
+
+async def test_attention_keeps_problems_missing_from_steps(
+    client: AsyncClient, university: dict
+) -> None:
+    """Вуз коллеги открыт на время замещения: его взаимодействий нет в своих
+    шагах, поэтому блокировка остаётся в «Требует внимания», а не пропадает
+    с главной при показателе «Заблокированы: 1»."""
+    interaction = await make_interaction(client, university["id"], OTHER_MANAGER)
+    blocked = await client.post(
+        f"/api/v1/interactions/{interaction['id']}/block",
+        json={"reason": "Ждём приказ о нагрузке"},
+        headers=OTHER_MANAGER,
+    )
+    assert blocked.status_code == 200, blocked.text
+    petrov = await me(client, MANAGER)
+    granted = await client.put(
+        f"/api/v1/users/{petrov['id']}/grants",
+        json={"university_id": university["id"], "reason": "Замещает коллегу в отпуске"},
+        headers=ADMIN,
+    )
+    assert granted.status_code == 200, granted.text
+
+    substitute = (await client.get("/api/v1/dashboard", headers=MANAGER)).json()
+    assert substitute["counters"]["blocked"] == 1
+    assert substitute["next_steps"] == []
+    assert "process_blocked" in _kinds(substitute["alerts"])
+    assert substitute["alerts_in_steps"] == 0
+
+    # У ответственного блокировка - первая в шагах, у руководителя - в очереди.
+    owner = (await client.get("/api/v1/dashboard", headers=OTHER_MANAGER)).json()
+    assert owner["next_steps"][0]["status"] == "blocked"
+    assert "process_blocked" not in _kinds(owner["alerts"])
+    assert owner["alerts_in_steps"] == 1
+
+    head = (await client.get("/api/v1/dashboard", headers=HEAD)).json()
+    assert "blocked" in {item["reason"] for item in head["control_queue"]}
+    assert "process_blocked" not in _kinds(head["alerts"])
+    assert head["alerts_in_steps"] == 1
