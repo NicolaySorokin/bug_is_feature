@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.services.imports import CATALOG_SPEC, PRODUCT_SPEC, PROGRAM_SPEC, UNIVERSITY_SPEC
+from app.services.imports import CATALOG_SPEC, UNIVERSITY_SPEC
 from scripts.demo.catalog import CONTACTS_PER_UNIVERSITY, UNIVERSITY_BY_KEY
 from scripts.demo.people import EMPLOYEE_BY_USERNAME, university_contacts
 
@@ -131,40 +131,6 @@ def catalog() -> Sheet:
     return _titles(CATALOG_SPEC), _with_program(rows, programs)
 
 
-def catalog_other_headers() -> Sheet:
-    """Тот же каталог, но колонки названы иначе, переставлены и есть лишняя.
-
-    Почти все заголовки система узнаёт по синонимам. «Ответственный от вуза»
-    среди синонимов нет - эту колонку сопоставляют вручную на шаге проверки.
-    """
-    headers = [
-        "Договор", "Вуз", "Регион", "Производитель", "Продукт", "Программа",
-        "Дата подписания лицензии", "Срок лицензии", "Статус передачи", "Менеджер",
-        "Ответственный от вуза", "Примечание",
-    ]  # fmt: skip
-    rows = [
-        ["ДГ-2026-231", _university("sfu"), "Красноярский край", "Postgres Professional",
-         "Postgres Pro Enterprise", "Инженер данных", date(2026, 9, 2), 2027, "В работе",
-         _manager("semenov"), _contact("sfu"), None],
-        ["ДГ-2026-232", _university("dvfu"), "Приморский край", "Ростелеком",
-         "Симулятор сетевой инфраструктуры", "Инженер сетей связи", date(2026, 8, 28), 2027,
-         "Передано", _manager("alekseeva"), _contact("dvfu"), "Кампус на острове Русский"],
-        ["ДГ-2026-233", _university("utmn"), "Тюменская область", "Ростелеком",
-         "Платформа онлайн-обучения", "Аналитик данных", date(2026, 9, 12), 2, "В работе",
-         _manager("zakharova"), _contact("utmn"), None],
-        ["ДГ-2026-234", _university("istu"), "Иркутская область", "РЕД СОФТ", "РЕД ОС",
-         "Администратор Linux", date(2026, 9, 8), 2027, "Не начато", _manager("zaitsev"),
-         _contact("istu", 1), None],
-        ["ДГ-2026-235", _university("vlsu"), "Владимирская область", "Ростелеком",
-         "Платформа онлайн-обучения", "Frontend-разработчик", date(2026, 9, 3), 2027,
-         "В работе", _manager("belova"), _contact("vlsu"), None],
-        ["ДГ-2026-236", _university("pstu"), "Пермский край", "Ростелеком",
-         "Песочница DevOps", "Инженер DevOps", date(2026, 9, 14), 2027, "В работе",
-         _manager("volkov"), _contact("pstu"), "Второй поток по DevOps"],
-    ]  # fmt: skip
-    return headers, rows
-
-
 def catalog_errors() -> Sheet:
     """Каталог с ошибками: проверка перед импортом должна их показать.
 
@@ -224,29 +190,3 @@ def universities() -> Sheet:
     # Колонка ИНН есть, но пустая: в выгрузках вузов его часто нет, и тогда
     # вуз узнаётся по полному или краткому названию.
     return _titles(UNIVERSITY_SPEC), [[row[0], None, *row[1:]] for row in rows]
-
-
-def programs() -> Sheet:
-    """Справочник программ: две знакомые, три новые и одно новое направление."""
-    rows = [
-        ["Python-разработчик", "Разработка", "Разработка на Python: веб-сервисы и автотесты"],
-        ["Инженер DevOps", "DevOps", "Контейнеры, Kubernetes, CI/CD и наблюдаемость"],
-        ["Мобильный разработчик", "Разработка", "Приложения для Android и iOS"],
-        ["Инженер по надёжности (SRE)", "DevOps", "Надёжность, мониторинг и дежурства"],
-        ["Системный аналитик", "Системный анализ", "Требования, моделирование и интеграции"],
-    ]
-    return _titles(PROGRAM_SPEC), rows
-
-
-def products() -> Sheet:
-    """Справочник продуктов: один знакомый и два новых, в том числе новый вендор."""
-    rows = [
-        ["Песочница DevOps", "Ростелеком", "Учебный контур: контейнеры, CI/CD, мониторинг"],
-        ["ALD Pro", "Группа Астра", "Служба каталогов и управление доменом"],
-        [
-            "Kaspersky Security Center",
-            "Лаборатория Касперского",
-            "Управление защитой рабочих мест",
-        ],
-    ]
-    return _titles(PRODUCT_SPEC), rows

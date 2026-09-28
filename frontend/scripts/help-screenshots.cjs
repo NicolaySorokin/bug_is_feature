@@ -148,7 +148,12 @@ async function shot(page, name) {
   await shot(admin, "admin-users.png");
   await open(admin, "/admin/imports");
   await admin.locator(".card", { hasText: "Справочник вузов" }).getByRole("button", { name: "Выбрать" }).click();
-  await admin.setInputFiles("input[type=file]", path.resolve(__dirname, "../../testdata/import/05-universities.xlsx"));
+  const template = await admin.request.get(`${BASE}/api/v1/imports/template?type=universities`, { headers: headers("admin") });
+  await admin.setInputFiles("input[type=file]", {
+    name: "universities.xlsx",
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: await template.body(),
+  });
   await admin.getByRole("button", { name: "Прочитать файл" }).click();
   await admin.waitForSelector(".mapping-table");
   await shot(admin, "admin-imports.png");

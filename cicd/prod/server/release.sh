@@ -14,10 +14,6 @@
 #                                  тем, у кого их нет (см. keycloak_setup.py)
 #   release.sh backup              резервная копия: база системы, база
 #                                  Keycloak, файлы вложений (backups/)
-#   release.sh reset-data --confirm
-#                                  копия, затем стенд с чистыми демоданными:
-#                                  база системы и файлы создаются заново,
-#                                  учётные записи Keycloak остаются
 #   release.sh keycloak-tag <каталог>
 #                                  тег образа Keycloak для кода в каталоге
 #
@@ -254,30 +250,6 @@ backup() {
     log "Копия готова: $(du -ch "$dir/$stamp"-* | tail -1 | cut -f1)"
 }
 
-# Стенд с чистыми демоданными: копия, затем база системы создаётся заново,
-# том с файлами вложений удаляется, и текущий релиз поднимается снова -
-# миграции и демоданные. База Keycloak не трогается: учётные записи,
-# пароли и роли, заданные на сайте, переживают сброс.
-reset_data() {
-    [ "${1:-}" = "--confirm" ] || die "сброс удаляет данные системы: release.sh reset-data --confirm"
-    local cur storage
-    cur=$(current_release)
-    [ -n "$cur" ] || die "нет текущего релиза"
-    backup
-    log "Удаляю данные системы: база и файлы вложений (учётные записи Keycloak остаются)"
-    # API не должен писать в базу во время сброса, а том с файлами
-    # удаляется только вместе с контейнером, который его подключает.
-    compose rm --stop --force api nginx
-    # shellcheck disable=SC2016
-    compose exec -T db sh -c \
-        'dropdb -U "$POSTGRES_USER" --force "$POSTGRES_DB" && createdb -U "$POSTGRES_USER" "$POSTGRES_DB"'
-    storage=$(docker volume ls -q --filter label=com.docker.compose.project=edu-crm \
-        --filter label=com.docker.compose.volume=api_storage)
-    [ -z "$storage" ] || docker volume rm "$storage" > /dev/null
-    activate "$cur"
-    log "Стенд работает на чистых демоданных"
-}
-
 list() {
     local cur rel mark note
     cur=$(current_release)
@@ -299,7 +271,6 @@ case "$cmd" in
     compose) compose "$@" ;;
     keycloak-setup) keycloak_setup "$@" ;;
     backup) backup ;;
-    reset-data) reset_data "$@" ;;
     keycloak-tag) keycloak_tag "${1:?укажите каталог с кодом}" ;;
-    *) die "использование: $0 activate <релиз> | rollback [<релиз>] | list | compose <команда> | keycloak-setup | backup | reset-data --confirm" ;;
+    *) die "использование: $0 activate <релиз> | rollback [<релиз>] | list | compose <команда> | keycloak-setup | backup" ;;
 esac

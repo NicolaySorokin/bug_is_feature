@@ -1,10 +1,7 @@
 name: Деплой
 
-# Боевой стенд https://edu-crm.nikitarodionov.ru обновляется сам после
-# зелёного CI на main: пуш или слияние pull request. Вручную
-# (Actions → Деплой → Run workflow) можно выложить ветку или коммит -
-# так же откатываются на старую версию - и при необходимости вернуть
-# стенд к чистым демоданным. Как это устроено - cicd/README.md.
+# Стенд обновляется сам после зелёного CI на main. Вручную можно выложить
+# ветку или коммит, так же откатываются на старую версию.
 on:
   workflow_run:
     workflows: [CI]
@@ -16,16 +13,6 @@ on:
         description: Коммит, тег или ветка. Пусто - ветка, выбранная выше
         required: false
         default: ""
-      reset_data:
-        description: >-
-          Данные стенда. «Сбросить» - снять копию, создать заново базу системы
-          и файлы и загрузить чистые демоданные; учётные записи и пароли
-          остаются. Необратимо для текущих данных системы
-        type: choice
-        options:
-          - Оставить
-          - Сбросить к демоданным
-        default: Оставить
 
 permissions:
   contents: read
@@ -186,13 +173,6 @@ jobs:
       - name: Запуск
         id: activate
         run: ssh prod "APP_DIR=$APP_DIR bash $APP_DIR/releases/$RELEASE/cicd/prod/server/release.sh activate $RELEASE"
-
-      # Только при ручном запуске с «Сбросить к демоданным»: копия данных
-      # в /opt/edu-crm/backups, база системы и файлы заново, чистые демоданные.
-      # Учётные записи Keycloak не трогаются.
-      - name: Сброс данных к демоданным
-        if: github.event_name == 'workflow_dispatch' && inputs.reset_data == 'Сбросить к демоданным'
-        run: ssh prod "APP_DIR=$APP_DIR bash $APP_DIR/current/cicd/prod/server/release.sh reset-data --confirm"
 
       # Продление идёт через webroot, пока стенд работает. Перевод делается
       # один раз, с пробным продлением на тестовом сервере Let's Encrypt.

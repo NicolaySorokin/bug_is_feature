@@ -40,10 +40,6 @@ ROWS: list[list[object]] = [
 ]  # fmt: skip
 
 
-def sheet() -> tuple[list[str], list[list[object]]]:
-    return HEADERS, ROWS
-
-
 async def is_empty(session: AsyncSession) -> bool:
     return not await session.scalar(select(func.count()).select_from(VendorContact))
 

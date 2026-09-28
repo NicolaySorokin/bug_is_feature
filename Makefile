@@ -18,7 +18,7 @@ RUN_API := $(DC) run --rm --no-deps -T api
 # Сколько взаимодействий добавить для нагрузочной проверки: make seed-load N=5000
 N ?= 3000
 
-.PHONY: help build up down restart logs seed seed-load loadtest testdata migrate makemigration \
+.PHONY: help build up down restart logs seed seed-load loadtest migrate makemigration \
         check test lint fmt lock openapi shell psql keycloak keycloak-setup db-ready reset dev-deps
 
 help: ## Показать список команд
@@ -31,7 +31,6 @@ help: ## Показать список команд
 	@echo seed           - загрузить демонстрационные данные
 	@echo seed-load      - добавить взаимодействия для нагрузки, вызов: make seed-load N=3000
 	@echo loadtest       - нагрузочная проверка по ТЗ: 50 пользователей и 10 отчётов
-	@echo testdata       - пересобрать файлы для ручных проверок в testdata/
 	@echo migrate        - применить миграции
 	@echo makemigration  - новая миграция, вызов: make makemigration m=описание
 	@echo check          - стиль, тесты и сверка моделей с миграциями
@@ -88,10 +87,6 @@ seed-load: ## Добавить взаимодействия для нагруз�
 # пароли берутся из переменной KEYCLOAK_USER_PASSWORDS в окружении make.
 loadtest: ## Нагрузочная проверка по ТЗ: 50 пользователей и 10 отчётов
 	$(DC) exec -T -e KEYCLOAK_USER_PASSWORDS api python -m scripts.loadtest $(ARGS)
-
-# Каталог testdata подключён только в среде разработки.
-testdata: dev-deps ## Пересобрать файлы для ручных проверок в testdata/
-	$(API) python -m scripts.testdata /testdata
 
 migrate: ## Применить миграции
 	$(API) alembic upgrade head
