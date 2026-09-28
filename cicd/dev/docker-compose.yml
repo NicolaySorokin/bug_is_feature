@@ -19,8 +19,6 @@ services:
       - "${API_PORT:-8000}:8000"
     volumes:
       - ./backend:/app
-      # Файлы для ручных проверок: make testdata пересобирает их отсюда.
-      - ./testdata:/testdata
     command: >
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"

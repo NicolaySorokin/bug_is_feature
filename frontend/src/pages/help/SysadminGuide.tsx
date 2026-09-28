@@ -279,8 +279,8 @@ bash current/cicd/prod/server/release.sh compose ps      # состояние к
 bash current/cicd/prod/server/release.sh compose logs -f api nginx`}</code>
           </pre>
           <p>
-            Выложить определённый коммит: Actions → «Деплой» → Run workflow, поле «Коммит, тег или ветка». Подробно -{" "}
-            <code>cicd/README.md</code>.
+            Выложить определённый коммит: Actions → «Деплой» → Run workflow, поле «Коммит, тег или ветка». Подробно - в README
+            репозитория, раздел «Боевой стенд».
           </p>
         </>
       ),
@@ -312,11 +312,6 @@ $R compose up -d --wait --no-build
 $R compose exec -T api sh -c 'rm -rf /app/storage/* && tar xzf - -C /app/storage' \\
   < ../../backups/ДАТА-storage.tgz`}</code>
           </pre>
-          <p>
-            Вернуть стенд к чистым демоданным: Actions → «Деплой» → Run workflow, «Данные стенда» - «Сбросить к демоданным» (или{" "}
-            <code>release.sh reset-data --confirm</code> на сервере). Перед сбросом снимается копия; учётные записи и пароли
-            Keycloak сброс не трогает.
-          </p>
         </>
       ),
     },
