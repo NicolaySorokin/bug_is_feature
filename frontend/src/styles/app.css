@@ -2484,6 +2484,15 @@ a.alert-item__link:hover {
   border-top: 0;
 }
 
+/* Пояснение под списком: где остальные поводы. */
+.list__note {
+  margin: 0;
+  padding: 10px var(--card-pad-x) 12px;
+  border-top: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 a.list-item:hover {
   background: var(--accent-10, #fbf8ff);
   text-decoration: none;
