@@ -197,11 +197,16 @@ p {
   flex: 1;
 }
 
+/* Блоки одного ряда - одной высоты (диаграммы, источники обмена). Блок
+   без пары в последнем ряду занимает всю ширину, а не половину. */
 .grid-2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
-  align-items: start;
+}
+
+.grid-2 > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 .grid-3 {
@@ -210,11 +215,22 @@ p {
   gap: 20px;
 }
 
+/* Одна карточка в последнем ряду - на всю ширину, а не с пустыми местами рядом. */
+.grid-3 > :last-child:nth-child(3n + 1) {
+  grid-column: 1 / -1;
+}
+
 .grid-main-side {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 20px;
   align-items: start;
+}
+
+/* Два блока рядом (договор и лицензии) - одной высоты. Колонки со списками
+   (комментарии и файлы, взаимодействия вуза) остаются своей длины. */
+.grid-main-side--pair {
+  align-items: stretch;
 }
 
 /* --- Каркас: меню, верхняя панель, страница -------------------------------- */
@@ -566,15 +582,18 @@ p {
 
 .card__header {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 16px var(--card-pad-x) 0;
 }
 
+/* Заголовок - не уже 200px: если рядом с кнопками места меньше (телефон),
+   кнопки переходят под заголовок, а не сжимают его в столбик. */
 .card__header > div:first-child {
   min-width: 0;
-  flex: 1;
+  flex: 1 1 200px;
 }
 
 .card__header > .row {
@@ -637,13 +656,84 @@ p {
   flex: 1;
 }
 
+/* Карточка на всю высоту ряда, где соседняя карточка выше: лишнее место
+   делится между строками содержимого, а не остаётся пустым хвостом внизу.
+   Строки описания (.dl) расходятся равномерно; пояснение (.card-note) -
+   внизу карточки. Расходятся строки до --spread-max: если соседняя
+   карточка намного выше (развернули длинный комментарий), остаток - внизу,
+   а не огромные промежутки между строками. */
+.card--spread {
+  --spread-max: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.card--spread > .card__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.card--spread > .card__body > .dl {
+  min-height: min(100%, var(--spread-max));
+  align-content: space-between;
+}
+
+.card-note {
+  margin-top: auto;
+  padding-top: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* «Пока пусто» в такой карточке - посередине, а не у верхнего края. */
+.card-empty {
+  margin: auto 0;
+  text-align: center;
+}
+
+/* Список с разделителями на всю высоту карточки: лишнее место прибавляется
+   поровну по обе стороны каждого разделителя - первая строка остаётся
+   вверху, последняя внизу, между ними строки расходятся равномерно. */
+.spread-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.spread-list > li {
+  display: flex;
+  flex: 2 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.spread-list > li:first-child {
+  flex-grow: 1;
+  justify-content: flex-start;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.spread-list > li:last-child {
+  flex-grow: 1;
+  justify-content: flex-end;
+  padding-bottom: 0;
+}
+
+.spread-list > li:only-child {
+  justify-content: flex-start;
+}
+
 /* Карточки источников «LMS и сайт» стоят рядом: одной высоты, кнопки -
    на одной линии внизу, даже если у одной из них текст длиннее. Кнопки
    у них не в подвале, а в теле карточки - к низу прижимается сам ряд. */
-.sources {
-  align-items: stretch;
-}
-
 .source-card > .card__body {
   display: flex;
   flex-direction: column;
@@ -1722,7 +1812,10 @@ select.control--s {
 
 /* --- Учётная запись ------------------------------------------------------------ */
 
-.page--narrow {
+/* Узкая страница (учётная запись): левый край - как у остальных страниц,
+   ограничена только ширина содержимого. Если сузить саму страницу, она
+   встаёт по центру, и слева появляется пустое поле. */
+.page--narrow > * {
   max-width: 880px;
 }
 
@@ -1956,12 +2049,36 @@ select.control--s {
    Статус, этап со следующим действием и срок этапа - три независимых блока:
    цвет срока относится только к сроку и не окрашивает статус. */
 
+/* «Сведения» и «Обзор» - одной высоты (.card--spread): у блока, который
+   короче, лишнее место делится между строками. */
 .interaction-top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
-  align-items: start;
   margin-bottom: 20px;
+}
+
+/* Строки обзора - с разделителями: лишнее место прибавляется поровну
+   по обе стороны каждого разделителя, как в .spread-list. */
+.card--spread .overview-list {
+  display: flex;
+  min-height: min(100%, var(--spread-max));
+  flex-direction: column;
+}
+
+.card--spread .overview-list__row {
+  flex: 2 1 auto;
+  align-content: center;
+}
+
+.card--spread .overview-list__row:first-child {
+  flex-grow: 1;
+  align-content: start;
+}
+
+.card--spread .overview-list__row:last-child {
+  flex-grow: 1;
+  align-content: end;
 }
 
 /* «Обзор взаимодействия» - список строк «подпись - значение» с разделителями. */
@@ -2098,6 +2215,28 @@ a.step-row:hover {
   line-clamp: 2;
 }
 
+/* ClampText: текст не длиннее --lines строк и «Показать полностью» под ним. */
+.clamp-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.clamp {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--lines, 3);
+  line-clamp: var(--lines, 3);
+}
+
+/* Переносы строк свободного текста - как их ввели. */
+.pre-wrap {
+  white-space: pre-wrap;
+}
+
 .step-row__label {
   color: var(--text-muted);
   font-size: 11px;
@@ -2214,27 +2353,69 @@ a.step-row:hover {
 
 .alerts-panel__head {
   position: sticky;
+  z-index: 1;
   top: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
 
+.alerts-panel__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.alerts-panel__title .muted {
+  font-size: 12px;
+}
+
+.alerts-panel__note {
+  margin: 0;
+  padding: 10px 16px 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Уведомление: ссылка на взаимодействие и кнопка «прочитано» справа.
+   Новое - с полоской слева, прочитанное - приглушено и ниже в списке. */
 .alert-item {
   display: flex;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--line);
+  box-shadow: inset 3px 0 0 var(--rt-violet);
+}
+
+.alert-item--read {
+  box-shadow: none;
+}
+
+.alert-item__link {
+  display: flex;
+  min-width: 0;
+  flex: 1;
   gap: 10px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
   color: inherit;
   text-decoration: none;
 }
 
-.alert-item:hover {
+a.alert-item__link:hover {
   background: var(--surface-soft);
   text-decoration: none;
+}
+
+.alert-item--read .alert-item__link {
+  opacity: 0.6;
+}
+
+.alert-item__read {
+  flex: 0 0 auto;
+  margin: 8px 8px 0 -4px;
 }
 
 .alert-item__icon {
@@ -2715,6 +2896,15 @@ a.list-item:hover {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* Диаграммы в одном ряду - одной высоты. Столбцы короткой диаграммы
+   расходятся по высоте соседней, но шаг между ними - не больше двойного
+   (--bars - число столбцов): при большой разнице остаток - внизу, а не
+   между далеко разнесёнными столбцами. */
+.chart-card .bars {
+  justify-content: space-between;
+  min-height: min(100%, calc(var(--bars, 1) * 100px - 50px));
 }
 
 .bar-row {
@@ -3609,6 +3799,15 @@ a.list-item:hover {
 
   .grid-3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* В две колонки блок без пары - последний нечётный. */
+  .grid-3 > :last-child:nth-child(3n + 1) {
+    grid-column: auto;
+  }
+
+  .grid-3 > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 
   .login {

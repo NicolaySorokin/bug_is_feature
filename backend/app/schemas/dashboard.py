@@ -58,6 +58,16 @@ class AlertRead(BaseModel):
     days: int | None = None
     # Куда вести технические уведомления (очередь сопоставления, вузы на проверке).
     link: str | None = None
+    # Устойчивый ключ проблемы - по нему уведомление отмечается прочитанным.
+    key: str
+    # Прочитал ли сотрудник уведомление (колокольчик); ухудшение - снова новое.
+    is_read: bool = False
+
+
+class AlertsReadRequest(BaseModel):
+    """Какие уведомления отметить прочитанными - ключи из списка уведомлений."""
+
+    keys: list[str] = Field(min_length=1, max_length=500)
 
 
 class DashboardCounters(BaseModel):

@@ -422,7 +422,7 @@ export default function IntegrationsPage() {
       ) : sources.isError ? (
         <ErrorState error={sources.error} onRetry={() => void sources.refetch()} />
       ) : (
-        <div className="grid-2 sources" style={{ marginBottom: 20 }}>
+        <div className="grid-2" style={{ marginBottom: 20 }}>
           {sources.data.map((source) => {
             const last = runs.data?.find((run) => run.source_code === source.code);
             return (

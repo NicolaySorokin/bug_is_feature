@@ -2,11 +2,12 @@
  * Каркас: боковое меню по ролям, верхняя строка с поиском, уведомлениями
  * о проблемах и меню пользователя.
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
   Bell,
   BookOpen,
+  Check,
   Building2,
   ClipboardList,
   FileSpreadsheet,
@@ -27,11 +28,13 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from "react-router-dom";
-import { getAlerts, listInteractions, listUniversities } from "../api/endpoints";
-import { keys } from "../api/queries";
+import { getAlerts, listInteractions, listUniversities, markAlertsRead } from "../api/endpoints";
+import { keys, queryClient } from "../api/queries";
+import type { Alert } from "../api/types";
 import { logout } from "../auth/auth";
 import { useSession, type Action, type Session } from "../auth/session";
 import { RtLogo } from "../components/Brand";
+import { useToast } from "../components/Toasts";
 import { Avatar, IconButton } from "../components/ui";
 import { countLabel } from "../lib/format";
 import { ROLE_SHORT } from "../lib/labels";
@@ -245,29 +248,63 @@ function QuickSearch({ open, onClose }: { open: boolean; onClose: () => void }) 
   );
 }
 
+/**
+ * Колокольчик: уведомления о проблемах по своим взаимодействиям.
+ *
+ * Уведомление можно отметить прочитанным (или все сразу) - оно уходит со
+ * счётчика и опускается вниз списка. Переход по уведомлению тоже его читает.
+ * Проблема при этом не исчезает: она остаётся в «Требует внимания» на главной,
+ * пока её не решат, а если станет серьёзнее - уведомление снова будет новым.
+ */
 function AlertsMenu() {
   const [open, setOpen] = useState(false);
   const ref = useOutsideClose(open, () => setOpen(false));
+  const toast = useToast();
   const alerts = useQuery({ queryKey: keys.alerts, queryFn: () => getAlerts({ limit: 100 }), refetchInterval: 5 * 60_000 });
   const items = alerts.data || [];
-  const critical = items.filter((item) => item.severity !== "info").length;
+  const unread = items.filter((item) => !item.is_read);
+  const ordered = [...unread, ...items.filter((item) => item.is_read)];
+
+  const markRead = useMutation({
+    mutationFn: markAlertsRead,
+    // Отметка видна сразу, не дожидаясь ответа сервера.
+    onMutate: (selected: string[] | null) =>
+      queryClient.setQueryData<Alert[]>(keys.alerts, (current) =>
+        current?.map((item) => (!selected || selected.includes(item.key) ? { ...item, is_read: true } : item)),
+      ),
+    onError: (error) => toast.error(error, "Не удалось отметить уведомления"),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.alerts });
+      void queryClient.invalidateQueries({ queryKey: keys.dashboard });
+    },
+  });
+
   return (
     <div style={{ position: "relative" }} ref={ref}>
       <IconButton
         icon={Bell}
-        label={`Требует внимания: ${items.length}`}
-        badge={critical}
+        label={`Требует внимания: ${countLabel(unread.length, ["новое", "новых", "новых"])}`}
+        badge={unread.length}
         expanded={open}
         onClick={() => setOpen((value) => !value)}
       />
       {open && (
         <div className="menu alerts-panel">
           <div className="alerts-panel__head">
-            <strong>Требует внимания</strong>
-            <span className="muted">{countLabel(items.length, ["проблема", "проблемы", "проблем"])}</span>
+            <div className="alerts-panel__title">
+              <strong>Требует внимания</strong>
+              <span className="muted">
+                {unread.length ? countLabel(unread.length, ["новое", "новых", "новых"]) : "новых нет"}
+              </span>
+            </div>
+            {unread.length > 0 && (
+              <button type="button" className="link-btn" onClick={() => markRead.mutate(null)}>
+                Прочитать все
+              </button>
+            )}
           </div>
           {items.length === 0 && <div className="state">Проблем нет - всё идёт по плану.</div>}
-          {items.slice(0, 30).map((item, index) => {
+          {ordered.slice(0, 30).map((item) => {
             const body = (
               <>
                 <Bell size={16} className={`alert-item__icon alert-item__icon--${item.severity}`} />
@@ -281,16 +318,39 @@ function AlertsMenu() {
               </>
             );
             const target = item.interaction_id ? `/interactions/${item.interaction_id}` : item.link;
-            return target ? (
-              <Link key={index} className="alert-item" to={target} onClick={() => setOpen(false)}>
-                {body}
-              </Link>
-            ) : (
-              <div key={index} className="alert-item">
-                {body}
+            return (
+              <div key={item.key} className={`alert-item ${item.is_read ? "alert-item--read" : ""}`}>
+                {target ? (
+                  <Link
+                    className="alert-item__link"
+                    to={target}
+                    onClick={() => {
+                      if (!item.is_read) markRead.mutate([item.key]);
+                      setOpen(false);
+                    }}
+                  >
+                    {body}
+                  </Link>
+                ) : (
+                  <div className="alert-item__link">{body}</div>
+                )}
+                {!item.is_read && (
+                  <button
+                    type="button"
+                    className="icon-btn alert-item__read"
+                    aria-label={`Отметить прочитанным: ${item.kind_label}`}
+                    title="Отметить прочитанным"
+                    onClick={() => markRead.mutate([item.key])}
+                  >
+                    <Check size={16} />
+                  </button>
+                )}
               </div>
             );
           })}
+          {unread.length < items.length && (
+            <p className="alerts-panel__note">Прочитанные остаются на главной в «Требует внимания», пока проблема не решена.</p>
+          )}
         </div>
       )}
     </div>
@@ -355,7 +415,7 @@ export function AppShell() {
     <div className={`shell ${navOpen ? "shell--nav-open" : ""}`}>
       <Sidebar
         onNavigate={() => setNavOpen(false)}
-        alerts={(alerts.data || []).filter((item) => item.severity === "critical").length}
+        alerts={(alerts.data || []).filter((item) => item.severity === "critical" && !item.is_read).length}
       />
       {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
       <div className="main">

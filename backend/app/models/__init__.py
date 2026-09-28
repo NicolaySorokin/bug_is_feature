@@ -29,7 +29,7 @@ from app.models.interaction import (
     InteractionProgramProduct,
 )
 from app.models.learning import Enrollment, Learner, LearningApplication, LearningStream
-from app.models.system import AppSetting, DataVersion
+from app.models.system import AlertMark, AppSetting, DataVersion
 from app.models.university import University, UniversityContact
 from app.models.user import User
 from app.models.workflow import (
@@ -43,6 +43,7 @@ from app.models.workflow import (
 )
 
 __all__ = [
+    "AlertMark",
     "AppSetting",
     "Attachment",
     "AuditLog",

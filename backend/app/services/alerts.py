@@ -70,6 +70,18 @@ class Alert:
     manager_name: str = ""
     days: int | None = None  # сколько времени ситуация не меняется
     link: str | None = None
+    # Что именно не так внутри взаимодействия, если поводов одного вида
+    # может быть несколько: этап, лицензия, запуск обмена.
+    subject: str = ""
+
+    @property
+    def key(self) -> str:
+        """Устойчивый ключ проблемы: по нему запоминается «прочитано».
+
+        Текст сюда не входит - «осталось 38 дней» меняется каждый день,
+        а проблема та же.
+        """
+        return f"{self.kind.value}:{self.interaction_id or ''}:{self.subject}"
 
 
 def _severity_by_days(days: int | None, limit: int) -> AlertSeverity:
@@ -133,6 +145,7 @@ def _process_alerts(instance: WorkflowInstance, norms: Norms) -> list[Alert]:
         return [
             Alert(
                 kind=AlertKind.STAGE_STALE,
+                subject=str(instance.current_stage_id),
                 severity=_severity_by_days(days - limit, limit),
                 message=(
                     f"Этап «{_stage_name(instance)}»: {days} дн. при норме {limit} дн. - "
@@ -237,6 +250,7 @@ async def _license_alerts(
         found.append(
             Alert(
                 kind=AlertKind.LICENSE_EXPIRING,
+                subject=str(license_.id),
                 severity=AlertSeverity.CRITICAL if left < 0 else AlertSeverity.WARNING,
                 message=(
                     f"Лицензия истекла {abs(left)} дн. назад"
@@ -281,6 +295,7 @@ async def _document_alerts(
                 found.append(
                     Alert(
                         kind=AlertKind.NO_DOCUMENTS,
+                        subject=f"stage:{stage.id}",
                         severity=AlertSeverity.WARNING,
                         message=f"Этап «{stage.name}»: не загружены {names}",
                         days=_days_since(instance.current_stage_started_at),
@@ -297,6 +312,7 @@ async def _document_alerts(
             found.append(
                 Alert(
                     kind=AlertKind.NO_DOCUMENTS,
+                    subject="scan",
                     severity=AlertSeverity.INFO,
                     message="Договор действует, а его скан не приложен",
                     **_base(instance),
@@ -366,6 +382,7 @@ async def _integration_alerts(session: AsyncSession) -> list[Alert]:
         found.append(
             Alert(
                 kind=AlertKind.INTEGRATION_FAILED,
+                subject=str(run.id),
                 severity=AlertSeverity.WARNING,
                 message=(
                     f"Последняя синхронизация «{name}» не удалась: {run.error_message}"
