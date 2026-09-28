@@ -1,9 +1,5 @@
 /**
- * Вход в систему.
- *
- * На стенде с Keycloak - одна кнопка: логин и пароль вводятся на странице
- * Keycloak, система паролей не видит. В режиме разработки - список учётных
- * записей заглушки, сгруппированный по ролям.
+ * Вход в систему. С Keycloak одна кнопка, в разработке список учётных записей по ролям.
  */
 import { KeyRound, LogIn, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -29,9 +25,8 @@ export function LoginPage({ auth, onLogin }: { auth: AuthSession; onLogin: (acco
       .sort((left, right) => ROLE_ORDER.indexOf(mainRole(left)) - ROLE_ORDER.indexOf(mainRole(right)));
   }, [auth.demoAccounts, query]);
 
-  // Вход через Keycloak уводит со страницы, и промис login() не завершается.
-  // Если вернуться кнопкой «Назад», браузер достаёт страницу из кэша
-  // (bfcache) вместе с состоянием - кнопка так и осталась бы в загрузке.
+  // Вход через Keycloak уводит со страницы, и login() не завершается. При возврате кнопкой «Назад»
+  // браузер достаёт страницу из кэша, и кнопка осталась бы в загрузке.
   useEffect(() => {
     const onPageShow = (event: PageTransitionEvent) => {
       if (event.persisted) setBusy(false);

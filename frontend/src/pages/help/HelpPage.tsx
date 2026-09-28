@@ -1,11 +1,6 @@
 /**
- * Встроенные руководства (нефункциональное требование 4 ТЗ) со снимками
- * экранов. Сценарии разделены по ролям (пункт 29 перечня исправлений):
- * менеджер, руководитель, администратор; техническое руководство
- * системного администратора - отдельно.
- *
- * Снимки лежат в public/help и пересобираются скриптом
- * frontend/scripts/help-screenshots.cjs по живому стенду.
+ * Встроенные руководства по ролям со снимками экранов. Снимки лежат в public/help, их пересобирает
+ * scripts/help-screenshots.cjs.
  */
 import { BookOpen, Info, ShieldCheck, TriangleAlert, Users, Wrench } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -66,8 +61,7 @@ function Guide({ sections }: { sections: Section[] }) {
 
   return (
     <div className="help">
-      {/* Оглавление само оформлено карточкой: без вложенной карточки его поля
-          не складываются в двойной отступ. */}
+      {/* Оглавление само оформлено карточкой, чтобы не было двойного отступа. */}
       <nav aria-label="Оглавление" className="card help__toc">
         {sections.map((section) => (
           <a key={section.id} href={`#${section.id}`} className={active === section.id ? "active" : undefined}>
@@ -107,7 +101,7 @@ export default function HelpPage() {
     { key: "admin", label: "Администратору", icon: ShieldCheck, hidden: !admin },
     { key: "sysadmin", label: "Системному администратору", icon: Wrench, hidden: !admin },
   ] as const;
-  // Без выбора открывается руководство своей роли; старая ссылка /help/user - руководство менеджера.
+  // Без выбора открывается руководство своей роли. Старая ссылка /help/user ведёт к руководству менеджера.
   const own = roles.includes("head") ? "head" : roles.includes("manager") || !admin ? "manager" : "admin";
   const requested = guide === "user" ? "manager" : guide;
   const current = guides.find((item) => item.key === requested && !item.hidden)?.key || own;
@@ -115,10 +109,8 @@ export default function HelpPage() {
 
   return (
     <div className="page">
-      {/* Без подзаголовка: куда обращаться за доступом, сказано в разделе
-          «Роли и права» и на экране закрытого раздела, а Swagger UI нужен
-          техническим специалистам - ссылка на него в руководстве системного
-          администратора. */}
+      {/* Без подзаголовка: про доступ сказано в разделе «Роли и права», а ссылка на Swagger UI есть
+в руководстве системного администратора. */}
       <PageHeader title="Руководства" />
       <Tabs
         value={current}

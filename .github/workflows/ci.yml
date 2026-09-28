@@ -1,7 +1,7 @@
 name: CI
 
 # Результат виден галочкой у коммита и блоком Checks в pull request.
-# Название задания (backend / frontend / docker) - это и есть имя проверки в списке.
+# Имя задания и есть имя проверки в списке.
 on:
   push:
     branches: [main]
@@ -43,7 +43,7 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
 
-      # Шрифт с кириллицей для отчётов PDF - тот же, что в образе.
+      # Шрифт с кириллицей для отчётов PDF, как в образе.
       - name: Шрифты
         run: sudo apt-get install --no-install-recommends -y fonts-dejavu-core
 
@@ -113,9 +113,8 @@ jobs:
       - name: Демонстрационные данные
         run: python -m scripts.seed
 
-      # Схема в docs/openapi.json - контракт для клиентской части.
-      # Если API изменился, а файл не обновили, фронтенд узнал бы об этом
-      # слишком поздно.
+      # docs/openapi.json это контракт для клиентской
+      # части, он не должен отставать от кода.
       - name: Схема API не отстала от кода
         run: |
           python -m scripts.openapi > /tmp/openapi.json
@@ -143,8 +142,7 @@ jobs:
       - name: Установка зависимостей
         run: npm ci --no-audit --no-fund
 
-      # Типы клиента генерируются из docs/openapi.json: разошлись -
-      # значит, клиент собран под старую версию API.
+      # Типы клиента генерируются из docs/openapi.json и не должны от него отставать.
       - name: Типы API не отстали от схемы
         run: |
           npm run api:types
@@ -192,7 +190,7 @@ jobs:
             echo "$env: конфигурация корректна"
           done
 
-      # Скрипты сервера выполняются при каждом деплое: ошибка в них
-      # всплыла бы только на боевом стенде.
+      # Скрипты сервера выполняются при каждом деплое,
+      # ошибка в них всплыла бы только на стенде.
       - name: Скрипты сервера (shellcheck)
         run: shellcheck cicd/prod/server/*.sh deploy/postgres/*.sh deploy/keycloak/image/*.sh

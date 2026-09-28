@@ -1,14 +1,7 @@
 """Сотрудники ИТ Школы.
 
-Пароли здесь не хранятся: аутентификация живёт в Keycloak, в этой таблице
-лежит keycloak_id и данные предметной части. Роли - тоже Keycloak, здесь
-только их снимок с последнего входа: по нему администратор видит, кто есть
-кто, а руководитель выбирает ответственных из менеджеров.
-
-Права на данные - уже наши (раздел 12 «Решений по бизнес-модели»): роль
-задаёт действия, а область данных и точечные доступы - какие
-взаимодействия и вузы видны. Область можно поднять временно - со сроком
-и основанием; по истечении срока действует область по ролям.
+Пароли и роли живут в Keycloak, здесь снимок ролей с последнего входа.
+Роль задаёт действия, а область данных и точечные доступы задают, что видно.
 """
 
 import uuid
@@ -43,11 +36,11 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     head_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    # Область бизнес-данных; default - по ролям.
+    # Область бизнес-данных, default значит по ролям.
     data_scope: Mapped[str] = mapped_column(
         String(16), default=DataScope.DEFAULT, server_default=DataScope.DEFAULT
     )
-    # Область выдана временно: основание и срок. После срока - область по ролям.
+    # Временная область: основание и срок, после срока снова по ролям.
     data_scope_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     data_scope_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -56,5 +49,5 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         DateTime(timezone=True), nullable=True
     )
 
-    def __repr__(self) -> str:  # pragma: no cover - удобство отладки
+    def __repr__(self) -> str:  # pragma: no cover (для отладки)
         return f"<User {self.username}>"

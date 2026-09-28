@@ -1,4 +1,4 @@
-"""Обмен с LMS и сайтом по расписанию (пункт 17 перечня исправлений)."""
+"""Обмен с LMS и сайтом по расписанию."""
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -44,14 +44,14 @@ async def test_schedule_runs_due_sources_once(
     await _set_interval(client, 6)
     factory = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
 
-    # Обменов ещё не было - срок подошёл у обоих источников, LMS первой.
+    # Обменов ещё не было, срок подошёл у обоих источников, LMS первой.
     assert await scheduler.tick(factory) == ["lms", "site"]
     async with factory() as session:
         runs = (await session.execute(select(IntegrationRun))).scalars().all()
     assert {run.trigger for run in runs} == {"schedule"}
     assert all(run.triggered_by is None for run in runs)
 
-    # Сразу после обмена повторять нечего; через интервал - снова.
+    # Сразу после обмена повторять нечего, а через интервал снова пора.
     assert await scheduler.tick(factory) == []
     later = datetime.now(UTC) + timedelta(hours=7)
     assert await scheduler.tick(factory, now=later) == ["lms", "site"]

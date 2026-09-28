@@ -1,29 +1,11 @@
 """Синхронизация с внешними системами.
 
-Адаптер отдаёт данные в общем виде, а этот модуль решает, что с ними делать
-(раздел 10 «Решений по бизнес-модели»)::
-
-    внешний API -> адаптер -> проверка и нормализация
-      -> поиск по внешнему идентификатору -> справочники и статистика
-      -> привязка к взаимодействию или взаимодействие-черновик -> журнал
-
-* Внешний идентификатор уникален в пределах источника и типа записи;
-  ссылки между источниками (заявка сайта на программу LMS) ищутся в явно
-  названном источнике, а не «где-нибудь».
-* Запись без связи по одному названию не сопоставляется: если в системе
-  есть запись с таким же названием, внешняя попадает в очередь ручного
-  сопоставления (``integration_mappings``) и ждёт решения администратора.
-  Новая запись без похожих заводится сразу; вуз - в статусе «На проверке».
-* Заявка вуза на сотрудничество добавляется в открытое взаимодействие по
-  этому вузу и программе или создаёт взаимодействие-черновик. Договор
-  интеграция не создаёт, процесс сама не запускает - это делает
-  ответственный.
-* Заявка студента - только статистика: заявка, поток и зачисление.
-* Ошибка отдельной записи не роняет обмен: запуск получает статус
-  «частично», а ошибка - строку в журнале запуска.
-
-Повторный запуск не плодит дубли: связь ``external_links`` - «объект
-источника X с идентификатором Y - это вот эта наша запись».
+Адаптер отдаёт данные в общем виде, а здесь решается, что с ними делать.
+Связь external_links не даёт повторному обмену плодить дубли. Запись, похожую
+на существующую, по названию не сопоставляем, она ждёт решения
+администратора. Заявка вуза попадает в открытое взаимодействие или заводит
+черновик, заявка студента идёт только в статистику. Ошибка одной записи
+не останавливает обмен.
 """
 
 from __future__ import annotations
@@ -79,7 +61,7 @@ UNIVERSITY = "university"
 PROGRAM = "it_program"
 PRODUCT = "it_product"
 INTERACTION = "interaction"
-COURSE = "course"  # название курса в заявке сайта -> программа
+COURSE = "course"  # название курса в заявке сайта и программа
 
 ENTITY_TITLES = {
     UNIVERSITY: "Вуз",
@@ -138,7 +120,7 @@ async def get_source(session: AsyncSession, code: str) -> IntegrationSource:
     source = await session.scalar(
         select(IntegrationSource).where(IntegrationSource.code == code)
     )
-    if source is None:  # pragma: no cover - ensure_sources только что его создал
+    if source is None:  # pragma: no cover (ensure_sources только что его создал)
         raise NotFoundError(f"Источник «{code}» не найден")
     return source
 
@@ -148,7 +130,7 @@ def normalize_course(name: str) -> str:
     return re.sub(r"\s+", " ", name.strip().lower().replace("ё", "е"))
 
 
-# --- Связи с внешними объектами ----------------------------------------------
+# Связи с внешними объектами
 
 
 async def linked_id(
@@ -238,13 +220,13 @@ async def _resolve_entity(
     entity_type: str,
     external_id: str,
     name: str,
-    model,  # noqa: ANN001 - класс модели
+    model,  # noqa: ANN001 (класс модели)
     payload: dict,
     stats: SyncStats,
 ) -> tuple[uuid.UUID | None, bool]:
     """Находит нашу запись для внешней: (id, нужно ли создать новую).
 
-    ``(None, False)`` - запись ждёт ручного сопоставления или исключена.
+    (None, False): запись ждёт ручного сопоставления или исключена.
     """
     entity_id = await linked_id(session, source.id, entity_type, external_id)
     if entity_id is not None and await session.get(model, entity_id) is not None:
@@ -259,14 +241,14 @@ async def _resolve_entity(
         select(model.id).where(func.lower(model.name) == name.lower()).limit(1)
     )
     if twin is not None:
-        # Похожая запись есть, но по названию не сопоставляем - решает человек.
+        # Похожая запись есть, но по названию не сопоставляем, решает человек.
         await _ask_mapping(session, source.id, entity_type, external_id, name, twin, payload)
         stats.pending += 1
         return None, False
     return None, True
 
 
-# --- Справочники --------------------------------------------------------------
+# Справочники
 
 
 async def _direction(session: AsyncSession, name: str | None) -> ItDirection | None:
@@ -316,7 +298,7 @@ async def create_product(session: AsyncSession, data: dict) -> ItProduct:
 
 
 async def create_university(session: AsyncSession, data: dict, origin: str) -> University:
-    """Вуз из внешнего источника - всегда на проверку руководителю."""
+    """Вуз из внешнего источника всегда идёт на проверку руководителю."""
     university = University(
         name=data["name"],
         short_name=data.get("short_name"),
@@ -388,7 +370,7 @@ async def _sync_products(
     return stats
 
 
-# --- Вузы ---------------------------------------------------------------------
+# Вузы
 
 
 async def _sync_universities(
@@ -458,7 +440,7 @@ async def sync_contacts(
     await session.flush()
 
 
-# --- Заявки вузов на сотрудничество -------------------------------------------------
+# Заявки вузов на сотрудничество
 
 
 async def _open_interaction(
@@ -488,7 +470,7 @@ async def _open_interaction(
 async def _note(
     session: AsyncSession, instance: WorkflowInstance, user: User | None, text: str
 ) -> None:
-    """Сведения из обмена - комментарием к текущему шагу взаимодействия."""
+    """Сведения из обмена комментарием к текущему шагу взаимодействия."""
     event_id = await session.scalar(
         select(WorkflowEvent.id)
         .where(WorkflowEvent.workflow_instance_id == instance.id)
@@ -512,7 +494,7 @@ async def _sync_requests(
     payload: IntegrationPayload,
     user: User | None,
 ) -> SyncStats:
-    """Заявка вуза на сотрудничество -> взаимодействие (существующее или черновик)."""
+    """Заявка вуза на сотрудничество: в существующее взаимодействие или черновик."""
     stats = SyncStats()
     if not payload.requests:
         return stats
@@ -546,7 +528,7 @@ async def _sync_requests(
         program_ids: list[uuid.UUID] = []
         unknown: list[str] = []
         for external_program_id in item.program_external_ids:
-            # Программы заявки - идентификаторы LMS: ищем явно в LMS.
+            # Программы заявки заданы идентификаторами LMS, ищем их в LMS.
             program_id = await linked_id(session, lms.id, PROGRAM, external_program_id)
             if program_id is None:
                 unknown.append(external_program_id)
@@ -601,7 +583,7 @@ async def _sync_requests(
     return stats
 
 
-# --- Заявки студентов: только статистика --------------------------------------------
+# Заявки студентов: только статистика
 
 
 async def _program_for_course(
@@ -668,8 +650,7 @@ async def _stream(
 
 
 async def enroll_by_contact(session: AsyncSession, application: LearningApplication) -> bool:
-    """Зачисление по почте или телефону заявки - проверяемое допущение, пока
-    LMS не передаёт связь слушателя с программой сама."""
+    """Зачисление по почте или телефону заявки, пока LMS не передаёт связь сама."""
     if application.program_id is None or not (application.email or application.phone):
         return False
     conditions = []
@@ -760,7 +741,7 @@ async def _sync_applications(
 
 
 async def _university_by_name(session: AsyncSession, name: str) -> University | None:
-    """Вуз заявителя - для разреза статистики, не для процесса."""
+    """Вуз заявителя нужен только для статистики."""
     value = name.lower()
     return await session.scalar(
         select(University)
@@ -775,7 +756,7 @@ async def _university_by_name(session: AsyncSession, name: str) -> University | 
     )
 
 
-# --- Обучающиеся из LMS ------------------------------------------------------------
+# Обучающиеся из LMS
 
 
 async def _sync_learners(
@@ -858,7 +839,7 @@ async def _sync_learners(
                     await session.flush()
             continue
 
-        # Иначе - по заявкам с той же почтой или телефоном.
+        # Иначе ищем заявки с той же почтой или телефоном.
         conditions = []
         if learner.email:
             conditions.append(LearningApplication.email == learner.email)
@@ -873,7 +854,7 @@ async def _sync_learners(
     return stats
 
 
-# --- Ручное сопоставление ---------------------------------------------------------
+# Ручное сопоставление
 
 
 async def apply_course_mapping(
@@ -904,7 +885,7 @@ async def apply_course_mapping(
     return len(matched)
 
 
-# --- Запуск -------------------------------------------------------------------
+# Запуск
 
 
 async def _apply(
@@ -961,11 +942,9 @@ async def run_sync(
     filename: str | None = None,
     trigger: str = "manual",
 ) -> IntegrationRun:
-    """Выполняет синхронизацию и записывает результат в журнал запусков.
+    """Выполняет синхронизацию и пишет результат в журнал запусков.
 
-    ``raw`` - ответ источника, переданный файлом (например, выгрузка API,
-    полученная до того, как открыли сетевой доступ). Разбирается тем же
-    адаптером, что и ответ по сети, поэтому путь данных один.
+    raw: ответ источника, загруженный файлом. Его разбирает тот же адаптер.
     """
     source = await get_source(session, code)
     if not source.is_enabled:
@@ -986,12 +965,12 @@ async def run_sync(
         payload = adapter.parse(raw) if raw is not None else await adapter.fetch()
         run.attempts = payload.attempts
         # Точка сохранения: сбой разбора откатит только данные этого запуска,
-        # а сама запись о неудачном запуске останется в журнале.
+        # а запись о неудачном запуске останется.
         async with session.begin_nested():
             stats = await _apply(session, source, payload, user)
     except AppError as exc:
-        # Сетевые сбои и неожиданный формат ответа - ожидаемый исход обмена,
-        # поэтому не роняем запрос, а записываем неудачный запуск.
+        # Сбой сети или неожиданный ответ записываем как неудачный запуск,
+        # а не роняем запрос.
         run.status = IntegrationRunStatus.FAILED
         run.error_message = exc.message
         run.attempts = int((exc.details or {}).get("attempts", run.attempts))

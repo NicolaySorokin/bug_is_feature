@@ -1,8 +1,5 @@
-/*
- * Страница входа в стиле клиентской части системы: фирменный фиолетовый
- * Ростелекома #7700FF, фон - как у экрана входа CRM, шрифт Manrope.
- * Поверх стандартной темы keycloak.v2 (PatternFly 5).
- */
+/* Страница входа в стиле системы: фиолетовый Ростелекома #7700FF, фон как у экрана входа CRM,
+   шрифт Manrope. Поверх стандартной темы keycloak.v2 (PatternFly 5). */
 
 @font-face {
   font-family: "Manrope";
@@ -94,7 +91,7 @@ body,
   font-family: Manrope, "Segoe UI", Arial, sans-serif;
 }
 
-/* Фон - как у экрана входа в клиентской части. */
+/* Фон как у экрана входа в клиентской части. */
 .login-pf body,
 body#keycloak-bg {
   background:
@@ -157,8 +154,7 @@ body#keycloak-bg {
   font-size: 14px;
 }
 
-/* Поля ввода: рамка целиком, фокус - фирменным цветом. Свои рамки PatternFly
-   (псевдоэлементы, в тёмной теме - только нижняя граница) отключены. */
+/* Поля ввода: рамка целиком, фокус фирменным цветом. Свои рамки PatternFly отключены. */
 .pf-v5-c-form-control {
   --pf-v5-c-form-control--BackgroundColor: #fff;
   background: #fff;
@@ -197,7 +193,7 @@ body#keycloak-bg {
   outline: none;
 }
 
-/* Пароль и кнопка «показать» - одно поле. */
+/* Пароль и кнопка «показать» выглядят одним полем. */
 .pf-v5-c-input-group > .pf-v5-c-input-group__item:not(:last-child) .pf-v5-c-form-control {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
@@ -223,7 +219,7 @@ body#keycloak-bg {
   color: var(--edu-violet);
 }
 
-/* Основная кнопка - как «Войти через Keycloak» в CRM. */
+/* Основная кнопка как «Войти через Keycloak» в CRM. */
 .pf-v5-c-button.pf-m-primary {
   --pf-v5-c-button--m-primary--BackgroundColor: var(--edu-violet);
   --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--edu-violet-hover);

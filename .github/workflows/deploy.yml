@@ -30,7 +30,7 @@ env:
 jobs:
   deploy:
     name: Выкладка на prod
-    # После CI - только если он прошёл и запускался пушем в main, а не PR.
+    # После CI деплоим, только если он прошёл и запускался пушем в main.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
@@ -67,9 +67,8 @@ jobs:
       - name: Проверка PROD_ENV
         env:
           PROD_ENV: ${{ secrets.PROD_ENV }}
-          # Начальные пароли пользователей реалма - по желанию, отдельным
-          # секретом. Нужны только при создании реалма на пустой базе
-          # Keycloak: дальше учётными записями управляют на сайте.
+          # Начальные пароли пользователей реалма отдельным необязательным секретом.
+          # Нужны только при создании реалма на пустой базе Keycloak.
           KEYCLOAK_USER_PASSWORDS: ${{ secrets.KEYCLOAK_USER_PASSWORDS }}
         run: |
           set -euo pipefail
@@ -92,9 +91,7 @@ jobs:
             [ -n "$(value "$key")" ] || { echo "::error::В PROD_ENV не задан $key"; exit 1; }
           done
 
-          # Начальные пароли ставятся только тем, у кого пароля ещё нет, то есть
-          # после создания реалма; без них первый вход администратора - паролем
-          # консоли Keycloak (см. backend/scripts/keycloak_setup.py). Проверяется
+          # Начальные пароли ставятся только тем, у кого пароля ещё нет. Проверяется
           # только вид записей, сами пароли в журнал не попадают.
           pairs=$(value KEYCLOAK_USER_PASSWORDS | tr ', ' '\n\n' | sed '/^$/d')
           if [ -n "$pairs" ]; then
@@ -163,13 +160,13 @@ jobs:
       - name: Секреты среды
         run: ssh prod "umask 077 && cat > $APP_DIR/shared/prod.env.new && mv -f $APP_DIR/shared/prod.env.new $APP_DIR/shared/prod.env" < "$RUNNER_TEMP/prod.env"
 
-      # Первый сертификат - до запуска Nginx, certbot --standalone на 80-м
-      # порту. Если сертификат уже есть, шаг ничего не делает.
+      # Первый сертификат выпускается до запуска Nginx, certbot сам слушает 80-й
+      # порт. Если сертификат уже есть, шаг ничего не делает.
       - name: Сертификат
         run: ssh prod "sudo env DOMAIN=$DOMAIN LE_EMAIL=$LE_EMAIL bash $APP_DIR/releases/$RELEASE/cicd/prod/server/certificate.sh issue"
 
-      # Не поднялся (healthcheck API не прошёл) - release.sh сам вернёт
-      # прежний релиз, а шаг упадёт.
+      # Если healthcheck API не прошёл, release.sh сам вернёт прежний релиз,
+      # а шаг упадёт.
       - name: Запуск
         id: activate
         run: ssh prod "APP_DIR=$APP_DIR bash $APP_DIR/releases/$RELEASE/cicd/prod/server/release.sh activate $RELEASE"
@@ -196,7 +193,7 @@ jobs:
           }
           base="https://$DOMAIN"
 
-          # curl проверяет сертификат: невалидный сертификат - это провал.
+          # curl проверяет сертификат, невалидный сертификат считается провалом.
           health() {
             curl -fsS --max-time 10 -o "$RUNNER_TEMP/health.json" "$base/api/v1/health" \
               && grep -q '"status":"ok"' "$RUNNER_TEMP/health.json"
@@ -259,8 +256,8 @@ jobs:
           oidc() { curl -fsS --max-time 10 -o /dev/null "$base/realms/edu-crm/.well-known/openid-configuration"; }
           if retry 36 oidc; then ok "Keycloak: реалм edu-crm" "200"; else fail "Keycloak: реалм edu-crm" "не отвечает за 3 минуты"; fi
 
-          # Страница входа - в теме системы, а не стандартная Keycloak.
-          # PKCE у клиента обязателен: без code_challenge страницы не будет.
+          # Страница входа в теме системы. PKCE у клиента обязателен: без code_challenge
+          # страницы не будет.
           login="$base/realms/edu-crm/protocol/openid-connect/auth?client_id=edu-crm-web&response_type=code&scope=openid&code_challenge_method=S256&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&redirect_uri=$base/"
           if curl -fsS --max-time 10 "$login" | grep -q 'login/edu-crm/css/edu-crm.css'; then
             ok "Страница входа" "тема edu-crm"
@@ -324,7 +321,7 @@ jobs:
           bash "$APP_DIR/current/cicd/prod/server/release.sh" list
           SH
           cat "$RUNNER_TEMP/server.txt"
-          # Запас памяти меньше 400 МБ - повод уменьшить WEB_CONCURRENCY в PROD_ENV.
+          # Если свободно меньше 400 МБ, стоит уменьшить WEB_CONCURRENCY в PROD_ENV.
           available=$(ssh prod "free -m | awk '/^Mem:/ {print \$7}'")
           if [ "$available" -lt 400 ]; then
             echo "::warning::На сервере свободно всего $available МБ памяти - уменьшите WEB_CONCURRENCY в PROD_ENV"

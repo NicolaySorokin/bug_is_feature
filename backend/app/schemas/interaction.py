@@ -1,12 +1,7 @@
 """Схемы взаимодействия с вузом.
 
-Взаимодействие - основной объект работы (раздел 8 «Решений по бизнес-
-модели»): вуз, ответственный, программы и продукты, ход по workflow;
-договор - необязательный блок внутри.
-
-Обзор взаимодействия показывает три независимых вещи (пункт 33 перечня
-исправлений): статус взаимодействия, текущий этап со следующим действием
-и срок (SLA) текущего этапа. Цвет срока относится только к сроку.
+Обзор показывает отдельно статус, текущий этап и срок этапа. Цвет относится
+только к сроку.
 """
 
 import uuid
@@ -44,7 +39,7 @@ class StageSla(BaseModel):
 
     days_on_stage: int
     sla_days: int
-    days_left: int  # отрицательное - просрочено на столько дней
+    days_left: int  # отрицательное значит просрочено на столько дней
     used_percent: int
     state: SlaState
 
@@ -60,8 +55,7 @@ class StageSummary(BaseModel):
 
 
 class InteractionListItem(BaseModel):
-    """Строка реестра: вуз, статус, этап, ответственный, результат; договор -
-    необязательные поля (до подписания его может не быть)."""
+    """Строка реестра. Поля договора необязательны: до подписания его может не быть."""
 
     id: uuid.UUID
     title: str | None
@@ -129,7 +123,7 @@ class InteractionDetail(InteractionListItem):
     contacts: list[InteractionContactRead] = []
     # Типы обязательных документов текущего этапа, которых ещё нет.
     missing_documents: list[str] = []
-    # Что может сделать текущий пользователь - чтобы не показывать лишних кнопок.
+    # Что может сделать текущий пользователь, чтобы не показывать лишних кнопок.
     can_edit: bool = False
     can_assign: bool = False
     can_cancel: bool = False
@@ -140,9 +134,9 @@ class InteractionCreate(BaseModel):
     university_id: uuid.UUID
     title: str | None = Field(default=None, max_length=500)
     comment: str | None = None
-    # Ответственный: менеджер - всегда он сам; руководитель назначает менеджера.
+    # Менеджер всегда назначает себя, руководитель выбирает менеджера.
     manager_id: uuid.UUID | None = None
-    # Шаблон процесса; не задан - основной. Версию выбирает система.
+    # Шаблон процесса, по умолчанию основной. Версию выбирает система.
     template_id: uuid.UUID | None = None
     program_ids: list[uuid.UUID] = []
     # Сразу запустить процесс, а не оставить черновиком.
@@ -175,7 +169,7 @@ class ProgramAdd(BaseModel):
 
 class ProgramStatusUpdate(BaseModel):
     implementation_status: ProgramImplementationStatus
-    # Ручное изменение статуса в обход этапа - с комментарием, он уходит в историю.
+    # Ручное изменение статуса в обход этапа требует комментария для истории.
     comment: str | None = Field(default=None, max_length=2000)
 
 
@@ -185,7 +179,7 @@ class ProductAdd(BaseModel):
     product_id: uuid.UUID
     program_link_ids: list[uuid.UUID] = Field(min_length=1)
     transfer_status: ProductTransferStatus = ProductTransferStatus.NOT_STARTED
-    # Для программ, с которыми продукт не связан в справочнике, - обязательно.
+    # Обязателен для программ, с которыми продукт не связан в справочнике.
     exception_comment: str | None = Field(default=None, max_length=2000)
 
 

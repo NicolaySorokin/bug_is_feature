@@ -1,19 +1,11 @@
 #!/usr/bin/env bash
-# Подготовка боевого сервера (Ubuntu 24.04) под стенд. Запускается при каждом
-# деплое и идемпотентна: что уже стоит и настроено, не трогается, поэтому
-# повторный запуск занимает секунды.
+# Подготовка боевого сервера (Ubuntu 24.04). Запускается при каждом деплое,
+# уже сделанное не трогает.
 #
 #   sudo env DEPLOY_USER=deployer bash cicd/prod/server/bootstrap.sh
 #
-# Что делает:
-#   - Docker Engine и compose plugin из официального репозитория Docker;
-#   - ротация логов контейнеров, чтобы логи не съели диск;
-#   - пользователь деплоя в группе docker;
-#   - certbot, его таймер продления и хук перезагрузки Nginx после продления;
-#   - make (для make logs ENV=prod на сервере), каталог приложения,
-#     каталог webroot для проверок Let's Encrypt;
-#   - swap-файл: на 4 ГБ без него всплеск памяти заканчивается OOM killer;
-#   - ежедневная резервная копия базы и файлов (таймер edu-crm-backup).
+# Ставит Docker, ротацию логов, certbot с хуком перезагрузки Nginx, make, swap
+# и ежедневные резервные копии.
 set -euo pipefail
 
 DEPLOY_USER=${DEPLOY_USER:-${SUDO_USER:-}}
@@ -51,7 +43,7 @@ apt_install() {
 
 apt_install ca-certificates curl make
 
-# --- Docker: https://docs.docker.com/engine/install/ubuntu/ -----------------
+# Docker: https://docs.docker.com/engine/install/ubuntu/
 if ! docker compose version > /dev/null 2>&1; then
     log "Docker из официального репозитория"
     # Пакеты из репозитория Ubuntu конфликтуют с пакетами Docker.
@@ -77,8 +69,8 @@ EOF
     apt_install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 fi
 
-# Логи контейнеров по умолчанию растут без ограничений, а диск - 18 ГБ.
-# Файл пишем только если его нет: ручные настройки не перетираем.
+# Логи контейнеров без ограничений съели бы диск. Файл пишем, только если его
+# нет, ручные настройки не перетираем.
 if [ ! -f /etc/docker/daemon.json ]; then
     log "Ротация логов Docker: 3 файла по 20 МБ на контейнер"
     install -m 0755 -d /etc/docker
@@ -97,15 +89,14 @@ if ! id -nG "$DEPLOY_USER" | tr ' ' '\n' | grep -qx docker; then
     usermod -aG docker "$DEPLOY_USER"
 fi
 
-# --- certbot -----------------------------------------------------------------
+# certbot
 apt_install certbot
 # Пакет ставит таймер, который дважды в сутки вызывает certbot renew.
 systemctl enable --quiet --now certbot.timer
 
 hook=/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
 hook_body="#!/bin/sh
-# Установлено cicd/prod/server/bootstrap.sh. Выполняется certbot после
-# успешного продления: Nginx в контейнере перечитывает сертификат без простоя.
+# Установлено bootstrap.sh. После продления Nginx перечитывает сертификат без простоя.
 if docker ps --format '{{.Names}}' | grep -qx '$NGINX_CONTAINER'; then
     docker exec '$NGINX_CONTAINER' nginx -s reload
 fi"
@@ -116,14 +107,14 @@ if [ ! -f "$hook" ] || [ "$(cat "$hook")" != "$hook_body" ]; then
     chmod 0755 "$hook"
 fi
 
-# --- каталоги ------------------------------------------------------------------
+# каталоги
 install -m 0755 -d "$CERTBOT_WEBROOT"
 install -m 0750 -o "$DEPLOY_USER" -g "$DEPLOY_USER" -d "$APP_DIR"
 install -m 0750 -o "$DEPLOY_USER" -g "$DEPLOY_USER" -d "$APP_DIR/releases"
 install -m 0700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" -d "$APP_DIR/shared"
 install -m 0700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" -d "$APP_DIR/backups"
 
-# --- swap ------------------------------------------------------------------------
+# swap
 if [ -z "$(swapon --show --noheadings)" ]; then
     log "Swap-файл ${SWAP_SIZE_MB} МБ"
     if [ ! -f /swapfile ]; then
@@ -134,16 +125,13 @@ if [ -z "$(swapon --show --noheadings)" ]; then
     swapon /swapfile
     grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
-# Swap - страховка, а не рабочая память: без нужды в него не уходим.
+# Swap нужен как страховка, без нужды в него не уходим.
 if [ ! -f /etc/sysctl.d/60-edu-crm-swap.conf ]; then
     echo 'vm.swappiness = 10' > /etc/sysctl.d/60-edu-crm-swap.conf
     sysctl -q -p /etc/sysctl.d/60-edu-crm-swap.conf
 fi
 
-# --- резервные копии -------------------------------------------------------------
-# Каждую ночь release.sh backup текущего релиза: база системы, база Keycloak,
-# файлы вложений - в $APP_DIR/backups, хранятся 14 дней. Копии стоит
-# забирать и за пределы сервера.
+# Резервные копии: каждую ночь release.sh backup, хранятся 14 дней.
 backup_service="[Unit]
 Description=EDU CRM: резервная копия базы и файлов
 After=docker.service

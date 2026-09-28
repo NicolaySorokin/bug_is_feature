@@ -38,7 +38,7 @@ async def _prepared(client: AsyncClient, university: dict) -> tuple[dict, dict, 
 
 
 async def test_signatory_is_part_of_contract(client: AsyncClient, university: dict) -> None:
-    """Подписант - отдельно от ответственного и сохраняется с договором."""
+    """Подписант хранится отдельно от ответственного вместе с договором."""
     interaction, contract = await make_contract(client, university["id"], MANAGER, **SIGNATORY)
     assert contract["signatory_name"] == SIGNATORY["signatory_name"]
 
@@ -100,7 +100,7 @@ async def test_templates_are_edited_by_head(client: AsyncClient) -> None:
     everything = await client.get("/api/v1/contract-templates", headers=PURE_HEAD)
     assert template_id in {item["id"] for item in everything.json()}
 
-    # Администратор взаимодействия не ведёт - шаблоны ему не нужны.
+    # Администратор взаимодействия не ведёт, шаблоны ему не нужны.
     listing = await client.get("/api/v1/contract-templates", headers=ADMIN)
     assert listing.status_code == 403
 
@@ -135,7 +135,7 @@ async def test_preview_fills_requisites(client: AsyncClient, university: dict) -
     assert "доверенности № 12 от 15.01.2026" in text
     assert "{{" not in text
     assert preview["filename"] == f"Проект договора {contract['number']}.docx"
-    # Контактов у взаимодействия нет - это видно до формирования файла.
+    # Контактов у взаимодействия нет, это видно до формирования файла.
     missing = {item["key"] for item in preview["missing"]}
     assert "контакт_вуза" in missing
     assert "вуз" not in missing
@@ -167,7 +167,7 @@ async def test_docx_download(client: AsyncClient, university: dict) -> None:
 
 
 async def test_attach_as_contract_draft(client: AsyncClient, university: dict) -> None:
-    """Проект по шаблону - во вложениях взаимодействия, но не «Договор»."""
+    """Проект по шаблону лежит во вложениях, но это не «Договор»."""
     interaction, contract, template = await _prepared(client, university)
     response = await client.post(
         f"/api/v1/interactions/{interaction['id']}/contract/document/attach",

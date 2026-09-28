@@ -1,10 +1,4 @@
-"""Загрузка каталогов из XLSX: предпросмотр, проверка, импорт.
-
-Сводный каталог загружается через модель взаимодействия: строка - это
-взаимодействие вуза с договором, продукт - в программе взаимодействия,
-лицензия - по договору на этот продукт. Новый вуз из файла приходит на
-проверку.
-"""
+"""Загрузка каталогов из XLSX: предпросмотр, проверка, импорт."""
 
 from io import BytesIO
 
@@ -53,7 +47,7 @@ async def _upload(client: AsyncClient, content: bytes, import_type: str) -> dict
 
 
 async def _interactions(client: AsyncClient) -> dict:
-    # Импорт ответственного не нашёл - взаимодействие в очереди руководителя.
+    # Импорт не нашёл ответственного, взаимодействие в очереди руководителя.
     return (await client.get("/api/v1/interactions", headers=HEAD)).json()
 
 
@@ -94,7 +88,7 @@ async def test_catalog_import_creates_interaction_with_license(client: AsyncClie
         await client.post(f"/api/v1/imports/{run_id}/validate", json={}, headers=ADMIN)
     ).json()
     assert checked["run"]["status"] == "validated"
-    # Проверка - пробная загрузка: известно, что добавится, но данных ещё нет.
+    # Проверка это пробная загрузка: итог известен, а данных ещё нет.
     assert checked["run"]["rows_created"] == 1
     assert checked["run"]["rows_failed"] == 0
     # Замечание про ненайденного менеджера не мешает загрузке строки.
@@ -107,7 +101,7 @@ async def test_catalog_import_creates_interaction_with_license(client: AsyncClie
     assert result["run"]["status"] == "completed"
     assert result["run"]["rows_created"] == 1
     assert result["run"]["rows_failed"] == 0
-    # Менеджер с таким ФИО не найден, вуз новый - об этом сказано, строка загружена.
+    # Менеджер не найден, вуз новый: об этом сказано, строка загружена.
     messages = " ".join(item["message"] for item in result["errors"])
     assert "не найден" in messages
     assert "на проверку" in messages
@@ -127,7 +121,7 @@ async def test_catalog_import_creates_interaction_with_license(client: AsyncClie
     assert [item["program"]["name"] for item in detail["program_links"]] == [
         "Python-разработчик"
     ]
-    # Связи продукта с программой нет в справочнике - это отмеченное исключение.
+    # Связи продукта с программой нет в справочнике, это отмеченное исключение.
     assert detail["links"][0]["is_exception"] is True
     assert detail["contacts"][0]["contact"]["full_name"] == "Гафуров Ильдар Рашидович"
 
@@ -241,8 +235,9 @@ async def test_import_is_closed_for_manager(client: AsyncClient) -> None:
 
 
 async def test_university_import_matches_by_inn(client: AsyncClient) -> None:
-    """ИНН - стабильный ключ вуза: по нему запись узнаётся даже под другим
-    названием, а одноимённый вуз с другим ИНН не подменяет существующий."""
+    """ИНН узнаёт вуз даже под другим названием, а одноимённый вуз с другим ИНН
+    не подменяет существующий.
+    """
     created = await client.post(
         "/api/v1/universities",
         json={"name": "Томский университет", "inn": "7018012345", "city": "Томск"},

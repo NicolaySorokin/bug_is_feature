@@ -1,8 +1,6 @@
 """Главная страница и контроль проблемных взаимодействий.
 
-Часть правил зависит от времени - например, «этап не менялся 30 дней».
-Такие ситуации создаются сдвигом даты прямо в базе: ждать месяц в тесте
-нечем, а правило проверить надо.
+Правила, зависящие от времени, проверяются сдвигом дат прямо в базе.
 """
 
 from datetime import date, timedelta
@@ -66,7 +64,7 @@ async def test_next_steps_separate_status_stage_and_sla(
     client: AsyncClient, university: dict, engine: AsyncEngine
 ) -> None:
     await make_interaction(client, university["id"], MANAGER)
-    await _age_current_stage(engine, 6)  # норма этапа - 7 дней
+    await _age_current_stage(engine, 6)  # норма этапа 7 дней
 
     steps = (await client.get("/api/v1/dashboard", headers=MANAGER)).json()["next_steps"]
     assert len(steps) == 1
@@ -186,7 +184,7 @@ async def test_expiring_contract_and_license(client: AsyncClient, university: di
 
     assert by_kind["contract_expiring"]["days"] == 10
     assert by_kind["contract_expiring"]["severity"] == "warning"
-    # Срок уже прошёл - это критично.
+    # Срок уже прошёл, это критично.
     assert by_kind["license_expiring"]["days"] == -5
     assert by_kind["license_expiring"]["severity"] == "critical"
     assert "истекла 5 дн. назад" in by_kind["license_expiring"]["message"]
@@ -216,10 +214,10 @@ async def test_admin_home_is_technical(client: AsyncClient, university: dict) ->
 async def test_attention_does_not_repeat_problems_shown_in_steps(
     client: AsyncClient, university: dict, engine: AsyncEngine
 ) -> None:
-    """Просрочка своего взаимодействия видна в «Следующих шагах» и в
-    «Требует внимания» не повторяется, но и не теряется: ответ говорит,
-    сколько поводов ушло в шаги, и всего их столько же, сколько под
-    колокольчиком."""
+    """Просрочка своего взаимодействия видна в шагах и не повторяется в «Требует
+    внимания», но и не теряется: всего поводов столько же, сколько
+    под колокольчиком.
+    """
     await make_interaction(client, university["id"], MANAGER)
     await _age_current_stage(engine, 30)
 
@@ -237,9 +235,9 @@ async def test_attention_does_not_repeat_problems_shown_in_steps(
 async def test_attention_keeps_problems_missing_from_steps(
     client: AsyncClient, university: dict
 ) -> None:
-    """Вуз коллеги открыт на время замещения: его взаимодействий нет в своих
-    шагах, поэтому блокировка остаётся в «Требует внимания», а не пропадает
-    с главной при показателе «Заблокированы: 1»."""
+    """Вуз коллеги открыт на время замещения. Его блокировки нет в своих шагах,
+    поэтому она остаётся в «Требует внимания».
+    """
     interaction = await make_interaction(client, university["id"], OTHER_MANAGER)
     blocked = await client.post(
         f"/api/v1/interactions/{interaction['id']}/block",
@@ -261,7 +259,7 @@ async def test_attention_keeps_problems_missing_from_steps(
     assert "process_blocked" in _kinds(substitute["alerts"])
     assert substitute["alerts_in_steps"] == 0
 
-    # У ответственного блокировка - первая в шагах, у руководителя - в очереди.
+    # У ответственного блокировка первая в шагах, у руководителя в очереди.
     owner = (await client.get("/api/v1/dashboard", headers=OTHER_MANAGER)).json()
     assert owner["next_steps"][0]["status"] == "blocked"
     assert "process_blocked" not in _kinds(owner["alerts"])

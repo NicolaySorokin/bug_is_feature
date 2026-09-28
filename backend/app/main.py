@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.errors import register_error_handlers
 from app.core.security import build_auth_backend
 from app.db.session import engine
-from app.services import audit  # noqa: F401 - импорт включает запись журнала изменений
+from app.services import audit  # noqa: F401 (подключает журнал изменений)
 from app.services.integrations import scheduler
 
 DESCRIPTION = """
@@ -36,8 +36,7 @@ API системы контроля взаимодействия ИТ Школы
 машиночитаем и не меняется вместе с текстом сообщения.
 """
 
-# Описание входа зависит от схемы: про заглушку разработки на боевом стенде
-# рассказывать незачем.
+# Про заглушку разработки на боевом стенде рассказывать незачем.
 AUTH_DESCRIPTION = {
     "keycloak": (
         "**Авторизация.** Bearer-токен Keycloak (реалм `{realm}`): вход в систему "
@@ -105,8 +104,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # чтобы её можно было подменить в тестах.
     app.state.auth_backend = build_auth_backend(settings)
     settings.storage_dir.mkdir(parents=True, exist_ok=True)
-    # Обмен с LMS и сайтом по расписанию; интервал - в «Настройках», по
-    # умолчанию выключен.
+    # Обмен с LMS и сайтом по расписанию, по умолчанию выключен.
     async with scheduler.running():
         yield
     await engine.dispose()

@@ -48,19 +48,18 @@ help: ## Показать список команд
 build: ## Собрать образы и подготовить проект, без запуска
 	$(DC) build
 	# Образы PostgreSQL и Keycloak качаем заранее, чтобы make up ничего не ждал.
-	# Дефис: нет сети - не повод останавливать сборку, up дотянет образы сам.
+	# Минус перед командой: без сети сборка не падает, up дотянет образы сам.
 	-$(DC) pull --ignore-buildable --quiet
 	@echo Образы собраны. Запуск - make up
 
 # PostgreSQL поднят, база Keycloak на месте. На новом томе её заводит скрипт
-# инициализации, на томе постарше - этот же скрипт здесь; повтор безопасен.
+# инициализации, на старом этот же скрипт здесь, повтор безопасен.
 db-ready:
 	$(DC) up -d --wait db
 	$(DC) exec -T db sh /docker-entrypoint-initdb.d/keycloak-db.sh
 
-# --wait ждёт healthcheck API, то есть окончания миграций: следом можно сразу лить данные.
-# Контейнеры создаются, если их ещё нет; образы собираются, если их не собрали через make build.
-# В preprod и prod следом реалм Keycloak приводится к выгрузке и ставятся пароли.
+# --wait ждёт healthcheck API, то есть окончания миграций. В preprod и prod
+# следом настраивается реалм Keycloak.
 up: db-ready ## Запустить проект: контейнеры, миграции, демоданные
 	$(DC) up -d --wait
 	$(if $(filter dev,$(ENV)),,$(MAKE) keycloak-setup ENV=$(ENV))
@@ -82,9 +81,8 @@ seed: ## Загрузить демонстрационные данные
 seed-load: ## Добавить взаимодействия для нагрузочной проверки: make seed-load N=3000
 	$(API) python -m scripts.seed --load $(N)
 
-# Параметры скрипта передаются через ARGS: make loadtest ARGS="--duration 120".
-# Под Keycloak (preprod, prod) - см. cicd/README.md, «Нагрузочная проверка»:
-# пароли берутся из переменной KEYCLOAK_USER_PASSWORDS в окружении make.
+# Параметры через ARGS: make loadtest ARGS="--duration 120". Под Keycloak
+# пароли берутся из KEYCLOAK_USER_PASSWORDS в окружении make.
 loadtest: ## Нагрузочная проверка по ТЗ: 50 пользователей и 10 отчётов
 	$(DC) exec -T -e KEYCLOAK_USER_PASSWORDS api python -m scripts.loadtest $(ARGS)
 
@@ -112,8 +110,8 @@ dev-deps: # Образ собран по requirements.txt, инструмент�
 	@$(API) pip install --quiet --disable-pip-version-check --root-user-action=ignore -r requirements-dev.txt
 
 lock: ## Зафиксировать версии зависимостей в backend/requirements.lock
-	# Разовый контейнер из собранного образа: в нём стоят только рабочие
-	# зависимости, инструменты разработки в снимок не попадут.
+	# Разовый контейнер из собранного образа: в снимок попадут только рабочие
+	# зависимости.
 	@$(RUN_API) python -m scripts.lock > backend/requirements.lock
 	@echo Версии зафиксированы в backend/requirements.lock
 
@@ -128,9 +126,8 @@ keycloak: db-ready ## Поднять Keycloak с готовым реалмом
 	@echo Пароли пользователей, у которых их не было, напечатаны выше.
 	@echo Дальше выставьте AUTH_BACKEND=keycloak и выполните make restart
 
-# Настройка реалма из выгрузки в работающий Keycloak и начальные пароли тем,
-# у кого их нет (см. backend/scripts/keycloak_setup.py). Параметры скрипта -
-# через ARGS: make keycloak-setup ARGS=--reset-passwords.
+# Настройка реалма из выгрузки и начальные пароли тем, у кого их нет.
+# Параметры через ARGS: make keycloak-setup ARGS=--reset-passwords.
 keycloak-setup: ## Перенести настройку реалма в Keycloak, начальные пароли
 	$(KC_DC) run --rm -T keycloak-setup python -m scripts.keycloak_setup $(ARGS)
 

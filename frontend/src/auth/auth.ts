@@ -1,17 +1,8 @@
 /**
- * Вход в систему.
+ * Вход в систему. Схему входа выбирает сервер (GET /meta/auth), поэтому одна сборка работает везде.
  *
- * Схему входа выбирает сервер (GET /meta/auth), поэтому одна и та же сборка
- * клиента работает и на стенде с Keycloak, и в разработке с заглушкой.
- *
- * Keycloak: Authorization Code + PKCE через официальный адаптер keycloak-js
- * и публичный клиент edu-crm-web. Токены живут в памяти и в sessionStorage
- * вкладки (после перезагрузки страницы не нужно заново входить; закрыли
- * вкладку - сессия браузера кончилась). Перед каждым запросом токен
- * продлевается, если до конца его жизни меньше 30 секунд.
- *
- * Заглушка (AUTH_BACKEND=dev): пользователь выбирается из списка учётных
- * записей, API получает его в заголовках X-Dev-User и X-Dev-Roles.
+ * Keycloak: Authorization Code + PKCE через keycloak-js, токены в памяти и sessionStorage вкладки.
+ * Заглушка разработки: пользователь из списка, API получает его в заголовках X-Dev-User и X-Dev-Roles.
  */
 import Keycloak from "keycloak-js";
 import type { AuthConfig, DemoAccount } from "../api/types";
@@ -54,13 +45,13 @@ function saveTokens(): void {
       JSON.stringify({ token: keycloak.token, refreshToken: keycloak.refreshToken, idToken: keycloak.idToken }),
     );
   } catch {
-    // Хранилище недоступно (приватный режим) - просто войдём заново после перезагрузки.
+    // Хранилище недоступно (приватный режим), просто войдём заново после перезагрузки.
   }
 }
 
 async function loadConfig(): Promise<AuthConfig> {
   const response = await fetch(`${apiBase()}/meta/auth`);
-  // Текст - для консоли разработчика: человеку Root показывает общее сообщение.
+  // Текст для консоли разработчика, человеку Root показывает общее сообщение.
   if (!response.ok) throw new Error(`Настройки входа не получены: ответ ${response.status}`);
   return (await response.json()) as AuthConfig;
 }
@@ -73,7 +64,7 @@ let initPromise: Promise<AuthSession> | null = null;
  */
 export function initAuth(): Promise<AuthSession> {
   initPromise ??= startAuth().catch((error) => {
-    initPromise = null; // сервер был недоступен - следующая попытка начнётся заново
+    initPromise = null; // сервер был недоступен, следующая попытка начнётся заново
     throw error;
   });
   return initPromise;
@@ -157,7 +148,7 @@ export async function authHeaders(): Promise<Record<string, string>> {
     try {
       await keycloak.updateToken(30);
     } catch {
-      // Сессия Keycloak кончилась - запрос уйдёт без продления и вернёт 401.
+      // Сессия Keycloak кончилась: запрос уйдёт без продления и вернёт 401.
     }
     return keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {};
   }
@@ -169,7 +160,7 @@ export async function authHeaders(): Promise<Record<string, string>> {
 
 let redirecting = false;
 
-/** API ответил 401: сессия истекла - отправляем на вход, не теряя адрес страницы. */
+/** API ответил 401: сессия истекла, отправляем на вход, не теряя адрес страницы. */
 export function onUnauthorized(): void {
   if (redirecting) return;
   redirecting = true;
@@ -183,12 +174,8 @@ export function onUnauthorized(): void {
 }
 
 /**
- * Смена пароля: страница Keycloak «Новый пароль» (действие UPDATE_PASSWORD,
- * Application Initiated Action). Пароль вводится только в Keycloak - система
- * его не видит; после сохранения Keycloak возвращает на returnTo.
- *
- * Отдельная консоль учётной записи Keycloak (/realms/.../account) не нужна:
- * она на английском, не в стиле системы и требует ролей клиента account.
+ * Смена пароля на странице Keycloak (действие UPDATE_PASSWORD). Пароль вводится только там,
+ * после сохранения Keycloak возвращает на returnTo.
  */
 export async function changePassword(returnTo = window.location.href): Promise<void> {
   if (!keycloak) return;

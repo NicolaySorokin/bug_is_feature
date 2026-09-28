@@ -1,8 +1,4 @@
-"""Проверка правил процесса без обращения к базе.
-
-Разбор переходов и вычисление состояний этапов - чистые функции, поэтому
-здесь достаточно объектов моделей в памяти и сессии-заглушки.
-"""
+"""Правила процесса без базы: объекты моделей в памяти и сессия-заглушка."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -67,7 +63,7 @@ def make_stage(
 
 @pytest.fixture
 def version() -> WorkflowVersion:
-    # Стартовый этап отмечен явно - и не первым по сортировке.
+    # Стартовый этап отмечен явно, и он не первый по сортировке.
     contact = make_stage("contact", 30, initial=True)
     meeting = make_stage("meeting", 20)
     documents = make_stage("documents", 35, optional=True)
@@ -202,7 +198,7 @@ async def test_manager_skips_only_optional_stage(version, instance, user) -> Non
     instance.current_stage_id = stage(version, "meeting").id
     session = FakeSession()
 
-    # «Встреча» обязательна - менеджеру пропуск недоступен.
+    # «Встреча» обязательна, менеджеру пропуск недоступен.
     with pytest.raises(service.WorkflowError):
         await service.move(
             session,
@@ -214,7 +210,7 @@ async def test_manager_skips_only_optional_stage(version, instance, user) -> Non
             skip=True,
         )
 
-    # Руководителю - доступен.
+    # Руководителю доступен.
     event = await service.move(
         session,
         instance,

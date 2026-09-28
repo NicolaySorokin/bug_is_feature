@@ -1,17 +1,12 @@
 /**
- * Текущий пользователь и его права в интерфейсе.
- *
- * Роли, действия и область данных решает сервер (раздел 12 «Решений по
- * бизнес-модели»): /me отдаёт готовый список действий, а клиент по нему
- * только прячет кнопки, которые сотрудник всё равно не сможет применить.
- * Роли не наследуются: руководитель не получает права менеджера,
- * администратор - права руководителя.
+ * Текущий пользователь и его права в интерфейсе. Решает сервер, /me отдаёт готовый список действий,
+ * а клиент только прячет лишние кнопки.
  */
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { DataScope, Me, Role } from "../api/types";
 import type { AuthMode } from "./auth";
 
-/** Действия - как в app.services.access.Action на сервере. */
+/** Действия как в app.services.access.Action на сервере. */
 export type Action =
   | "create_interaction"
   | "work_interaction"
@@ -38,7 +33,7 @@ export type Action =
   | "resolve_mappings"
   | "view_personal_data";
 
-/** Прежнее имя типа: раньше права выводились из роли на клиенте. */
+/** Старое имя типа. */
 export type Permission = Action;
 
 export interface Session {

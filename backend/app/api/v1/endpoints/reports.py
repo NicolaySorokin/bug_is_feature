@@ -1,9 +1,7 @@
 """Отчёты и диаграммы.
 
-Фильтры передаются телом запроса: списков идентификаторов бывает много,
-в строке запроса они не помещаются. Один и тот же запрос даёт и данные
-для экрана (``/preview``), и файл (``/export``), и отдельную диаграмму
-(``/chart``) - выборка при этом считается одинаково.
+Фильтры идут телом запроса: списков бывает много. Один запрос даёт
+предпросмотр, файл и диаграмму по одинаковой выборке.
 """
 
 from fastapi import APIRouter, Query, Response
@@ -98,8 +96,9 @@ def report_table(report: ReportResponse) -> table_export.Table:
 
 
 def render_report(report: ReportResponse, export_format: ExportFormat) -> bytes:
-    """Файл отчёта. Собирается через export.runner: сборка PDF и XLSX -
-    работа процессора, в цикле событий она задержала бы остальные запросы."""
+    """Файл отчёта. Собирается через export.runner, чтобы не задерживать
+    остальные запросы.
+    """
     if export_format is ExportFormat.PDF:
         return pdf_export.build(report)
     if export_format is ExportFormat.JSON:
@@ -134,7 +133,7 @@ async def export(
         content = await runner.run(render_report, report, export_format)
     except AppError:
         raise
-    except Exception as exc:  # noqa: BLE001 - наружу уходит понятный код ошибки
+    except Exception as exc:  # noqa: BLE001 (наружу уходит понятный код ошибки)
         raise AppError(
             f"Не удалось сформировать отчёт: {exc}", code=ErrorCode.REPORT_FAILED
         ) from exc
@@ -174,7 +173,7 @@ async def chart(
         else:
             content = await runner.run(chart_export.to_pdf, data)
             media_type = "application/pdf"
-    except Exception as exc:  # noqa: BLE001 - наружу уходит понятный код ошибки
+    except Exception as exc:  # noqa: BLE001 (наружу уходит понятный код ошибки)
         raise AppError(
             f"Не удалось построить диаграмму: {exc}", code=ErrorCode.REPORT_FAILED
         ) from exc

@@ -1,9 +1,4 @@
-"""Взаимодействия с вузами: реестр, карточка, состав, договор и права.
-
-Взаимодействие - центральная сущность: договор внутри него необязателен
-(0..1), состав программ и продуктов задаётся на уровне взаимодействия,
-а область данных решает, кто что видит.
-"""
+"""Взаимодействия с вузами: реестр, карточка, состав, договор и права."""
 
 from httpx import AsyncClient
 
@@ -37,7 +32,7 @@ async def _product(client: AsyncClient, name: str) -> dict:
     return response.json()
 
 
-# --- Область данных -----------------------------------------------------------------
+# Область данных
 
 
 async def test_manager_sees_only_own_interactions(
@@ -170,9 +165,9 @@ async def test_head_reassigns_within_team_with_history(
 async def test_default_manager_outside_team_leaves_interaction_unassigned(
     client: AsyncClient, university: dict, workflow_version: dict
 ) -> None:
-    """Менеджер по умолчанию у вуза - подсказка: если руководитель не может его
-    назначить (другая команда), взаимодействие заводится без ответственного,
-    а не получает отказ."""
+    """Менеджер по умолчанию только подсказка: если руководитель не может его
+    назначить, взаимодействие заводится без ответственного.
+    """
     ivanova = await me(client, OTHER_MANAGER)
     updated = await client.patch(
         f"/api/v1/universities/{university['id']}",
@@ -200,7 +195,7 @@ async def test_default_manager_outside_team_leaves_interaction_unassigned(
     assert team.json()["manager"]["id"] == ivanova["id"]
 
 
-# --- Жизненный цикл -----------------------------------------------------------------
+# Жизненный цикл
 
 
 async def test_draft_is_started_later(client: AsyncClient, university: dict) -> None:
@@ -298,7 +293,7 @@ async def test_unconfirmed_university_gets_no_interaction(client: AsyncClient) -
     assert response.status_code == 409
 
 
-# --- Договор 0..1 -----------------------------------------------------------------
+# Договор 0..1
 
 
 async def test_contract_is_optional_and_single(client: AsyncClient, university: dict) -> None:
@@ -322,7 +317,7 @@ async def test_contract_is_optional_and_single(client: AsyncClient, university: 
     )
     assert unsigned.status_code == 422
 
-    # Подписанный договор не удаляют - только закрывают с причиной.
+    # Подписанный договор не удаляют, только закрывают с причиной.
     refused = await client.delete(url, headers=MANAGER)
     assert refused.status_code == 409
     closed = await client.put(
@@ -368,7 +363,7 @@ async def test_registry_filters_by_contract_presence(
     assert await total(contract_status="active") == 1
 
 
-# --- Состав: программы, продукты и их связи ----------------------------------------
+# Состав: программы, продукты и их связи
 
 
 async def test_programs_are_added_and_removed(client: AsyncClient, university: dict) -> None:
@@ -392,8 +387,9 @@ async def test_programs_are_added_and_removed(client: AsyncClient, university: d
 async def test_product_needs_program_and_catalog_link(
     client: AsyncClient, university: dict
 ) -> None:
-    """Продукт - инструмент программы: без связи его не добавить, а связь вне
-    справочного соответствия - исключение руководителя с комментарием."""
+    """Продукт без связи с программой не добавить, связь вне справочника
+    разрешена только руководителю с комментарием.
+    """
     program = await _program(client, "Инженер DevOps")
     product = await _product(client, "Песочница DevOps")
     other = await _product(client, "Стенд киберполигона")
@@ -543,7 +539,7 @@ async def test_contact_of_other_university_is_refused(
     assert response.status_code == 404
 
 
-# --- Реестр ---------------------------------------------------------------------------
+# Реестр
 
 
 async def test_registry_row_separates_status_stage_and_sla(
@@ -615,7 +611,7 @@ async def test_registry_filters_by_direction(client: AsyncClient, university: di
     assert listing["items"][0]["programs"] == ["Инженер-тестировщик"]
 
 
-# --- Шаблон процесса ----------------------------------------------------------------
+# Шаблон процесса
 
 
 async def test_stage_is_renamed_by_admin(client: AsyncClient, workflow_version: dict) -> None:
@@ -625,8 +621,7 @@ async def test_stage_is_renamed_by_admin(client: AsyncClient, workflow_version: 
     )
     assert denied.status_code == 403
 
-    # Версия опубликована, но название статуса поправить можно: на ход процессов
-    # оно не влияет.
+    # Версия опубликована, но название этапа поправить можно.
     renamed = await client.patch(
         f"/api/v1/workflow/stages/{stage['id']}", json={"name": "Знакомство"}, headers=ADMIN
     )
@@ -655,7 +650,7 @@ async def test_versions_show_usage(
     assert versions[0]["instances_count"] == 1
 
 
-# --- Журнал изменений ---------------------------------------------------------------
+# Журнал изменений
 
 
 async def test_changes_get_into_audit_log(client: AsyncClient, university: dict) -> None:

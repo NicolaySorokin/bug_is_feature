@@ -1,20 +1,12 @@
 /**
- * HTTP-клиент API.
- *
- * Любой отказ сервера приходит в едином формате {code, message, details}
- * (нефункциональное требование 3 ТЗ «коды ошибок»): клиент превращает его
- * в ApiError, а интерфейс показывает человеку message, а в подробностях -
- * машиночитаемый code.
+ * HTTP-клиент API. Отказ сервера приходит как {code, message, details} и превращается в ApiError.
  */
 import { authHeaders, onUnauthorized } from "../auth/auth";
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api/v1").replace(/\/$/, "");
 
 /**
- * Текст, если сервер ответил без нашего формата ошибки - обычно это Nginx,
- * пока API перезапускается или недоступен. Номер ответа (502, 504...) людям
- * ничего не говорит, поэтому в тексте его нет: он виден разработчику
- * в инструментах браузера.
+ * Текст, если ответил не API, а Nginx (например, пока API перезапускается). Номер ответа людям ничего не говорит.
  */
 function fallbackMessage(status: number): string {
   if (status === 413) return "Файл слишком большой. Загрузите файл меньшего размера.";
@@ -88,7 +80,7 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
     try {
       payload = await response.json();
     } catch {
-      // Ответ без тела (например, от Nginx при перезапуске) - текст и код по статусу.
+      // Ответ без тела, например от Nginx при перезапуске: текст и код по статусу.
     }
     if (response.status === 401) onUnauthorized();
     throw new ApiError(

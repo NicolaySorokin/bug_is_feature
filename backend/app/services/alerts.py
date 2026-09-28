@@ -1,15 +1,8 @@
 """Контроль проблемных взаимодействий.
 
-Раздел 7 концепции: на главной выделяются взаимодействия, по которым
-требуется действие. Каждое правило отвечает на три вопроса - что не так,
-кто за это отвечает и сколько времени ситуация не меняется.
-
-Правила собраны в одном месте и работают по уже загруженной выборке
-взаимодействий: так их легко читать, проверять и дополнять, а база
-опрашивается один раз, а не по разу на правило.
-
-Технические поводы (сбой обмена, записи на сопоставлении, вузы на
-проверке) видят только те, кто может их разобрать.
+Каждое правило говорит, что не так, кто отвечает и сколько времени ситуация
+не меняется. Правила работают по одной загруженной выборке. Технические
+поводы видят только те, кто может их разобрать.
 """
 
 from __future__ import annotations
@@ -70,16 +63,15 @@ class Alert:
     manager_name: str = ""
     days: int | None = None  # сколько времени ситуация не меняется
     link: str | None = None
-    # Что именно не так внутри взаимодействия, если поводов одного вида
-    # может быть несколько: этап, лицензия, запуск обмена.
+    # Что именно не так, если поводов одного вида несколько: этап, лицензия, запуск.
     subject: str = ""
 
     @property
     def key(self) -> str:
-        """Устойчивый ключ проблемы: по нему запоминается «прочитано».
+        """Ключ проблемы для отметки «прочитано».
 
-        Текст сюда не входит - «осталось 38 дней» меняется каждый день,
-        а проблема та же.
+        Текст в ключ не входит: «осталось 38 дней»
+        меняется каждый день, а проблема та же.
         """
         return f"{self.kind.value}:{self.interaction_id or ''}:{self.subject}"
 
@@ -224,8 +216,7 @@ def _interaction_alerts(instance: WorkflowInstance, today: date, norms: Norms) -
 async def _license_alerts(
     session: AsyncSession, by_id: dict[uuid.UUID, WorkflowInstance], today: date, norms: Norms
 ) -> list[Alert]:
-    """Сроки лицензий - только по действующим договорам: лицензия закрытого
-    договора или отозванная действия не требует."""
+    """Сроки лицензий только по действующим договорам."""
     active = [
         interaction_id
         for interaction_id, instance in by_id.items()
@@ -267,12 +258,7 @@ async def _license_alerts(
 async def _document_alerts(
     session: AsyncSession, by_id: dict[uuid.UUID, WorkflowInstance]
 ) -> list[Alert]:
-    """Обязательный документ не загружен.
-
-    * На текущем этапе заданы обязательные документы, а их нет - с этапа
-      не уйти вперёд.
-    * Договор действует, а скана договора во вложениях нет.
-    """
+    """Не загружен обязательный документ этапа или скан действующего договора."""
     if not by_id:
         return []
     present: dict[uuid.UUID, set[str]] = {}
@@ -324,7 +310,7 @@ async def _document_alerts(
 async def _composition_alerts(
     session: AsyncSession, by_id: dict[uuid.UUID, WorkflowInstance]
 ) -> list[Alert]:
-    """Продукт без связи с программой - данные, которые нужно поправить."""
+    """Продукт без связи с программой: данные нужно поправить."""
     open_ids = [
         interaction_id
         for interaction_id, instance in by_id.items()
@@ -479,7 +465,7 @@ async def _collect_all(session: AsyncSession, principal: Principal, user: User) 
 
 
 async def collect_all(session: AsyncSession, principal: Principal, user: User) -> list[Alert]:
-    """Все поводы вмешаться по видимым взаимодействиям - через кэш."""
+    """Все поводы вмешаться по видимым взаимодействиям, через кэш."""
     await licenses.expire_overdue(session)
     key = cache.make_key(
         "alerts",
@@ -500,7 +486,7 @@ async def collect(
     kinds: set[AlertKind] | None = None,
     limit: int = 100,
 ) -> list[Alert]:
-    """Поводы вмешаться с отбором по видам, самые важные - первыми."""
+    """Поводы с отбором по видам, самые важные первыми."""
     found = await collect_all(session, principal, user)
     if kinds:
         found = [alert for alert in found if alert.kind in kinds]
@@ -508,5 +494,5 @@ async def collect(
 
 
 def summarize(alerts: list[Alert]) -> dict[str, int]:
-    """Сколько поводов каждого вида - для плашек на главной."""
+    """Сколько поводов каждого вида."""
     return dict(Counter(alert.kind.value for alert in alerts))

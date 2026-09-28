@@ -1,13 +1,8 @@
 """Общая обвязка тестов.
 
-Тесты API работают с настоящей PostgreSQL: часть запросов опирается
-на возможности именно этой СУБД (JSONB, ON CONFLICT, приведение типов),
-и проверять их на другой базе смысла нет. Используется отдельная база
-``<основная>_test``, которая пересоздаётся перед каждым тестом - так
-тесты не зависят друг от друга и от демоданных.
-
-Если PostgreSQL недоступен, тесты API пропускаются: правила процесса
-и разбор файлов проверяются без базы и продолжают работать.
+Тесты API работают с настоящей PostgreSQL в отдельной базе <основная>_test,
+которая пересоздаётся перед каждым тестом. Без PostgreSQL тесты API
+пропускаются, остальные работают.
 """
 
 from __future__ import annotations
@@ -28,14 +23,13 @@ from app.core.security import DevAuthBackend
 from app.db.base import Base
 from app.db.session import commit, get_session
 from app.main import app
-from app.models import User  # noqa: F401 - импорт наполняет метадату
+from app.models import User  # noqa: F401 (импорт наполняет метадату)
 from app.services import cache
 
 TEST_DB = f"{settings.postgres_db}_test"
 
-# Роли не наследуются: у каждого ровно те, что перечислены. Орлова -
-# руководитель, который и сам ведёт вузы; администратор бизнес-данных не
-# видит (область «никаких»), пока ему её не выдали.
+# Роли не наследуются. Орлова руководит и сама ведёт вузы, администратор
+# бизнес-данных не видит.
 MANAGER = {"X-Dev-User": "petrov", "X-Dev-Roles": "manager"}
 OTHER_MANAGER = {"X-Dev-User": "ivanova", "X-Dev-Roles": "manager"}
 HEAD = {"X-Dev-User": "orlova", "X-Dev-Roles": "manager,head"}
@@ -76,7 +70,7 @@ async def _create_database() -> None:
             # ProgrammingError означает, что база уже создана прошлым прогоном.
             with contextlib.suppress(ProgrammingError):
                 await connection.exec_driver_sql(f'CREATE DATABASE "{TEST_DB}"')
-    except SQLAlchemyError as exc:  # pragma: no cover - зависит от окружения
+    except SQLAlchemyError as exc:  # pragma: no cover (зависит от окружения)
         pytest.skip(f"PostgreSQL недоступен: {exc}")
     finally:
         await admin_engine.dispose()
@@ -108,20 +102,18 @@ async def client(engine: AsyncEngine, tmp_path: Path) -> AsyncIterator[AsyncClie
                 raise
 
     app.dependency_overrides[get_session] = override_session
-    # ASGITransport не запускает события старта приложения, поэтому схему
-    # аутентификации выставляем сами.
+    # ASGITransport не запускает события старта, поэтому схему входа выставляем сами.
     app.state.auth_backend = DevAuthBackend(settings)
 
     previous_storage = settings.storage_dir
     settings.storage_dir = tmp_path / "storage"
-    # Кэш выборок в тестах выключен: часть тестов правит базу напрямую,
-    # мимо счётчика изменений. Сам кэш проверяется отдельно (test_cache.py).
+    # Кэш выборок выключен: часть тестов правит базу напрямую, мимо счётчика
+    # изменений. Сам кэш проверяет test_system.py.
     previous_ttl = settings.cache_ttl_seconds
     settings.cache_ttl_seconds = 0
     cache.clear()
 
-    # raise_app_exceptions=False: непредвиденная ошибка должна дойти до клиента
-    # ответом 500 с кодом internal_error, как в работе, а не исключением в тесте.
+    # Непредвиденная ошибка должна дойти до клиента ответом 500, как в работе.
     transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as instance:
         yield instance
@@ -146,7 +138,7 @@ async def university(client: AsyncClient) -> dict:
 async def create_template(
     client: AsyncClient, name: str = "Тестовый процесс", graph: dict | None = None
 ) -> dict:
-    """Шаблон с действующей версией: контакт -> встреча -> подписание."""
+    """Шаблон с действующей версией: контакт, встреча, подписание."""
     response = await client.post(
         "/api/v1/workflow/templates",
         json={"name": name, "graph": graph or TEST_GRAPH},
@@ -197,10 +189,10 @@ async def make_interaction(
     start: bool = True,
     **extra,
 ) -> dict:
-    """Взаимодействие, которое ведёт владелец ``headers``.
+    """Взаимодействие, которое ведёт владелец headers.
 
-    Менеджеру его заводит руководитель: вуз из теста не закреплён за
-    менеджером, а назначить ответственным можно менеджера своей команды.
+    Менеджеру его заводит руководитель, потому что вуз из теста за менеджером
+    не закреплён.
     """
     await ensure_template(client)
     author = headers

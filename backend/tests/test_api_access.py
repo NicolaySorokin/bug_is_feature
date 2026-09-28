@@ -1,13 +1,4 @@
-"""Ролевая модель: роли, права и область данных разделены.
-
-* роли не наследуются: руководитель не получает права менеджера,
-  администратор - права руководителя;
-* область данных (свои / команда / все / никаких) задаётся по ролям или
-  явно администратором, в том числе временно - со сроком и основанием;
-* точечный доступ к вузу - со сроком, основанием и отметкой, кто выдал;
-* дополнительные права (персональные данные, журнал обмена) выдаются
-  отдельно и из роли не следуют.
-"""
+"""Ролевая модель: роли, права и область данных разделены."""
 
 from datetime import UTC, datetime, timedelta
 
@@ -68,7 +59,7 @@ async def test_users_list_filters_by_role(client: AsyncClient) -> None:
 
 
 async def test_directory_is_available_to_business_roles(client: AsyncClient) -> None:
-    """Справочник сотрудников для назначения - без прав администратора."""
+    """Справочник сотрудников для назначения, без прав администратора."""
     petrov = await _user_id(client, MANAGER)
     await join_team(client, MANAGER)
     response = await client.get(
@@ -83,7 +74,7 @@ async def test_head_assigns_default_manager_for_university(
 ) -> None:
     petrov = await _user_id(client, MANAGER)
 
-    # Менеджер сам себя за вуз не закрепит - это право руководителя.
+    # Менеджер сам себя за вуз не закрепит, это право руководителя.
     denied = await client.patch(
         f"/api/v1/universities/{university['id']}",
         json={"manager_id": petrov},
@@ -186,7 +177,7 @@ async def test_admin_gets_business_data_only_by_scope(
     )
     listing = (await client.get("/api/v1/interactions", headers=ADMIN)).json()
     assert listing["total"] == 1
-    # Видеть - не значит работать: менять ход процесса без бизнес-роли нельзя.
+    # Видеть не значит работать: без бизнес-роли ход процесса не поменять.
     blocked = await client.post(
         f"/api/v1/interactions/{listing['items'][0]['id']}/block",
         json={"reason": "Проверка"},
@@ -240,7 +231,7 @@ async def test_user_management_is_admin_only(client: AsyncClient) -> None:
             headers=headers,
         )
         assert response.status_code == 403
-    # Свою карточку видит каждый, чужую - только администратор.
+    # Свою карточку видит каждый, чужую только администратор.
     assert (await client.get(f"/api/v1/users/{petrov}", headers=MANAGER)).status_code == 200
     assert (await client.get(f"/api/v1/users/{petrov}", headers=HEAD)).status_code == 403
 
@@ -258,7 +249,7 @@ async def test_admin_creates_user_without_keycloak(client: AsyncClient) -> None:
     assert created.status_code == 201, created.text
     assert created.json()["keycloak_id"] == "dev:novikova"
 
-    # Под заглушкой новый сотрудник входит своим логином - это та же карточка.
+    # Под заглушкой новый сотрудник входит своим логином, это та же карточка.
     profile = await me(client, {"X-Dev-User": "novikova", "X-Dev-Roles": "manager"})
     assert profile["id"] == created.json()["id"]
     assert profile["full_name"] == "Новикова Ольга Ивановна"
@@ -271,7 +262,7 @@ async def test_admin_creates_user_without_keycloak(client: AsyncClient) -> None:
     assert duplicate.status_code == 409
 
 
-# --- Вузы: единый жизненный цикл ---------------------------------------------------
+# Вузы: единый жизненный цикл
 
 
 async def test_university_proposed_by_manager_waits_for_confirmation(
@@ -377,8 +368,7 @@ async def test_university_with_interactions_is_archived_not_deleted(
 async def test_role_sync_clears_roles_removed_in_keycloak(
     client: AsyncClient, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Сверка с Keycloak снимает роли и с тех, кого сняли со всех ролей системы:
-    иначе бывшего менеджера продолжали бы предлагать ответственным."""
+    """Сверка с Keycloak снимает роли и с тех, кого сняли со всех ролей системы."""
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as session:
         session.add_all(

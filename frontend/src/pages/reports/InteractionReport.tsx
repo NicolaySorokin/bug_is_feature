@@ -1,13 +1,6 @@
 /**
- * Отчёт о взаимодействии с вузами (п. 2 функциональных требований ТЗ).
- *
- * Отчёт строится вокруг взаимодействия (пункт 23 перечня исправлений):
- * строка - взаимодействие в разрезе ИТ-программы, договор - одна из
- * колонок. Фильтры - по статусу и результату взаимодействия, причине
- * закрытия, источнику, этапу; период считается по выбранной дате: начала,
- * движения процесса, подписания договора или закрытия. Отчёт
- * пересчитывается сразу при смене фильтров, выгрузка берёт те же фильтры
- * и колонки.
+ * Отчёт о взаимодействии с вузами. Строка: взаимодействие в разрезе ИТ-программы. Отчёт
+ * пересчитывается при смене фильтров, выгрузка берёт те же фильтры и колонки.
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Download, FileJson, FileSpreadsheet, FileText, RotateCcw, SlidersHorizontal } from "lucide-react";
@@ -163,7 +156,7 @@ export function InteractionReport() {
   const directory = useDirectory();
   const stageIndex = useStageIndex();
 
-  // Колонки по умолчанию - как предлагает сервер.
+  // Колонки по умолчанию предлагает сервер.
   useEffect(() => {
     if (columnsInfo.data && state.columns.length === 0) {
       setSaved((current) => ({
@@ -198,7 +191,7 @@ export function InteractionReport() {
         stage_ids: state.stages.flatMap((name) => stageIndex.data?.ids[name] || []),
       },
     }),
-    // state пересоздаётся на каждый рендер - сравниваем по сохранённому значению.
+    // state пересоздаётся на каждый рендер, сравниваем по сохранённому значению.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [saved, stageIndex.data],
   );

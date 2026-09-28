@@ -1,9 +1,7 @@
 """Выгрузка отчёта в PDF.
 
-Лист альбомный: у отчёта до тринадцати колонок, в книжной ориентации они
-нечитаемы. Сначала идёт табличная часть, затем диаграммы по той же выборке.
-Длинные отчёты в PDF обрезаются - см. ``MAX_ROWS``: документ на тысячи строк
-никто не читает, для такого объёма есть выгрузка в XLSX.
+Лист альбомный, сначала таблица, затем диаграммы. Строк не больше MAX_ROWS,
+для большого объёма есть XLSX.
 """
 
 from __future__ import annotations
@@ -35,7 +33,7 @@ from app.services.export import charts as chart_export
 from app.services.export.fonts import ensure_fonts
 from app.services.reports import format_period, row_value
 
-if TYPE_CHECKING:  # pragma: no cover - только для подсказок типов
+if TYPE_CHECKING:  # pragma: no cover (только для подсказок типов)
     from app.services.export.table import Table as ExportTable
 
 MAX_ROWS = 1000
@@ -107,7 +105,7 @@ def _chart_image(chart: ChartData, width: int) -> Image:
     )
 
 
-def _footer(canvas, document) -> None:  # noqa: ANN001 - подпись задана reportlab
+def _footer(canvas, document) -> None:  # noqa: ANN001 (подпись задана reportlab)
     regular, _ = ensure_fonts()
     canvas.saveState()
     canvas.setFont(regular, 7)
@@ -122,7 +120,7 @@ def _footer(canvas, document) -> None:  # noqa: ANN001 - подпись зада
 
 
 def _document(buffer: BytesIO, title: str) -> BaseDocTemplate:
-    """Альбомный лист A4 с колонтитулом - общий для всех выгрузок PDF."""
+    """Альбомный лист A4 с колонтитулом, общий для всех PDF."""
     document = BaseDocTemplate(
         buffer,
         pagesize=landscape(A4),
@@ -183,7 +181,7 @@ def _charts_story(
 def build_table(
     table_data: ExportTable, column_widths: Sequence[float] | None = None
 ) -> bytes:
-    """Произвольная таблица с шапкой и диаграммами - например, статистика обучения."""
+    """Произвольная таблица с шапкой и диаграммами, например статистика обучения."""
     styles = _styles()
     buffer = BytesIO()
     document = _document(buffer, table_data.title)

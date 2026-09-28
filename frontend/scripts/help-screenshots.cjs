@@ -1,16 +1,13 @@
 /**
  * Снимки экранов для встроенных руководств (public/help/*.png).
  *
- * Нужен стенд с демоданными в режиме разработки (вход без Keycloak) и,
- * для снимка страницы входа, стенд с Keycloak:
+ * Нужен стенд с демоданными в режиме разработки, а для снимка входа ещё и стенд с Keycloak:
  *
  *   BASE=http://localhost:5173 KEYCLOAK_BASE=http://localhost:8088 \
  *     node scripts/help-screenshots.cjs
  *
- * ONLY_LOGIN=1 - только снимки входа (login.png, keycloak-login.png).
- *
- * Playwright в зависимости проекта не входит: npx playwright install
- * chromium или глобальная установка (PLAYWRIGHT_PATH - путь к пакету).
+ * ONLY_LOGIN=1 снимает только вход. Playwright в зависимости не входит: npx playwright install
+ * chromium или путь к пакету в PLAYWRIGHT_PATH.
  */
 const path = require("node:path");
 const { chromium } = require(process.env.PLAYWRIGHT_PATH || "playwright");
@@ -21,8 +18,7 @@ const OUT = path.resolve(__dirname, "../public/help");
 const DESKTOP = { viewport: { width: 1440, height: 900 }, locale: "ru-RU" };
 const MOBILE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: "ru-RU" };
 
-// Роли не наследуются: у каждого ровно те, что в демоданных. Орлова -
-// руководитель, который и сам ведёт вузы.
+// Роли как в демоданных. Орлова руководит и сама ведёт вузы.
 const ACCOUNTS = {
   manager: { username: "petrov", roles: "manager" },
   head: { username: "orlova", roles: "manager,head" },
@@ -76,8 +72,7 @@ async function shot(page, name) {
   const browser = await chromium.launch();
 
   if (KEYCLOAK_BASE) {
-    // Стенд с Keycloak бывает с самоподписанным сертификатом (preprod, проверка
-    // боевой конфигурации на своей машине).
+    // У стенда с Keycloak бывает самоподписанный сертификат.
     const context = await browser.newContext({ ...DESKTOP, ignoreHTTPSErrors: true });
     const page = await context.newPage();
     await page.goto(KEYCLOAK_BASE + "/");
@@ -94,7 +89,7 @@ async function shot(page, name) {
     return;
   }
 
-  // --- Менеджер ---------------------------------------------------------------
+  // Менеджер
   const manager = await session(browser, "manager");
   const showcase = await interactionId(manager, "manager", SHOWCASE);
   await open(manager, "/");
@@ -121,7 +116,7 @@ async function shot(page, name) {
   await manager.waitForTimeout(600);
   await shot(manager, "contract-document.png");
 
-  // --- Руководитель -------------------------------------------------------------
+  // Руководитель
   const head = await session(browser, "head");
   await open(head, "/");
   await shot(head, "dashboard.png");
@@ -139,7 +134,7 @@ async function shot(page, name) {
   await head.waitForTimeout(600);
   await shot(head, "contract-templates.png");
 
-  // --- Администратор -----------------------------------------------------------
+  // Администратор
   const admin = await session(browser, "admin");
   await open(admin, "/admin/users");
   await admin.getByRole("button", { name: "Петров Пётр Алексеевич" }).click();
@@ -164,8 +159,8 @@ async function shot(page, name) {
   await open(admin, "/integrations?tab=mappings");
   await admin.evaluate(() => window.scrollTo(0, 420));
   await shot(admin, "mappings.png");
-  // Журнал пуст на свежих демоданных: руководитель снимает менеджера по
-  // умолчанию у вуза и назначает снова - оба изменения попадут в журнал.
+  // Журнал пуст на свежих демоданных, поэтому руководитель снимает и снова назначает менеджера
+  // по умолчанию у вуза.
   const universities = await (
     await admin.request.get(`${BASE}/api/v1/universities?limit=1`, { headers: headers("head") })
   ).json();
@@ -180,7 +175,7 @@ async function shot(page, name) {
   await admin.waitForTimeout(300);
   await shot(admin, "admin-audit.png");
 
-  // --- Телефон -------------------------------------------------------------------
+  // Телефон
   const phone = await session(browser, "manager", MOBILE);
   await open(phone, `/interactions/${showcase}?tab=process`);
   await phone.evaluate(() => window.scrollTo(0, 1450));

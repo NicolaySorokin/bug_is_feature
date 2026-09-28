@@ -1,10 +1,6 @@
 /**
- * Общие элементы взаимодействия: статус, результат, этап со следующим
- * действием и срок этапа.
- *
- * Пункт 33 перечня исправлений: это три независимые вещи. Статус говорит,
- * идёт ли работа вообще; этап - где процесс и что делать дальше; срок - в
- * норме ли этап. Цвет срока относится только к сроку и не красит статус.
+ * Общие элементы взаимодействия: статус, этап со следующим действием и срок этапа. Это три
+ * независимые вещи, цвет относится только к сроку.
  */
 import { Clock } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -25,7 +21,7 @@ export function OutcomeBadge({ outcome }: { outcome?: InteractionOutcome | null 
   return <StatusBadge tone={OUTCOME_TONE[outcome]}>{label("interaction_outcome", outcome)}</StatusBadge>;
 }
 
-/** Статус взаимодействия, а у закрытого - ещё и результат. */
+/** Статус взаимодействия, у закрытого ещё и результат. */
 export function StatusCell({ status, outcome }: { status: InteractionStatus; outcome?: InteractionOutcome | null }) {
   return (
     <span className="row" style={{ gap: 6, flexWrap: "wrap" }}>
@@ -35,7 +31,7 @@ export function StatusCell({ status, outcome }: { status: InteractionStatus; out
   );
 }
 
-/** Краткое название вуза в компактных местах, полное - в подсказке (пункт 34). */
+/** Краткое название вуза, полное в подсказке. */
 export function UniversityName({ university, link = true }: { university?: UniversityBrief | null; link?: boolean }) {
   if (!university) return <span className="muted">—</span>;
   const text = university.short_name || university.display_name || university.name;
@@ -47,7 +43,7 @@ export function UniversityName({ university, link = true }: { university?: Unive
   );
 }
 
-/** Этап и следующее действие - без цвета срока. */
+/** Этап и следующее действие, без цвета срока. */
 export function StageCell({
   stageName,
   nextActions,
@@ -84,12 +80,12 @@ export function slaRemainder(sla: StageSla): string {
   return `осталось ${countLabel(sla.days_left, DAYS)}`;
 }
 
-/** Срок считается у идущего процесса - и у заблокированного тоже: блокировка не прячет просрочку. */
+/** Срок считается и у заблокированного процесса: блокировка не прячет просрочку. */
 function tracksSla(status: InteractionStatus): boolean {
   return status === "in_progress" || status === "blocked";
 }
 
-/** Срок этапа в таблицах: дни из нормы и остаток; цветом - только срок. */
+/** Срок этапа в таблицах: дни из нормы и остаток. */
 export function SlaChip({ sla, status }: { sla?: StageSla | null; status: InteractionStatus }) {
   if (!tracksSla(status)) return <span className="muted">—</span>;
   if (!sla) return <span className="muted">Норма не задана</span>;
@@ -104,7 +100,7 @@ export function SlaChip({ sla, status }: { sla?: StageSla | null; status: Intera
   );
 }
 
-/** Полоса «Срок этапа»: зелёная - в норме, жёлтая - израсходовано 75% и больше, красная - срок превышен. */
+/** Полоса «Срок этапа»: зелёная в норме, жёлтая от 75% срока, красная при просрочке. */
 export function SlaMeter({ sla }: { sla: StageSla }) {
   const cls = sla.state === "overdue" ? "meter--bad" : sla.state === "warning" ? "meter--warn" : "meter--ok";
   return (
@@ -138,7 +134,7 @@ export function SlaBlock({ sla, status }: { sla?: StageSla | null; status: Inter
   );
 }
 
-/** Договор - необязательный блок взаимодействия. */
+/** Договор, необязательный блок взаимодействия. */
 export function ContractCell({ contract }: { contract?: ContractBrief | null }) {
   const label = useLabel();
   if (!contract) return <span className="muted">Нет договора</span>;

@@ -1,12 +1,8 @@
 """Журнал изменений предметных данных.
 
-Записи не расставлены руками по обработчикам, а собираются на уровне сессии:
-перед сохранением SQLAlchemy сообщает, какие объекты добавлены, изменены
-и удалены, и по каждому из них пишется строка в ``audit_log``. Поэтому
-новый обработчик API попадает в журнал сам, без дополнительного кода.
-
-Кто именно менял данные, берётся из ``current_actor_id`` - переменная
-контекста выставляется зависимостью ``get_current_user`` на время запроса.
+Записи собираются на уровне сессии перед сохранением, поэтому новые
+обработчики API попадают в журнал сами. Автора берём из current_actor_id,
+его выставляет get_current_user.
 """
 
 from __future__ import annotations
@@ -47,10 +43,10 @@ from app.models.workflow import (
 
 current_actor_id: ContextVar[uuid.UUID | None] = ContextVar("current_actor_id", default=None)
 
-# Что попадает в журнал. История рабочего процесса, комментарии и файлы
-# сами по себе являются записями о событиях, поэтому не дублируются здесь.
+# Что попадает в журнал. История процесса, комментарии и файлы сами являются
+# записями о событиях и здесь не дублируются.
 AUDITED_MODELS: tuple[type, ...] = (
-    # Взаимодействие - центральная сущность: его сведения, состав и договор.
+    # Взаимодействие: сведения, состав и договор.
     WorkflowInstance,
     InteractionProgram,
     InteractionProduct,
@@ -76,7 +72,7 @@ AUDITED_MODELS: tuple[type, ...] = (
     User,
     UserUniversityAccess,
     AppSetting,
-    # Персональные данные заявителей и обучающихся - с маскированием.
+    # Персональные данные заявителей и обучающихся, с маскированием.
     LearningApplication,
     Learner,
     LearningStream,
@@ -86,9 +82,8 @@ AUDITED_MODELS: tuple[type, ...] = (
 # Поля, которые не несут смысла в журнале.
 SKIPPED_FIELDS = frozenset({"created_at", "updated_at", "last_seen_at"})
 
-# Персональные данные в журнал не копируются: запись показывает, что поле
-# изменилось, но не само значение. Иначе журнал стал бы ещё одним местом
-# хранения ПДн, которое пришлось бы защищать наравне с основным (152-ФЗ).
+# Персональные данные в журнал не копируются, видно только, что поле
+# изменилось (152-ФЗ).
 MASKED_FIELDS: dict[type, frozenset[str]] = {
     LearningApplication: frozenset(
         {"last_name", "first_name", "middle_name", "phone", "email"}
@@ -178,16 +173,14 @@ def _record(
 @event.listens_for(Session, "before_flush")
 def _write_audit_log(session: Session, _flush_context: Any, _instances: Any) -> None:
     if session.new or session.dirty or session.deleted:
-        # Отметка для кэша выборок: при фиксации транзакции увеличится
-        # счётчик изменений, и закэшированные сводки перестанут совпадать.
+        # Отметка для кэша: при фиксации увеличится счётчик изменений.
         session.info[DATA_CHANGED] = True
 
     for obj in session.new:
         if not isinstance(obj, AUDITED_MODELS):
             continue
-        # Первичный ключ по умолчанию проставляется при сохранении, а журналу
-        # идентификатор нужен уже сейчас - задаём его сами. У таблиц-связок
-        # (interaction_contacts) отдельного id нет, там проставлять нечего.
+        # Журналу id нужен до сохранения, поэтому задаём его сами. У таблиц-связок
+        # отдельного id нет.
         if "id" in inspect(type(obj)).columns and getattr(obj, "id", None) is None:
             obj.id = uuid.uuid4()  # type: ignore[attr-defined]
         _record(session, obj, AuditAction.CREATE, None, _column_values(obj))

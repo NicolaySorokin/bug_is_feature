@@ -1,26 +1,13 @@
 """Импорт каталогов из XLS и XLSX.
 
-Порядок работы соответствует разделу 6.2 концепции: файл загружается,
-показывается предпросмотр с сопоставлением колонок, данные проверяются
-с выводом ошибок, и только потом выполняется импорт. Итог - сколько строк
-создано, обновлено и отклонено.
+Файл, предпросмотр с сопоставлением колонок, проверка, импорт и итог.
+Сопоставление система предлагает по заголовкам, пользователь может поправить.
+Каждая строка грузится в своей точке сохранения: строка с ошибкой
+отклоняется целиком и не оставляет полузаведённых записей.
 
-Сопоставление колонок не зашито: система предлагает его по заголовкам
-файла, а пользователь может поправить. Набор полей сводного каталога взят
-из требования 1 ТЗ, каталог вендоров и анкета обучающегося LMS - из файлов,
-переданных кейсодержателем.
-
-Каждая строка загружается в своей точке сохранения (SAVEPOINT) и только
-после проверки всех её значений: строка с ошибкой не оставляет после себя
-наполовину заведённых вуза или взаимодействия, а остальные строки
-загружаются.
-
-Сводный каталог загружается через целевую модель (пункт 12 перечня
-исправлений): строка - это взаимодействие с вузом и его договор; продукт
-добавляется только вместе с ИТ-программой - из колонки «ИТ-программа»
-или по справочному соответствию программ и продуктов. Строка, где
-программу определить нельзя, отклоняется с понятной причиной.
-Новый вуз из файла заводится «На проверке» - его подтверждает руководитель.
+Сводный каталог грузится через модель взаимодействия: строка становится
+взаимодействием с договором, продукт добавляется только вместе с программой.
+Новый вуз из файла ждёт проверки.
 """
 
 from __future__ import annotations
@@ -70,7 +57,7 @@ from app.services.integrations.base import normalize_email, normalize_phone
 
 MAX_PREVIEW_ROWS = 20
 MAX_ROWS = 5000
-# Роль, с которой контакт из каталога назначается ответственным по взаимодействию.
+# Роль, с которой контакт из каталога становится ответственным от вуза.
 CONTRACT_CONTACT_ROLE = "Ответственный от вуза"
 
 
@@ -97,7 +84,7 @@ class ImportSpec:
         return next((item for item in self.fields if item.key == key), None)
 
 
-# Сводный каталог из требования 1 ТЗ - те же десять колонок.
+# Сводный каталог: десять колонок из требования 1 ТЗ.
 CATALOG_SPEC = ImportSpec(
     import_type=ImportType.CATALOG,
     title="Сводный каталог",
@@ -195,9 +182,8 @@ VENDOR_SPEC = ImportSpec(
     ),
 )
 
-# Анкета обучающегося LMS (формат кейсодержателя). Из тридцати колонок
-# анкеты берутся только эти: паспорт, СНИЛС, адрес и диплом не нужны для
-# статистики и в систему не загружаются - принцип минимизации 152-ФЗ.
+# Анкета обучающегося LMS. Паспорт, СНИЛС, адрес и диплом не загружаются
+# (минимизация по 152-ФЗ).
 LEARNER_SPEC = ImportSpec(
     import_type=ImportType.LEARNERS,
     title="Обучающиеся (анкеты LMS)",
@@ -263,8 +249,7 @@ class RowError:
 class SheetData:
     headers: list[str]
     rows: list[list[Any]]
-    # Номер строки листа Excel для каждой строки данных: ошибки называют
-    # ту строку, которую человек увидит в файле.
+    # Номер строки в листе Excel: ошибки называют ту строку, что видна в файле.
     row_numbers: list[int] = field(default_factory=list)
 
     def numbered(self) -> list[tuple[int, list[Any]]]:
@@ -280,20 +265,19 @@ class ImportOutcome:
     errors: list[RowError] = field(default_factory=list)
 
 
-# --- Чтение файла -------------------------------------------------------------
+# Чтение файла
 
 
 def _normalize(text: str) -> str:
     """Заголовок без регистра, пробелов и знаков препинания.
 
-    «Отчество (при наличии)» и испорченное при выгрузке «Отчествопри наличии)»
-    дают одно и то же, как и «Номер договора.» с «номер договора».
+    Так «Отчество (при наличии)» и испорченное «Отчествопри наличии)» совпадают.
     """
     return re.sub(r"[^0-9a-zа-яё]+", "", str(text).lower())
 
 
 def read_sheet(path: Path) -> SheetData:
-    """Читает первый лист книги. XLSX открывает openpyxl, XLS - xlrd."""
+    """Читает первый лист книги: XLSX через openpyxl, XLS через xlrd."""
     if path.suffix.lower() == ".xls":
         return _read_xls(path)
     return _read_xlsx(path)
@@ -304,7 +288,7 @@ def _read_xlsx(path: Path) -> SheetData:
 
     try:
         workbook = load_workbook(path, read_only=True, data_only=True)
-    except Exception as exc:  # noqa: BLE001 - причина уходит пользователю
+    except Exception as exc:  # noqa: BLE001 (причина уходит пользователю)
         raise AppError(
             f"Не удалось прочитать файл: {exc}", code=ErrorCode.IMPORT_FAILED
         ) from exc
@@ -322,7 +306,7 @@ def _read_xls(path: Path) -> SheetData:
 
     try:
         book = xlrd.open_workbook(path)
-    except Exception as exc:  # noqa: BLE001 - причина уходит пользователю
+    except Exception as exc:  # noqa: BLE001 (причина уходит пользователю)
         raise AppError(
             f"Не удалось прочитать файл: {exc}", code=ErrorCode.IMPORT_FAILED
         ) from exc
@@ -342,7 +326,7 @@ def _read_xls(path: Path) -> SheetData:
 
 
 def _split(rows: list[list[Any]]) -> SheetData:
-    """Первая непустая строка - заголовки, остальное - данные."""
+    """Первая непустая строка содержит заголовки, остальные данные."""
     start = next(
         (index for index, row in enumerate(rows) if any(_text(cell) for cell in row)),
         None,
@@ -365,11 +349,11 @@ def _split(rows: list[list[Any]]) -> SheetData:
     return SheetData(headers=headers, rows=body, row_numbers=numbers)
 
 
-# --- Сопоставление колонок ----------------------------------------------------
+# Сопоставление колонок
 
 
 def suggest_mapping(spec: ImportSpec, headers: list[str]) -> dict[str, str | None]:
-    """Предлагает сопоставление «поле системы -> заголовок файла»."""
+    """Предлагает сопоставление «поле системы: заголовок файла»."""
     normalized: dict[str, str] = {}
     for header in headers:
         if header:
@@ -404,7 +388,7 @@ def check_mapping(
 
 
 def _row_reader(mapping: dict[str, str | None], headers: list[str]):
-    """Возвращает функцию «строка, поле -> значение»."""
+    """Возвращает функцию, которая достаёт значение поля из строки."""
     index_by_header: dict[str, int] = {}
     for index, header in enumerate(headers):
         if header:
@@ -424,7 +408,7 @@ def _row_reader(mapping: dict[str, str | None], headers: list[str]):
     return value
 
 
-# --- Разбор значений ----------------------------------------------------------
+# Разбор значений
 
 
 def _text(value: Any) -> str:
@@ -461,11 +445,7 @@ def parse_date(value: Any) -> date | None:
 
 
 def parse_license_valid_to(value: Any, signed_at: date | None) -> date | None:
-    """«Срок действия лицензии (год)» приходит по-разному.
-
-    Встречается и полная дата, и год окончания, и просто срок в годах -
-    разбираем все три варианта, иначе колонку невозможно загрузить.
-    """
+    """«Срок действия лицензии (год)» бывает датой, годом окончания или сроком в годах."""
     if value in (None, ""):
         return None
     if isinstance(value, datetime | date):
@@ -517,7 +497,7 @@ def parse_email(value: Any) -> str | None:
 
 
 def split_products(value: Any) -> list[str]:
-    """«RT.DataLake», «RT.Warehouse» -> два названия без кавычек-ёлочек."""
+    """«RT.DataLake», «RT.Warehouse» превращается в два названия без кавычек."""
     parts = re.split(r"[,;\n]+", _text(value))
     names = [part.strip().strip("«»\"' ").strip() for part in parts]
     return [name for name in names if name]
@@ -525,7 +505,7 @@ def split_products(value: Any) -> list[str]:
 
 # Проверка значения по ключу поля: бросает ValueError с понятным текстом.
 def parse_inn(value: Any) -> str | None:
-    """ИНН: 10 цифр у организации, 12 - у физического лица и ИП (как в форме вуза)."""
+    """ИНН: 10 цифр у организации, 12 у физического лица и ИП."""
     text = _text(value)
     if not text:
         return None
@@ -569,7 +549,7 @@ def row_errors(spec: ImportSpec, row: list[Any], value, number: int) -> list[Row
     return errors
 
 
-# --- Поиск и заведение записей ----------------------------------------------------
+# Поиск и заведение записей
 
 
 async def _get_or_create_by_name(session: AsyncSession, model, name: str, **extra):  # noqa: ANN001
@@ -588,9 +568,9 @@ async def _get_or_create_by_name(session: AsyncSession, model, name: str, **extr
 async def _find_university(
     session: AsyncSession, name: str, inn: str | None = None
 ) -> University | None:
-    """Вуз по ИНН - стабильному ключу, а без него - по полному или краткому
-    названию: в файлах пишут по-разному. Одноимённый вуз с другим ИНН - это
-    другой вуз, он не подменяется."""
+    """Вуз ищем по ИНН, а без него по полному или краткому названию. Одноимённый
+    вуз с другим ИНН считается другим вузом.
+    """
     if inn:
         found = await session.scalar(select(University).where(University.inn == inn))
         if found is not None:
@@ -622,13 +602,13 @@ RowImporter = Callable[
 
 
 async def _catalog_row(session, row, value, number, warnings) -> bool:  # noqa: ANN001
-    """Строка сводного каталога: взаимодействие с договором. True - заведено новое."""
+    """Строка сводного каталога: взаимодействие с договором. True, если заведено новое."""
     university_name = _text(value(row, "university_name"))
     contract_number = _text(value(row, "contract_number"))
 
     university = await _find_university(session, university_name)
     if university is None:
-        # Вуз из файла - на проверку руководителю (единый путь создания вуза).
+        # Вуз из файла отправляется на проверку руководителю.
         university = University(
             name=university_name, status=UniversityStatus.PENDING, origin="import"
         )
@@ -738,8 +718,7 @@ async def _program_links_for(
 ) -> list[tuple[InteractionProgram, bool]]:
     """Программы взаимодействия для продукта: (связь, это исключение).
 
-    Колонка «ИТ-программа» задаёт программу явно; без неё - справочное
-    соответствие программ и продуктов.
+    Колонка «ИТ-программа» задаёт программу явно, без неё берётся справочник.
     """
 
     async def ensure_program(program: ItProgram) -> InteractionProgram:
@@ -837,8 +816,7 @@ async def _import_product_and_license(
             .where(InteractionProgramProduct.interaction_product_id == link.id)
         )
     )
-    # Продукт уже во взаимодействии и связан с программой - строка обновляет
-    # его статус и лицензию, программу заново определять не нужно.
+    # Продукт уже связан с программой: строка обновляет его статус и лицензию.
     program_links = (
         []
         if linked and not program_name
@@ -898,7 +876,7 @@ async def _university_row(session, row, value, number, warnings) -> bool:  # noq
     university = await _find_university(session, name, inn)
     created = university is None
     if university is None:
-        # Вуз из файла - на проверку руководителю (единый путь создания вуза).
+        # Вуз из файла отправляется на проверку руководителю.
         university = University(name=name, status=UniversityStatus.PENDING, origin="import")
         session.add(university)
     university.inn = inn or university.inn
@@ -911,7 +889,7 @@ async def _university_row(session, row, value, number, warnings) -> bool:  # noq
     if manager is not None and Role.MANAGER in (manager.roles or []):
         university.manager_id = manager.id
     elif manager is not None:
-        # Как и в карточке вуза: менеджер по умолчанию - сотрудник с ролью «Менеджер».
+        # Как и в карточке вуза, менеджер по умолчанию должен иметь роль «Менеджер».
         warnings.append(
             RowError(
                 number,
@@ -1116,8 +1094,8 @@ async def run_import(
 def build_template(spec: ImportSpec) -> bytes:
     """Пустой файл-образец с нужными заголовками.
 
-    Подсказки - примечаниями к заголовкам, а не строкой данных: строку
-    с подсказками при заполнении забывают удалить, и она загружается.
+    Подсказки даём примечаниями к заголовкам: строку с подсказками забывают
+    удалить, и она загружается.
     """
     from io import BytesIO
 

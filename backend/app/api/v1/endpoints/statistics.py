@@ -1,9 +1,7 @@
-"""Статистика обучения: востребованность ИТ-программ по заявкам и потокам.
+"""Статистика обучения: востребованность ИТ-программ.
 
-Сводные цифры видят менеджеры и руководители - в них нет персональных
-данных. Список заявок с ФИО и контактами - только по отдельному праву
-«Персональные данные студентов»: из роли оно не следует (152-ФЗ,
-раздел 12 «Решений по бизнес-модели»).
+Сводные цифры без персональных данных видят менеджеры и руководители.
+Список заявок с ФИО и контактами только по праву «Персональные данные студентов».
 """
 
 import uuid
@@ -142,7 +140,7 @@ async def export_statistics(
         content = await runner.run(_render, data, export_format)
     except AppError:
         raise
-    except Exception as exc:  # noqa: BLE001 - наружу уходит понятный код ошибки
+    except Exception as exc:  # noqa: BLE001 (наружу уходит понятный код ошибки)
         raise AppError(
             f"Не удалось сформировать выгрузку: {exc}", code=ErrorCode.REPORT_FAILED
         ) from exc
@@ -189,7 +187,7 @@ async def statistics_chart(
     )
 
 
-def _enrolled_condition():  # noqa: ANN202 - выражение SQLAlchemy
+def _enrolled_condition():  # noqa: ANN202 (выражение SQLAlchemy)
     """Заявитель зачислен на программу этой заявки."""
     return exists().where(Enrollment.application_id == LearningApplication.id)
 

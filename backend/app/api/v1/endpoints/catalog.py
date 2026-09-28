@@ -1,13 +1,7 @@
 """Справочники: ИТ-направления, ИТ-программы, вендоры, ИТ-продукты.
 
-Чтение доступно всем авторизованным, изменение - администратору. Записи,
-на которые ссылаются взаимодействия, не удаляются, а переводятся в архив
-(is_active): история должна оставаться читаемой, а для нового выбора
-архивные записи недоступны.
-
-Соответствие программ и продуктов - бизнес-связь: какие продукты нужны
-для реализации программы. Её ведёт руководитель, а не администратор
-(раздел 13 «Решений по бизнес-модели»).
+Читают все, меняет администратор. Используемые записи не удаляются, а уходят
+в архив. Связи программ и продуктов ведёт руководитель.
 """
 
 import uuid
@@ -78,7 +72,7 @@ async def _check_unique_name(
 
 
 async def _active(session: SessionDep, model, item_id: uuid.UUID, title: str):  # noqa: ANN001
-    """Запись справочника для новой связи: архивную выбрать нельзя (пункт 22)."""
+    """Запись справочника для новой связи: архивную выбрать нельзя."""
     item = await _get(session, model, item_id, title)
     if not item.is_active:
         raise ConflictError(f"{title} «{item.name}» в архиве - выберите действующую запись")
@@ -89,7 +83,7 @@ async def _update(session: SessionDep, item, data: dict) -> None:  # noqa: ANN00
     if data.get("name"):
         await _check_unique_name(session, type(item), data["name"], item.id)
     for field, value in data.items():
-        # Название и признак активности обязательны: пустое значение - «не менять».
+        # Название и признак активности обязательны: пустое значение значит «не менять».
         if field in ("name", "is_active") and value is None:
             continue
         setattr(item, field, value)
@@ -173,7 +167,7 @@ async def list_products(session: SessionDep, _: CurrentUserDep) -> list[ItProduc
 async def _check_product_contact(
     session: SessionDep, vendor_id: uuid.UUID | None, contact_id: uuid.UUID | None
 ) -> None:
-    """Ответственный за продукт - контакт того же вендора, что выпускает продукт."""
+    """Ответственный за продукт должен быть контактом того же вендора."""
     if contact_id is None:
         return
     contact = await _get(session, VendorContact, contact_id, "Контакт вендора")
@@ -201,7 +195,7 @@ async def create_product(payload: ItProductCreate, session: SessionDep) -> ItPro
     return ItProductRead.model_validate(product)
 
 
-# --- Правка справочников ------------------------------------------------------
+# Правка справочников
 
 
 @router.patch(
@@ -229,7 +223,7 @@ async def update_program(
 ) -> ItProgramRead:
     item = await _get(session, ItProgram, item_id, "ИТ-программа")
     data = payload.model_dump(exclude_unset=True)
-    # Новая связь - только с действующим направлением; прежняя архивная остаётся.
+    # Новая связь только с действующим направлением, прежняя архивная остаётся.
     if data.get("direction_id") is not None and data["direction_id"] != item.direction_id:
         await _active(session, ItDirection, data["direction_id"], "ИТ-направление")
     await _update(session, item, data)
@@ -267,7 +261,7 @@ async def update_product(
     vendor_id = data.get("vendor_id", item.vendor_id)
     contact_id = data.get("contact_id", item.contact_id)
     if "vendor_id" in data and "contact_id" not in data and contact_id is not None:
-        # Сменили вендора - прежний контакт другой компании больше не подходит.
+        # Сменили вендора, и прежний контакт другой компании больше не подходит.
         contact = await session.get(VendorContact, contact_id)
         if contact is not None and contact.vendor_id != vendor_id:
             data["contact_id"] = None
@@ -277,7 +271,7 @@ async def update_product(
     return ItProductRead.model_validate(item)
 
 
-# --- Продукты программ ----------------------------------------------------------
+# Продукты программ
 
 
 @router.get(
@@ -334,7 +328,7 @@ async def set_program_products(
     ]
 
 
-# --- Контакты вендоров ----------------------------------------------------------
+# Контакты вендоров
 
 
 @router.post(

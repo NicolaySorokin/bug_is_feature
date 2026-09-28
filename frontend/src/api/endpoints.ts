@@ -1,4 +1,4 @@
-/** Вызовы API по разделам. Пути и тела - как в Swagger UI (/docs). */
+/** Вызовы API по разделам. Пути и тела как в Swagger UI (/docs). */
 import { api, download, type Query } from "./client";
 import type {
   AccessGrantWrite,
@@ -73,12 +73,12 @@ import type {
   WorkflowView,
 } from "./types";
 
-// --- Сервис -----------------------------------------------------------------
+// Сервис
 
 export const getMe = () => api<Me>("/me");
 export const getEnums = () => api<MetaEnums>("/meta/enums");
 
-// --- Сотрудники -------------------------------------------------------------
+// Сотрудники
 
 export const listUsers = (query: Query = {}) => api<Page<User>>("/users", { query: { limit: 500, ...query } });
 /** Кого сотрудник может назначить ответственным или выбрать в фильтре. */
@@ -94,7 +94,7 @@ export const resetPassword = (id: string, password: string) =>
   api<void>(`/users/${id}/reset-password`, { method: "POST", body: { password } });
 export const syncRoles = () => api<RoleSyncResult>("/users/sync-roles", { method: "POST" });
 
-// --- Главная ----------------------------------------------------------------
+// Главная
 
 export const getDashboard = () => api<Dashboard>("/dashboard");
 export const getAlerts = (query: Query = {}) => api<Alert[]>("/dashboard/alerts", { query });
@@ -104,7 +104,7 @@ export const markAlertsRead = (alertKeys: string[] | null) =>
     ? api<void>("/dashboard/alerts/read", { method: "POST", body: { keys: alertKeys } })
     : api<void>("/dashboard/alerts/read-all", { method: "POST" });
 
-// --- Вузы -------------------------------------------------------------------
+// Вузы
 
 export const listUniversities = (query: Query = {}) =>
   api<Page<UniversityListItem>>("/universities", { query: { limit: 500, ...query } });
@@ -125,7 +125,7 @@ export const updateContact = (universityId: string, contactId: string, body: Par
 export const deleteContact = (universityId: string, contactId: string) =>
   api<void>(`/universities/${universityId}/contacts/${contactId}`, { method: "DELETE" });
 
-// --- Справочники ------------------------------------------------------------
+// Справочники
 
 export const listDirections = () => api<Direction[]>("/catalog/directions");
 export const listPrograms = () => api<Program[]>("/catalog/programs");
@@ -149,7 +149,7 @@ export const updateVendorContact = (id: string, body: Partial<VendorContact>) =>
   api<VendorContact>(`/catalog/vendor-contacts/${id}`, { method: "PATCH", body });
 export const deleteVendorContact = (id: string) => api<void>(`/catalog/vendor-contacts/${id}`, { method: "DELETE" });
 
-// --- Взаимодействия ---------------------------------------------------------
+// Взаимодействия
 
 const I = (id: string) => `/interactions/${id}`;
 
@@ -227,7 +227,7 @@ export const updateLicense = (licenseId: string, body: Partial<LicenseCreate>) =
 export const deleteLicense = (licenseId: string) => api<void>(`/licenses/${licenseId}`, { method: "DELETE" });
 export const listLicenses = (query: Query = {}) => api<Page<LicenseListItem>>("/licenses", { query });
 
-// --- Рабочий процесс ----------------------------------------------------------
+// Рабочий процесс
 
 export const getWorkflow = (id: string) => api<WorkflowView>(`${I(id)}/workflow`);
 export const transition = (id: string, toStageId: string, comment?: string, closureReason?: ClosureReason | null) =>
@@ -263,7 +263,7 @@ export const deleteVersion = (versionId: string) => api<void>(`/workflow/version
 export const renameStage = (stageId: string, body: { name?: string; description?: string | null }) =>
   api<Stage>(`/workflow/stages/${stageId}`, { method: "PATCH", body });
 
-// --- Комментарии и файлы ----------------------------------------------------
+// Комментарии и файлы
 
 export const listComments = (id: string) => api<Comment[]>(`${I(id)}/comments`);
 export const createComment = (id: string, text: string, eventId?: string | null) =>
@@ -287,7 +287,7 @@ export function uploadAttachment(
 export const downloadAttachment = (attachmentId: string) => download(`/attachments/${attachmentId}/download`);
 export const deleteAttachment = (attachmentId: string) => api<void>(`/attachments/${attachmentId}`, { method: "DELETE" });
 
-// --- Отчёты и статистика ----------------------------------------------------
+// Отчёты и статистика
 
 export const listReportColumns = () => api<ColumnInfo[]>("/reports/columns");
 export const previewReport = (body: ReportRequest) => api<Report>("/reports/preview", { method: "POST", body });
@@ -310,7 +310,7 @@ export interface StreamStatistics {
 }
 export const getProgramStreams = (programId: string) => api<StreamStatistics[]>(`/statistics/programs/${programId}/streams`);
 
-// --- Интеграции -------------------------------------------------------------
+// Интеграции
 
 export const listSources = () => api<IntegrationSource[]>("/integrations/sources");
 export const updateSource = (code: string, isEnabled: boolean) =>
@@ -332,7 +332,7 @@ export const createFromMapping = (id: string) =>
   api<IntegrationMapping>(`/integrations/mappings/${id}/create`, { method: "POST" });
 export const ignoreMapping = (id: string) => api<IntegrationMapping>(`/integrations/mappings/${id}/ignore`, { method: "POST" });
 
-// --- Импорт -----------------------------------------------------------------
+// Импорт
 
 export const listImportTypes = () => api<ImportTypeInfo[]>("/imports/types");
 export const listImportRuns = () => api<ImportRun[]>("/imports", { query: { limit: 30 } });
@@ -349,7 +349,7 @@ export const commitImport = (runId: string, mapping: Record<string, string | nul
   api<ImportResult>(`/imports/${runId}/commit`, { method: "POST", body: { mapping } });
 export const getImport = (runId: string) => api<ImportResult>(`/imports/${runId}`);
 
-// --- Журнал и настройки -----------------------------------------------------
+// Журнал и настройки
 
 export const listAudit = (query: Query = {}) => api<Page<AuditEntry>>("/audit", { query });
 export const getSettings = () => api<Setting[]>("/settings");

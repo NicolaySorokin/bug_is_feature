@@ -1,19 +1,8 @@
 """Бизнес-логика взаимодействия и его рабочего процесса.
 
-Здесь собраны правила, которые не должны утечь в слой HTTP: какие переходы
-разрешены, кто может пропускать этапы, когда процесс завершается и с каким
-результатом, как из истории переходов получаются пять состояний этапа
-из раздела 3.4.
-
-Жизненный цикл взаимодействия (раздел 6 «Решений по бизнес-модели»)::
-
-    draft -> in_progress <-> blocked -> completed
-      └───────────────┴──────────────> cancelled
-
-* ``draft`` - взаимодействие заведено, процесс не запущен;
-* ``completed`` - достигнут финальный этап; результат берётся из этапа
-  (``outcome``), для неуспешного обязательна причина;
-* ``cancelled`` - досрочное прекращение, причина обязательна.
+Какие переходы разрешены, кто пропускает этапы, когда процесс завершается
+и с каким результатом. Статусы: draft, in_progress, blocked, completed,
+cancelled. Для неуспешного завершения и отмены причина обязательна.
 """
 
 from __future__ import annotations
@@ -81,8 +70,9 @@ async def load_version(session: AsyncSession, version_id: uuid.UUID) -> Workflow
 
 
 async def active_version(session: AsyncSession, template_id: uuid.UUID) -> WorkflowVersion:
-    """Действующая версия шаблона: пользователь выбирает шаблон, версию -
-    система. Уже начатый процесс продолжает работать по своей (раздел 3.4)."""
+    """Действующая версия шаблона. Шаблон выбирает пользователь, версию система,
+    начатый процесс идёт по своей.
+    """
     template = await session.get(WorkflowTemplate, template_id)
     if template is None:
         raise WorkflowError("Шаблон процесса не найден")
@@ -107,7 +97,7 @@ async def active_version(session: AsyncSession, template_id: uuid.UUID) -> Workf
     return version
 
 
-# Прежнее имя: «последняя опубликованная» теперь значит «действующая».
+# Старое имя: «последняя опубликованная» теперь значит «действующая».
 latest_published_version = active_version
 
 
@@ -126,7 +116,7 @@ async def default_template(session: AsyncSession) -> WorkflowTemplate | None:
 
 
 def initial_stage(version: WorkflowVersion) -> WorkflowStage:
-    """Стартовый этап - явно отмеченный в схеме."""
+    """Стартовый этап, явно отмеченный в схеме."""
     for stage in version.stages:
         if stage.is_initial:
             return stage
@@ -146,11 +136,7 @@ def compute_stage_states(
     instance: WorkflowInstance,
     events: list[WorkflowEvent],
 ) -> dict[uuid.UUID, StageState]:
-    """Восстанавливает состояния всех этапов из истории переходов.
-
-    Отдельной таблицы состояний нет: единственный источник истины -
-    последовательность событий плюс текущий этап экземпляра.
-    """
+    """Восстанавливает состояния этапов из истории переходов и текущего этапа."""
     states: dict[uuid.UUID, StageState] = {
         stage.id: StageState.NOT_STARTED for stage in version.stages
     }
@@ -179,7 +165,7 @@ def compute_stage_states(
         elif instance.status == InteractionStatus.BLOCKED:
             states[current] = StageState.BLOCKED
         elif instance.status == InteractionStatus.CANCELLED:
-            # Работа прекращена на этом этапе - он не пройден.
+            # Работа прекращена на этом этапе, он не пройден.
             states[current] = StageState.SKIPPED
         else:
             states[current] = StageState.ACTIVE
@@ -219,7 +205,7 @@ async def create_interaction(
     source: str = "manual",
     start: bool = False,
 ) -> WorkflowInstance:
-    """Заводит взаимодействие-черновик; ``start`` - сразу запускает процесс."""
+    """Заводит взаимодействие-черновик. start сразу запускает процесс."""
     if version.status != WorkflowVersionStatus.ACTIVE:
         raise WorkflowError("Новые взаимодействия идут только по действующей версии шаблона")
     instance = WorkflowInstance(
@@ -245,11 +231,10 @@ async def create_interaction(
 async def start_instance(
     session: AsyncSession, instance: WorkflowInstance, user: User | None
 ) -> WorkflowInstance:
-    """Черновик -> в работе: процесс встаёт на стартовый этап.
+    """Запускает процесс черновика со стартового этапа.
 
-    Пока процесс не запущен, у черновика нет ни одного этапа, поэтому он
-    перепривязывается к действующей версии своего шаблона: если шаблон
-    успели обновить, стартует уже по новой версии.
+    Черновик перепривязывается к действующей версии шаблона: если шаблон
+    успели обновить, процесс пойдёт по новой версии.
     """
     if instance.status != InteractionStatus.DRAFT:
         raise WorkflowError("Процесс уже запущен")
@@ -323,9 +308,7 @@ async def move(
 ) -> WorkflowEvent:
     """Переход на разрешённый этап.
 
-    Менеджер работает строго в пределах правил шаблона: структура здесь не
-    меняется, проверяется наличие перехода, комментарий, обязательные
-    документы этапа и правила пропуска.
+    Проверяются переход, комментарий, обязательные документы и правила пропуска.
     """
     if instance.status == InteractionStatus.DRAFT:
         raise WorkflowError("Процесс ещё не запущен")
@@ -342,8 +325,8 @@ async def move(
         raise WorkflowError("Для этого перехода обязателен комментарий")
 
     if skip:
-        # Менеджер пропускает только необязательные этапы; руководитель -
-        # любые, но это исключение с обязательной причиной (раздел 3.3).
+        # Менеджер пропускает только необязательные этапы, руководитель любые,
+        # но с обязательной причиной.
         if not current_stage.is_optional and not may_skip_required:
             raise WorkflowError("Этап обязательный, пропуск недоступен")
         if not comment:
@@ -404,8 +387,8 @@ async def apply_stage_statuses(
 ) -> None:
     """Этап сам ставит статусы внедрения программ и передачи продуктов.
 
-    Приостановленные позиции не трогаются: пауза - решение человека.
-    Возврат назад статусы не откатывает.
+    Приостановленные позиции не трогаем, это решение человека. Возврат назад
+    статусы не откатывает.
     """
     if stage.program_status_on_enter:
         await session.execute(
@@ -467,7 +450,7 @@ async def cancel(
     reason: ClosureReason,
     comment: str | None,
 ) -> WorkflowEvent:
-    """Досрочное прекращение: причина обязательна, результат - неуспех."""
+    """Досрочное прекращение: причина обязательна, результат неуспешный."""
     if instance.status not in OPEN:
         raise WorkflowError("Взаимодействие уже закрыто")
     if reason is ClosureReason.OTHER and not comment:
@@ -503,7 +486,7 @@ async def reassign(
     manager: User | None,
     previous: User | None,
 ) -> WorkflowEvent:
-    """Смена ответственного - событием в истории: видно, кто и когда передал."""
+    """Смена ответственного попадает в историю событием."""
     instance.manager_id = manager.id if manager else None
     before = previous.full_name if previous else "не назначен"
     after = manager.full_name if manager else "не назначен"

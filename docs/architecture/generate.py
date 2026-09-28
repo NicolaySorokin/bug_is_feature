@@ -1,8 +1,7 @@
-"""Модель архитектуры EDU CRM в формате Archi (ArchiMate 3.1).
+"""Модель архитектуры в формате Archi (ArchiMate 3.1).
 
-Модель собирается этим скриптом, чтобы её можно было править в коде
-и сравнивать версии; результат - edu-crm.archimate, он открывается
-в Archi (https://www.archimatetool.com): File → Open.
+Модель собирается этим скриптом, чтобы её было удобно править и сравнивать.
+Результат docs/architecture/edu-crm.archimate открывается в Archi через File → Open.
 
     python docs/architecture/generate.py
 """
@@ -20,10 +19,9 @@ def ident(key: str) -> str:
     return "id-" + uuid.uuid5(NS, key).hex
 
 
-# Элементы: ключ -> (тип ArchiMate, имя, папка, документация)
+# Элементы: ключ, тип ArchiMate, имя, папка, документация.
 ELEMENTS: dict[str, tuple[str, str, str, str]] = {
-    # --- Бизнес ---
-    # Роли не наследуются; ключ "kam" оставлен, чтобы Archi узнал тот же элемент.
+    # Бизнес. Ключ "kam" оставлен, чтобы Archi узнал тот же элемент.
     "kam": ("BusinessActor", "Менеджер", "business", "Ведёт свои взаимодействия с вузами"),
     "head": (
         "BusinessActor",
@@ -58,7 +56,7 @@ ELEMENTS: dict[str, tuple[str, str, str, str]] = {
     "product": ("BusinessObject", "ИТ-продукт и лицензия", "business", ""),
     "application": ("BusinessObject", "Заявка на обучение", "business", "С сайта ИТ Школы"),
     "learner": ("BusinessObject", "Обучающийся", "business", "Из LMS; персональные данные минимизированы"),
-    # --- Приложения ---
+    # Приложения
     "spa": ("ApplicationComponent", "Клиентская часть (React SPA)", "application", "Дизайн-система Atomaro, тема Ростелекома"),
     "api": ("ApplicationComponent", "EDU CRM API (FastAPI)", "application", "REST /api/v1, OpenAPI /docs"),
     "kc": ("ApplicationComponent", "Keycloak (реалм edu-crm)", "application", "OIDC, PKCE, роли manager/head/admin"),
@@ -74,7 +72,7 @@ ELEMENTS: dict[str, tuple[str, str, str, str]] = {
     "svc_auth": ("ApplicationService", "Вход и роли", "application", ""),
     "data_crm": ("DataObject", "Данные CRM", "application", "Взаимодействия, процессы, договоры, справочники, журнал изменений"),
     "data_files": ("DataObject", "Файлы вложений", "application", "PNG, JPEG, PDF, ZIP, GZIP, RAR, DOC(X), XLS(X)"),
-    # --- Технологии ---
+    # Технологии
     "server": ("Node", "Сервер Linux (4 ГБ, Docker Compose)", "technology", ""),
     "nginx": ("SystemSoftware", "Nginx 1.27 (образ edu-crm-web)", "technology", "TLS, CSP, статика, прокси"),
     "uvicorn": ("SystemSoftware", "Python 3.12 / Uvicorn (образ edu-crm-api)", "technology", ""),
@@ -88,7 +86,7 @@ ELEMENTS: dict[str, tuple[str, str, str, str]] = {
     "ci": ("SystemSoftware", "GitHub Actions: CI и деплой", "technology", "Сборка образов, выкладка по SSH, откат"),
 }
 
-# Связи: (тип, источник, цель, имя)
+# Связи: тип, источник, цель, имя.
 RELATIONS: list[tuple[str, str, str, str]] = [
     ("Assignment", "kam", "proc", ""),
     ("Assignment", "head", "proc", ""),
@@ -143,7 +141,7 @@ RELATIONS: list[tuple[str, str, str, str]] = [
     ("Association", "sysadmin", "ci", ""),
 ]
 
-# Виды: имя -> {ключ элемента: (x, y)}
+# Виды: имя и координаты элементов.
 W, H = 180, 60
 VIEWS: dict[str, dict[str, tuple[int, int]]] = {
     "1. Бизнес-контекст": {

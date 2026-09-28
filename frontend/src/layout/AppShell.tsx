@@ -55,7 +55,7 @@ const WORK: NavItem[] = [
   { to: "/interactions", label: "Взаимодействия", icon: Handshake, business: true },
   { to: "/universities", label: "Вузы", icon: Building2 },
   { to: "/reports", label: "Отчёты и статистика", icon: BarChart3, any: ["view_reports", "view_statistics"] },
-  // Технический раздел: журнал обмена и сопоставление - не для бизнес-ролей (пункт 28).
+  // Технический раздел: журнал обмена и сопоставление не для бизнес-ролей.
   {
     to: "/integrations",
     label: "LMS и сайт",
@@ -251,11 +251,8 @@ function QuickSearch({ open, onClose }: { open: boolean; onClose: () => void }) 
 /**
  * Колокольчик: уведомления о проблемах по своим взаимодействиям.
  *
- * Уведомление можно отметить прочитанным (или все сразу) - оно уходит со
- * счётчика и опускается вниз списка. Переход по уведомлению тоже его читает.
- * Проблема при этом не исчезает: она остаётся на главной - в «Требует внимания»
- * или в строке шага, - пока её не решат, а если станет серьёзнее - уведомление
- * снова будет новым.
+ * Прочитанное уходит со счётчика и опускается вниз, переход по уведомлению тоже его читает. Проблема
+ * остаётся на главной, пока её не решат, а если станет серьёзнее, уведомление снова будет новым.
  */
 function AlertsMenu() {
   const [open, setOpen] = useState(false);
@@ -406,7 +403,7 @@ export function AppShell() {
   const navigationType = useNavigationType();
   const alerts = useQuery({ queryKey: keys.alerts, queryFn: () => getAlerts({ limit: 100 }), refetchInterval: 5 * 60_000 });
 
-  // Новая страница открывается сверху; «назад» возвращает браузер сам.
+  // Новая страница открывается сверху, «назад» браузер возвращает сам.
   useEffect(() => {
     if (navigationType !== "POP") window.scrollTo({ top: 0 });
     setNavOpen(false);

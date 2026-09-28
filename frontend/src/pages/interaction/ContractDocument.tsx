@@ -1,12 +1,7 @@
 /**
- * Договор по типовому шаблону.
- *
- * Шаблон ведёт руководитель («Справочники» → «Шаблоны договоров»), а здесь
- * по нему собирается проект договора: реквизиты вуза, подписант, программы
- * и продукты подставляются сами. Предпросмотр сразу показывает, чего не
- * хватает, - на месте пустого поля в документе остаётся пропуск. Готовый
- * файл DOCX скачивается для отправки вузу или сразу прикладывается
- * к взаимодействию как «Проект договора» - на текущем этапе процесса.
+ * Проект договора по типовому шаблону. Реквизиты, подписант, программы и продукты подставляются
+ * сами, предпросмотр показывает, чего не хватает. Файл DOCX скачивается или прикладывается
+ * к взаимодействию на текущем этапе.
  */
 import { useQuery } from "@tanstack/react-query";
 import { Download, Paperclip } from "lucide-react";
@@ -24,7 +19,7 @@ import { useSession } from "../../auth/session";
 import { Modal } from "../../components/Modal";
 import { Button, Checkbox, ErrorState, Loading, Notice, SelectField } from "../../components/ui";
 
-/** Текст договора так, как он ляжет в DOCX: «# » - заголовок, «## » - раздел. */
+/** Текст договора как в DOCX: «# » заголовок, «## » раздел. */
 function DocumentPreview({ text, label }: { text: string; label: string }) {
   return (
     <div className="document-preview" role="document" aria-label={label}>
@@ -71,7 +66,7 @@ export function ContractDocumentModal({
     enabled: open && Boolean(templateId),
   });
 
-  // Файл - к текущему этапу: к событию, которым процесс на него пришёл.
+  // Файл привязывается к текущему этапу, то есть к событию, которым процесс на него пришёл.
   const stage = (workflow?.version.stages || []).find((item) => item.id === workflow?.current_stage_id);
   const arrival = [...(workflow?.events || [])]
     .filter((event) => event.to_stage_id === workflow?.current_stage_id)

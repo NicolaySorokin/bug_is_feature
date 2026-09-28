@@ -1,15 +1,6 @@
 /**
- * Вкладка «Договор»: договор - необязательный блок взаимодействия.
- *
- * Договор появляется в ходе работы (обычно на обмене документами), у
- * взаимодействия он не больше одного. Вуз и ответственный в договоре не
- * дублируются - они берутся из взаимодействия. А подписант со стороны вуза -
- * свой: договор подписывает не обязательно ответственный контакт, а,
- * например, ректор по уставу или проректор по доверенности. Сервер
- * проверяет даты и статусы: действующий договор подписан, закрытый -
- * с причиной, подписанный не удаляют, а закрывают.
- *
- * Проект договора собирается по типовому шаблону - см. ContractDocument.tsx.
+ * Вкладка «Договор». Договор необязателен и один на взаимодействие. Подписант со стороны вуза свой:
+ * это не обязательно ответственный контакт. Даты и статусы проверяет сервер.
  */
 import { useQuery } from "@tanstack/react-query";
 import { FilePlus2, FileText, KeyRound, Trash2 } from "lucide-react";
@@ -84,7 +75,7 @@ function ContractForm({
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   useEffect(() => setForm(initial(contract, interaction)), [contract, interaction]);
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((current) => ({ ...current, [key]: value }));
-  // Подписанта удобно взять из контактов вуза - а можно вписать любого.
+  // Подписанта можно взять из контактов вуза или вписать любого.
   const university = useQuery({
     queryKey: keys.university(interaction.university.id),
     queryFn: () => getUniversity(interaction.university.id),
@@ -414,7 +405,7 @@ export function ContractTab({ interaction, workflow }: { interaction: Interactio
             })}
           </div>
         )}
-        {/* Пояснение - внизу карточки: она одной высоты с договором рядом. */}
+        {/* Пояснение внизу карточки: она одной высоты с договором рядом. */}
         <p className="card-note">
           Лицензии добавляются к продукту на вкладке{" "}
           <Link to="?tab=composition" replace>

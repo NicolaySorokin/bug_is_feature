@@ -1,9 +1,6 @@
 /**
- * Карточка вуза: статус записи, менеджер по умолчанию, контакты вуза,
- * взаимодействия с ним и (для администратора) журнал изменений.
- *
- * Руководитель подтверждает вуз, переводит в архив и объединяет дубль
- * с итоговой записью: контакты, взаимодействия и доступы переходят к ней.
+ * Карточка вуза: статус, менеджер по умолчанию, контакты, взаимодействия и журнал изменений.
+ * При объединении дубля контакты, взаимодействия и доступы переходят к итоговой записи.
  */
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -304,7 +301,7 @@ export default function UniversityPage() {
     data.in_scope !== false && (roles.includes("head") || (data.manager_id === me.id && can("edit_university_contacts")));
   const merged = Boolean(data.merged_into_id);
   const canCreate = can("create_interaction") && data.status === "confirmed" && data.in_scope !== false;
-  // Действующие контакты - сверху, архивные - после них (внутри групп - по ФИО).
+  // Сначала действующие контакты, затем архивные, внутри групп по ФИО.
   const contacts = [...(data.contacts || [])].sort((a, b) => Number(!a.is_active) - Number(!b.is_active));
 
   return (

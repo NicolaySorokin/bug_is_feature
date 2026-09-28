@@ -1,11 +1,6 @@
 /**
- * Общие запросы с кэшем React Query.
- *
- * Справочники, списки сотрудников и вузов нужны почти на каждом экране:
- * они загружаются один раз и живут в кэше клиента несколько минут, поэтому
- * переходы между страницами не ждут сервер. После изменений данные
- * помечаются устаревшими (invalidate) и перезапрашиваются в фоне - страница
- * при этом не перезагружается (нефункциональное требование 2 ТЗ).
+ * Общие запросы с кэшем React Query. Справочники живут в кэше несколько минут, после изменений
+ * данные перезапрашиваются в фоне без перезагрузки страницы.
  */
 import { QueryClient, useQuery } from "@tanstack/react-query";
 import { ApiError } from "./client";
@@ -75,7 +70,7 @@ export function useEnums() {
   });
 }
 
-/** Подпись значения перечисления: label("interaction_status", "blocked") -> «Заблокировано». */
+/** Подпись значения перечисления: label("interaction_status", "blocked") даёт «Заблокировано». */
 export function useLabel(): (group: string, value?: string | null) => string {
   const { data } = useEnums();
   const labels = data?.labels || FALLBACK_LABELS;
@@ -85,7 +80,7 @@ export function useLabel(): (group: string, value?: string | null) => string {
   };
 }
 
-/** Все сотрудники - только администратору (управление пользователями). */
+/** Все сотрудники, только администратору. */
 export const useUsers = (enabled = true) =>
   useQuery({
     queryKey: keys.users,
@@ -106,11 +101,9 @@ export const useUniversities = () =>
   });
 
 /**
- * Этапы опубликованных версий шаблонов: название -> все его id.
+ * Этапы опубликованных версий шаблонов: название и все его id.
  *
- * У каждой версии шаблона свои записи этапов, а взаимодействия идут по
- * разным версиям. Пользователь выбирает этап по названию, в запрос уходят
- * id этапа во всех версиях.
+ * У каждой версии свои записи этапов, поэтому фильтр по названию отправляет id во всех версиях.
  */
 export interface StageIndex {
   names: string[];
@@ -133,7 +126,7 @@ export const useStageIndex = () =>
           [...(graph.stages || [])]
             .sort((left, right) => left.sort_order - right.sort_order)
             .forEach((stage) => {
-              // Порядок названий - как в самой новой версии действующего шаблона.
+              // Порядок названий как в самой новой версии действующего шаблона.
               if (!index.ids[stage.name]) {
                 index.ids[stage.name] = [];
                 if (template.is_active) index.names.push(stage.name);
@@ -146,7 +139,7 @@ export const useStageIndex = () =>
     },
   });
 
-/** Названия этапов действующих шаблонов - для фильтра «Этап». */
+/** Названия этапов действующих шаблонов для фильтра «Этап». */
 export function useStageNames() {
   const index = useStageIndex();
   return { ...index, data: index.data?.names };

@@ -1,18 +1,8 @@
-"""Небольшие, но настоящие файлы каждого формата из ТЗ.
+"""Небольшие, но настоящие файлы каждого формата из ТЗ для вложений демоданных.
 
-Функциональное требование 3 перечисляет форматы вложений: png, jpeg, pdf,
-zip, gzip, rar, doc, docx, xls, xlsx. Для каждого здесь есть генератор,
-который собирает правдоподобный документ из заголовка и нескольких строк:
-ими наполняются этапы демонстрационных договоров и каталог testdata.
-
-Оговорки по трём форматам:
-
-* doc - это RTF. Двоичный формат Word 97 без самого Word не собрать,
-  а RTF с расширением .doc Word и LibreOffice открывают как обычный документ;
-* rar - архив RAR 4 без сжатия. Формат хранения открыт, сжатие RAR - нет.
-  Такой архив открывают WinRAR, 7-Zip и tar из Windows;
-* xls собирается библиотекой xlwt - она стоит только в зависимостях
-  разработки, поэтому в демоданных таблицы идут в xlsx.
+doc собирается как RTF: двоичный Word 97 без самого Word не собрать, а RTF
+с расширением .doc открывается как обычный документ. rar это архив RAR 4
+без сжатия, формат хранения открыт.
 """
 
 from __future__ import annotations
@@ -36,7 +26,7 @@ ARCHIVE_TIME = (2026, 9, 1, 10, 0, 0)
 Table = tuple[Sequence[str], Sequence[Sequence[object]]]
 
 
-# --- PDF ----------------------------------------------------------------------
+# PDF
 
 
 def pdf(title: str, lines: Sequence[str]) -> bytes:
@@ -81,10 +71,10 @@ def pdf(title: str, lines: Sequence[str]) -> bytes:
     return buffer.getvalue()
 
 
-# --- Изображения --------------------------------------------------------------
+# Изображения
 
 
-def _font(size: int, bold: bool = False):  # noqa: ANN202 - тип из Pillow
+def _font(size: int, bold: bool = False):  # noqa: ANN202 (тип из Pillow)
     from PIL import ImageFont
 
     found = fonts.font_files()
@@ -93,7 +83,7 @@ def _font(size: int, bold: bool = False):  # noqa: ANN202 - тип из Pillow
     return ImageFont.truetype(str(found[1] if bold else found[0]), size)
 
 
-def _wrap(text: str, font, width: int) -> list[str]:  # noqa: ANN001 - шрифт Pillow
+def _wrap(text: str, font, width: int) -> list[str]:  # noqa: ANN001 (шрифт Pillow)
     words, lines, current = text.split(), [], ""
     for word in words:
         candidate = f"{current} {word}".strip()
@@ -106,7 +96,7 @@ def _wrap(text: str, font, width: int) -> list[str]:  # noqa: ANN001 - шриф�
 
 
 def image(title: str, lines: Sequence[str], kind: str = "png") -> bytes:
-    """PNG - схема на белом фоне, JPEG - «скан» документа с печатью."""
+    """PNG: схема на белом фоне, JPEG: «скан» документа с печатью."""
     from PIL import Image, ImageDraw
 
     scan = kind in {"jpeg", "jpg"}
@@ -130,7 +120,7 @@ def image(title: str, lines: Sequence[str], kind: str = "png") -> bytes:
             y += 30
 
     if scan:
-        # Круглая печать и подпись - чтобы скан был похож на скан.
+        # Круглая печать и подпись, чтобы скан был похож на скан.
         cx, cy = size[0] - 190, size[1] - 190
         draw.ellipse((cx - 110, cy - 110, cx + 110, cy + 110), outline=(40, 70, 160), width=6)
         draw.text(
@@ -138,7 +128,7 @@ def image(title: str, lines: Sequence[str], kind: str = "png") -> bytes:
         )
         draw.line((60, size[1] - 150, 330, size[1] - 175), fill=(20, 30, 90), width=4)
     else:
-        # Три блока со стрелками - условная схема стенда.
+        # Три блока со стрелками: условная схема стенда.
         for index, label in enumerate(("Вуз", "Стенд", "ИТ Школа")):
             left = 60 + index * 320
             draw.rounded_rectangle(
@@ -161,7 +151,7 @@ def image(title: str, lines: Sequence[str], kind: str = "png") -> bytes:
     return buffer.getvalue()
 
 
-# --- Документы Word -----------------------------------------------------------
+# Документы Word
 
 _CONTENT_TYPES = (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -222,7 +212,7 @@ def _rtf_text(text: str) -> str:
         elif code < 128:
             out.append(char)
         else:
-            # \uN - знак Юникода; N - знаковое 16-битное число, за ним замена «?».
+            # \uN это знак Юникода: N знаковое 16-битное число, за ним замена «?».
             out.append(f"\\u{code if code < 32768 else code - 65536}?")
     return "".join(out)
 
@@ -239,7 +229,7 @@ def doc(title: str, paragraphs: Sequence[str]) -> bytes:
     return "\n".join(parts).encode("ascii")
 
 
-# --- Таблицы ------------------------------------------------------------------
+# Таблицы
 
 
 def _sheet_title(title: str) -> str:
@@ -280,7 +270,7 @@ def xls(title: str, headers: Sequence[str], rows: Sequence[Sequence[object]]) ->
     """Старый формат Excel 97. Нужен xlwt из requirements-dev.txt."""
     try:
         import xlwt
-    except ImportError as exc:  # pragma: no cover - зависит от окружения
+    except ImportError as exc:  # pragma: no cover (зависит от окружения)
         raise RuntimeError("Для файлов .xls установите xlwt: pip install xlwt") from exc
 
     book = xlwt.Workbook(encoding="utf-8")
@@ -303,7 +293,7 @@ def xls(title: str, headers: Sequence[str], rows: Sequence[Sequence[object]]) ->
     return buffer.getvalue()
 
 
-# --- Архивы -------------------------------------------------------------------
+# Архивы
 
 
 def zip_archive(files: dict[str, bytes]) -> bytes:
@@ -317,7 +307,7 @@ def zip_archive(files: dict[str, bytes]) -> bytes:
 
 
 def gzip_file(name: str, data: bytes) -> bytes:
-    """gzip хранит имя исходного файла в латинице - кириллицу туда не передаём."""
+    """gzip хранит имя исходного файла латиницей, кириллицу туда не передаём."""
     buffer = io.BytesIO()
     with gzip.GzipFile(filename=name, mode="wb", fileobj=buffer, mtime=0) as archive:
         archive.write(data)
@@ -341,7 +331,7 @@ def _rar_block(fields: bytes) -> bytes:
 
 
 def rar_archive(files: dict[str, bytes]) -> bytes:
-    """Архив RAR 4 без сжатия (метод «хранение»). Имена файлов - латиницей."""
+    """Архив RAR 4 без сжатия (метод «хранение»). Имена файлов латиницей."""
     out = bytearray(b"Rar!\x1a\x07\x00")  # сигнатура RAR 1.5-4.x
     # Заголовок архива: тип 0x73, флагов нет, размер 13, два зарезервированных поля.
     out += _rar_block(struct.pack("<BHHHI", 0x73, 0x0000, 13, 0, 0))
@@ -355,7 +345,7 @@ def rar_archive(files: dict[str, bytes]) -> bytes:
             0x8000,  # за заголовком идут данные файла
             32 + len(encoded),  # размер заголовка вместе с CRC и именем
             len(data),  # размер в архиве
-            len(data),  # исходный размер - без сжатия они совпадают
+            len(data),  # исходный размер, без сжатия они совпадают
             2,  # создан в Windows
             zlib.crc32(data),
             stamp,
@@ -370,7 +360,7 @@ def rar_archive(files: dict[str, bytes]) -> bytes:
     return bytes(out)
 
 
-# --- Выбор генератора по расширению -------------------------------------------
+# Выбор генератора по расширению
 
 
 def document(kind: str, title: str, lines: Sequence[str], table: Table | None = None) -> bytes:

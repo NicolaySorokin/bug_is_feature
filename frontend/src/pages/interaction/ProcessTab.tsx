@@ -1,13 +1,8 @@
 /**
- * Вкладка «Процесс»: схема этапов, переходы, блокировка, комментарии
- * и файлы к этапам.
+ * Вкладка «Процесс»: схема этапов, переходы, блокировка, комментарии и файлы к этапам.
  *
- * Переходы - только те, что разрешены версией шаблона (сервер присылает
- * их списком). Этап может требовать документы: без них вперёд не уйти,
- * и вкладка говорит, каких не хватает. Финальный этап с неуспешным
- * результатом («Отказ вуза») закрывает взаимодействие только с причиной.
- * Комментарий и файлы, добавленные при переходе, привязываются к событию
- * перехода и видны в карточке этапа и в истории.
+ * Доступные переходы присылает сервер. Этап может требовать документы, а финальный этап без успеха
+ * закрывает взаимодействие только с причиной.
  */
 import { Segment, SegmentedControl } from "@atomaro/ui-kit";
 import type { UseQueryResult } from "@tanstack/react-query";
@@ -129,7 +124,7 @@ function TransitionDialog({
   const stages = view.version.stages || [];
   const from = stages.find((stage) => stage.id === dialog.transition.from_stage_id);
   const to = stages.find((stage) => stage.id === dialog.transition.to_stage_id);
-  // Финальный этап без успеха закрывает взаимодействие - нужна причина.
+  // Финальный этап без успеха закрывает взаимодействие, нужна причина.
   const failing = Boolean(!dialog.skip && to?.is_final && to.outcome && to.outcome !== "successful");
   const needsText = dialog.skip || dialog.transition.requires_comment || (failing && reason === "other");
   // Файлы этого окна закрывают не больше одного типа документа.
@@ -144,8 +139,8 @@ function TransitionDialog({
 
   const submit = async () => {
     setBusy(true);
-    // Обязательные документы сервер проверяет при переходе - их файлы
-    // загружаются к текущему этапу заранее, остальные - к самому переходу.
+    // Обязательные документы сервер проверяет при переходе, поэтому их файлы грузим к текущему этапу
+    // заранее, а остальные к самому переходу.
     const upfront = missing.length > 0 ? files : [];
     const afterwards = missing.length > 0 ? [] : files;
     let result: WorkflowView;
@@ -169,8 +164,8 @@ function TransitionDialog({
       setBusy(false);
       return;
     }
-    // Переход уже сделан: сбой загрузки файла - не повод повторять переход,
-    // поэтому окно закрывается, а об ошибке сообщается отдельно.
+    // Переход уже сделан, сбой загрузки файла не повод его повторять. Окно закрывается, об ошибке
+    // сообщаем отдельно.
     try {
       const event = newestEvent(result);
       for (const file of afterwards) {
@@ -378,7 +373,7 @@ function StagePanel({
   };
   const required = stage.required_documents || [];
   const missing = isCurrent ? interaction.missing_documents || [] : [];
-  // Срок текущего этапа - тот же расчёт сервера, что в «Обзоре» и на главной.
+  // Срок текущего этапа считает сервер, как в «Обзоре» и на главной.
   const sla = isCurrent ? interaction.stage?.sla : null;
   const days = isCurrent && view.current_stage_started_at ? daysSince(view.current_stage_started_at) : null;
   const blockEvent = [...(view.events || [])]

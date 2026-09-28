@@ -1,9 +1,7 @@
-"""Загрузка каталогов из XLS и XLSX.
+"""Загрузка каталогов из XLS и XLSX (требование 1 ТЗ).
 
-Требование 1 ТЗ: справочники должны актуализироваться подгрузкой файла
-через интерфейс по согласованному маппингу полей. Загрузка разбита на шаги
-раздела 6.2 концепции: файл - предпросмотр - сопоставление - проверка -
-импорт - итог. Доступ только у администратора: импорт меняет общие данные.
+Шаги: файл, предпросмотр, сопоставление, проверка, импорт, итог.
+Доступ только у администратора.
 """
 
 import uuid
@@ -52,7 +50,7 @@ def _fields(spec: imports.ImportSpec) -> list[ImportFieldInfo]:
 
 def _spec(import_type: ImportType) -> imports.ImportSpec:
     spec = imports.SPECS.get(import_type)
-    if spec is None:  # pragma: no cover - значение ограничено перечислением
+    if spec is None:  # pragma: no cover (значение ограничено перечислением)
         raise NotFoundError("Неизвестный тип импорта")
     return spec
 
@@ -102,8 +100,8 @@ def _mapping(run: ImportRun, payload: ImportMappingRequest) -> dict[str, str | N
 
 
 def _ensure_not_imported(run: ImportRun) -> None:
-    # Повторный импорт того же файла ничего не испортит, но исказит итог
-    # загрузки в журнале: для повтора файл загружают заново.
+    # Повторный импорт того же файла исказил бы итог в журнале, поэтому для
+    # повтора файл загружают заново.
     if run.status == ImportRunStatus.COMPLETED:
         raise ConflictError(
             "Этот файл уже импортирован. Чтобы повторить, загрузите его заново"
@@ -111,7 +109,7 @@ def _ensure_not_imported(run: ImportRun) -> None:
 
 
 async def _read(storage_path: str) -> imports.SheetData:
-    # Разбор книги - работа процессора: выносим из цикла событий.
+    # Разбор книги нагружает процессор, выносим его из цикла событий.
     return await anyio.to_thread.run_sync(
         imports.read_sheet, storage.absolute_path(storage_path)
     )
@@ -247,8 +245,8 @@ async def validate(
     sheet = await _read(run.storage_path)
 
     mapping = _mapping(run, payload)
-    # Пробная загрузка в точке сохранения с откатом: видно, сколько строк
-    # добавится и обновится и какие строки не пройдут, а данные не меняются.
+    # Пробная загрузка с откатом: видно, сколько строк добавится и обновится
+    # и какие не пройдут, а данные не меняются.
     savepoint = await session.begin_nested()
     try:
         outcome = await imports.run_import(session, spec, sheet, mapping)
@@ -260,7 +258,7 @@ async def validate(
     loadable = outcome.created + outcome.updated
     run.status = ImportRunStatus.VALIDATED if loadable else ImportRunStatus.FAILED
     result = _result(run, await _replace_errors(session, run, outcome.errors))
-    # Прогноз - только в ответе: счётчики запуска заполняет настоящая загрузка.
+    # Прогноз только в ответе, счётчики запуска заполняет настоящая загрузка.
     result.run.rows_created = outcome.created
     result.run.rows_updated = outcome.updated
     result.run.rows_failed = outcome.failed

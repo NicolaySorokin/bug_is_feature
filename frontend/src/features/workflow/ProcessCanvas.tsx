@@ -1,11 +1,6 @@
 /**
- * Схема рабочего процесса (п. 4 функциональных требований ТЗ).
- *
- * Этапы - карточки, переходы - стрелки. Цвет карточки показывает
- * состояние этапа, подпись дублирует его словами. Схему можно двигать
- * мышью или пальцем, масштабировать кнопками, Ctrl + колесом или щипком.
- * Руководитель и администратор могут перетаскивать этапы и сохранить
- * расположение - оно станет общим для всех взаимодействий этой версии.
+ * Схема рабочего процесса: этапы карточками, переходы стрелками. Схему можно двигать и масштабировать,
+ * а руководитель и администратор могут перетащить этапы и сохранить расположение.
  */
 import { Maximize2, Minus, Plus } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -81,8 +76,7 @@ export function ProcessCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>({ x: 0, y: 0, k: 1 });
   const [size, setSize] = useState({ width: 0, height: height || 560 });
-  // Число этапов в ряду подбирается под размер области - для схем без
-  // сохранённого расположения.
+  // Для схем без сохранённого расположения число этапов в ряду подбирается под размер области.
   const perRow = useMemo(
     () => bestPerRow(stages.length, size.width || 800, size.height),
     [stages.length, size.width, size.height],
@@ -122,7 +116,7 @@ export function ProcessCanvas({
   );
   const fit = () => fitTo(Object.values(positionsRef.current));
 
-  // Новая схема, другой размер области или сброс - раскладываем и вписываем заново.
+  // Новая схема, другой размер или сброс: раскладываем и вписываем заново.
   useEffect(() => {
     setPositions(initial);
     fitTo(Object.values(initial));
@@ -223,7 +217,7 @@ export function ProcessCanvas({
   };
 
   const onWheel = (event: React.WheelEvent<SVGSVGElement>) => {
-    // Колесо без Ctrl прокручивает страницу; с Ctrl (и щипок на тачпаде) - масштаб.
+    // Колесо без Ctrl прокручивает страницу, с Ctrl и щипком меняет масштаб.
     if (!event.ctrlKey && !event.metaKey) return;
     event.preventDefault();
     zoomAt(event.deltaY < 0 ? 1.12 : 1 / 1.12, local(event));

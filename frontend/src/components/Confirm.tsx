@@ -1,7 +1,6 @@
 /**
- * Подтверждение действия, при необходимости - с причиной.
+ * Подтверждение действия, если нужно, с причиной.
  *
- * const confirm = useConfirm();
  * const reason = await confirm({ title: "Заблокировать процесс?", reason: { required: true } });
  * if (reason === null) return; // пользователь передумал
  */
@@ -16,7 +15,7 @@ export interface ConfirmOptions {
   danger?: boolean;
   /** Поле для причины или комментария: его текст вернёт confirm. */
   reason?: { label?: string; required?: boolean; placeholder?: string };
-  /** Только сообщение: одна кнопка, без «Отмены» - выбирать нечего. */
+  /** Только сообщение: одна кнопка без «Отмены». */
   notice?: boolean;
 }
 

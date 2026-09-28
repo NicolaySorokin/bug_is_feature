@@ -41,8 +41,7 @@ class AuthConfig(BaseModel):
     description='Отвечает `{"status": "ok"}`, если API работает и база доступна.',
 )
 async def health(session: SessionDep) -> dict[str, str]:
-    # Метод открыт без входа, поэтому ничего, кроме статуса, не сообщает:
-    # среда, версии и схема входа снаружи не нужны.
+    # Метод открыт без входа, поэтому сообщает только статус.
     await session.execute(text("SELECT 1"))
     return {"status": "ok"}
 

@@ -1,16 +1,6 @@
 /**
- * Пользователи и права (раздел 12 «Решений по бизнес-модели»).
- *
- * Роль, функциональные права и область данных разделены:
- *
- * * роли живут в Keycloak и не наследуются - совмещение задаётся
- *   несколькими ролями явно;
- * * дополнительные права (запуск обмена, журнал обмена, персональные
- *   данные студентов, представление схемы процесса) выдаются отдельно;
- * * область данных (свои, команда, все, никаких) по умолчанию следует из
- *   ролей; расширить её можно с основанием и, если нужно, со сроком;
- * * точечный доступ к вузу - со сроком, основанием и отметкой, кто выдал;
- *   отзыв не удаляет запись.
+ * Пользователи и права. Роли живут в Keycloak и не наследуются, дополнительные права и область
+ * данных выдаются отдельно, точечный доступ к вузу со сроком и основанием.
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { KeyRound, RefreshCw, ShieldCheck, UserPlus, X } from "lucide-react";
@@ -62,7 +52,7 @@ const PERMISSIONS: UserPermission[] = [
   "edit_workflow_presentation",
 ];
 
-// Политика паролей реалма Keycloak: короче Keycloak пароль не примет.
+// Политика паролей реалма Keycloak: более короткий пароль он не примет.
 const PASSWORD_MIN_LENGTH = 12;
 const PASSWORD_HINT = "Не короче 12 знаков: строчные и заглавные буквы, цифры, не совпадает с логином";
 const ROLE_HINTS: Record<Role, string> = {
@@ -78,7 +68,7 @@ const SCOPE_HINTS: Record<DataScope, string> = {
   none: "только административные функции",
 };
 
-/** Конец выбранного дня в UTC - срок временного доступа. */
+/** Конец выбранного дня в UTC, это срок временного доступа. */
 function endOfDay(value: string): string | null {
   return value ? new Date(`${value}T23:59:59`).toISOString() : null;
 }
@@ -110,8 +100,7 @@ function RolesPicker({ value, onChange }: { value: Role[]; onChange: (value: Rol
             onChange={(checked) => onChange(ROLES.filter((item) => (item === role ? checked : value.includes(item))))}
           />
         ))}
-        {/* Раздел 12 решений: администратор по умолчанию бизнес-данных не видит,
-            служебный доступ - временный. Совмещение возможно, но осознанно. */}
+        {/* Администратор по умолчанию бизнес-данных не видит, служебный доступ ему дают временно. */}
         {value.includes("admin") && (value.includes("manager") || value.includes("head")) && (
           <span className="field__error">
             Администратор с бизнес-ролью постоянно работает с взаимодействиями и вузами. Если доступ нужен на время, вместо роли
@@ -282,8 +271,7 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
       },
     },
   );
-  // Администратор выдаёт только временный пароль: постоянный сотрудник
-  // придумывает сам при первом входе, и его не знает никто, кроме него.
+  // Администратор выдаёт только временный пароль, постоянный сотрудник придумывает сам.
   const reset = useApiMutation((value: string) => resetPassword(userId!, value), {
     success: "Временный пароль задан: при входе сотрудник придумает свой",
     onSuccess: () => setPassword(null),
@@ -306,7 +294,7 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
           </Button>
           <Button
             loading={save.isPending}
-            // Снять с себя роль администратора сервер не даст - кнопку не предлагаем.
+            // Снять с себя роль администратора сервер не даст, поэтому кнопку не показываем.
             disabled={!user.data || roles.length === 0 || !fullName.trim() || needsReason || (self && !roles.includes("admin"))}
             onClick={() => save.mutate(undefined)}
           >
