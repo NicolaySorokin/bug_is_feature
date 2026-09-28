@@ -46,6 +46,18 @@ async def test_report_rows_and_charts_match_selection(
     assert report["totals"]["rows"] == 2  # одно взаимодействие с программой, одно без
     statuses = next(c for c in report["charts"] if c["key"] == "by_status")
     assert sum(item["value"] for item in statuses["items"]) == 2
+    # Статусы - полным рядом по порядку жизненного цикла, в том числе нулевые.
+    assert [item["label"] for item in statuses["items"]] == [
+        "Черновик",
+        "В работе",
+        "Заблокировано",
+        "Завершено",
+        "Отменено",
+    ]
+    assert [item["value"] for item in statuses["items"]] == [1, 1, 0, 0, 0]
+    # Закрытых нет - у результатов «Нет данных», а не ряд нулей.
+    outcomes = next(c for c in report["charts"] if c["key"] == "by_outcome")
+    assert outcomes["items"] == []
 
     # Диаграмма строится по той же выборке: отфильтровали - изменилось и то, и то.
     filtered = (
@@ -97,6 +109,12 @@ async def test_report_filters_by_outcome(client: AsyncClient, university: dict) 
     ).json()
     assert report["totals"]["interactions"] == 1
     assert report["rows"][0]["closure_reason_label"] == "Отказ вуза"
+    outcomes = next(c for c in report["charts"] if c["key"] == "by_outcome")
+    assert [(item["label"], item["value"]) for item in outcomes["items"]] == [
+        ("Успешно", 0),
+        ("Частично успешно", 0),
+        ("Неуспешно", 1),
+    ]
 
 
 async def test_period_by_signing_date_excludes_unsigned(

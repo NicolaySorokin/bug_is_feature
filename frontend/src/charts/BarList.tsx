@@ -5,7 +5,7 @@
  * не дублирует длину. Значение подписано у конца столбца, при наведении
  * и фокусе с клавиатуры подсказка добавляет долю от общего числа.
  */
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import type { ChartItem } from "./types";
 import { formatNumber } from "../lib/format";
 
@@ -23,7 +23,7 @@ export function BarList({
   const total = items.reduce((sum, item) => sum + item.value, 0);
 
   return (
-    <ul className="bars" aria-label={`Значения, ${measure}`}>
+    <ul className="bars" aria-label={`Значения, ${measure}`} style={{ "--bars": items.length } as CSSProperties}>
       {items.map((item, index) => {
         const share = total ? Math.round((item.value / total) * 1000) / 10 : 0;
         const width = `${Math.max((item.value / max) * 100, item.value ? 1.5 : 0)}%`;

@@ -98,6 +98,11 @@ export const syncRoles = () => api<RoleSyncResult>("/users/sync-roles", { method
 
 export const getDashboard = () => api<Dashboard>("/dashboard");
 export const getAlerts = (query: Query = {}) => api<Alert[]>("/dashboard/alerts", { query });
+/** Отметить уведомления колокольчика прочитанными: по ключам или все сразу. */
+export const markAlertsRead = (alertKeys: string[] | null) =>
+  alertKeys
+    ? api<void>("/dashboard/alerts/read", { method: "POST", body: { keys: alertKeys } })
+    : api<void>("/dashboard/alerts/read-all", { method: "POST" });
 
 // --- Вузы -------------------------------------------------------------------
 

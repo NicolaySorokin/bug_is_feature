@@ -360,11 +360,48 @@ export interface paths {
         };
         /**
          * Взаимодействия, по которым требуется действие
-         * @description Правила раздела 7 концепции: этап дольше нормы, взаимодействие заблокировано, заканчивается срок договора или лицензии, не назначен ответственный, не загружен обязательный документ, не начато внедрение, продукт без программы; для тех, кто может их разобрать, - ошибки обмена, записи на сопоставлении и вузы на проверке.
+         * @description Правила раздела 7 концепции: этап дольше нормы, взаимодействие заблокировано, заканчивается срок договора или лицензии, не назначен ответственный, не загружен обязательный документ, не начато внедрение, продукт без программы; для тех, кто может их разобрать, - ошибки обмена, записи на сопоставлении и вузы на проверке. is_read - сотрудник отметил уведомление прочитанным; стало серьёзнее - снова новое.
          */
         get: operations["read_alerts_api_v1_dashboard_alerts_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard/alerts/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Отметить уведомления прочитанными
+         * @description Ключи - поле key из списка уведомлений. Уведомление снимается со счётчика колокольчика, а проблема остаётся в «Требует внимания» на главной, пока её не решат.
+         */
+        post: operations["mark_alerts_read_api_v1_dashboard_alerts_read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard/alerts/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Отметить прочитанными все уведомления */
+        post: operations["mark_all_alerts_read_api_v1_dashboard_alerts_read_all_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2051,6 +2088,13 @@ export interface components {
              * @default
              */
             interaction_title?: string;
+            /**
+             * Is Read
+             * @default false
+             */
+            is_read?: boolean;
+            /** Key */
+            key: string;
             kind: components["schemas"]["AlertKind"];
             /** Kind Label */
             kind_label: string;
@@ -2084,6 +2128,14 @@ export interface components {
          * @enum {string}
          */
         AlertSeverity: "info" | "warning" | "critical";
+        /**
+         * AlertsReadRequest
+         * @description Какие уведомления отметить прочитанными - ключи из списка уведомлений.
+         */
+        AlertsReadRequest: {
+            /** Keys */
+            keys: string[];
+        };
         /** ApplicationRead */
         ApplicationRead: {
             /** Course Name */
@@ -7617,6 +7669,196 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AlertRead"][];
                 };
+            };
+            /** @description Не пройдена авторизация */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthorized",
+                     *       "message": "Требуется Bearer-токен"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "message": "Взаимодействие не входит в вашу область данных"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запись не найдена */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "message": "Взаимодействие не найдено"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Действие противоречит правилам предметной области */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "workflow_rule_violated",
+                     *       "message": "Такой переход не предусмотрен шаблоном процесса"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_error",
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    mark_alerts_read_api_v1_dashboard_alerts_read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertsReadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Не пройдена авторизация */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthorized",
+                     *       "message": "Требуется Bearer-токен"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Недостаточно прав или запись вне области данных сотрудника */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "message": "Взаимодействие не входит в вашу область данных"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запись не найдена */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "message": "Взаимодействие не найдено"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Действие противоречит правилам предметной области */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "workflow_rule_violated",
+                     *       "message": "Такой переход не предусмотрен шаблоном процесса"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_error",
+                     *       "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    mark_all_alerts_read_api_v1_dashboard_alerts_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Не пройдена авторизация */
             401: {

@@ -14,6 +14,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { FilePlus2, FileText, KeyRound, Trash2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { deleteContract, getContract, getUniversity, listInteractionLicenses, saveContract } from "../../api/endpoints";
 import { useApiMutation } from "../../api/mutations";
 import { invalidateInteractionData, keys, useLabel } from "../../api/queries";
@@ -307,8 +308,9 @@ export function ContractTab({ interaction, workflow }: { interaction: Interactio
   );
 
   return (
-    <div className="grid-main-side">
+    <div className="grid-main-side grid-main-side--pair">
       <Card
+        className="card--spread"
         title={
           <span className="row" style={{ gap: 10 }}>
             Договор {data.number}
@@ -383,11 +385,11 @@ export function ContractTab({ interaction, workflow }: { interaction: Interactio
           ]}
         />
       </Card>
-      <Card title="Лицензии по договору" description="Добавляются к продукту на вкладке «Программы и продукты».">
+      <Card title="Лицензии по договору" className="card--spread">
         {licenses.isPending ? (
           <Loading />
         ) : (licenses.data || []).length === 0 ? (
-          <p className="muted">Лицензий пока нет.</p>
+          <p className="muted card-empty">Лицензий пока нет.</p>
         ) : (
           <div className="files">
             {(licenses.data || []).map((license) => {
@@ -412,6 +414,14 @@ export function ContractTab({ interaction, workflow }: { interaction: Interactio
             })}
           </div>
         )}
+        {/* Пояснение - внизу карточки: она одной высоты с договором рядом. */}
+        <p className="card-note">
+          Лицензии добавляются к продукту на вкладке{" "}
+          <Link to="?tab=composition" replace>
+            «Программы и продукты»
+          </Link>
+          .
+        </p>
       </Card>
       <ContractDocumentModal
         interaction={interaction}

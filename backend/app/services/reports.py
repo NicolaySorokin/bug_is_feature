@@ -358,6 +358,19 @@ def top_items(counter: Counter[str], limit: int = TOP_LIMIT) -> list[ChartItem]:
     ]
 
 
+def every_value(counter: Counter[str], labels: dict) -> list[ChartItem]:
+    """Все значения короткого перечня по порядку, в том числе нулевые.
+
+    Статусов и результатов немного, и полный ряд читается лучше выборочного:
+    порядок не зависит от выборки, видно, чего нет, а соседние диаграммы
+    статусов и результатов близки по высоте. Пустая выборка - пустая
+    диаграмма («Нет данных»), а не ряд нулей.
+    """
+    if not sum(counter.values()):
+        return []
+    return [ChartItem(label=name, value=counter[name]) for name in labels.values()]
+
+
 def build_charts(rows: list[ReportRow], *, with_managers: bool = True) -> list[ChartData]:
     """Диаграммы по той же выборке, что и таблица."""
     seen: set[uuid.UUID] = set()
@@ -388,13 +401,13 @@ def build_charts(rows: list[ReportRow], *, with_managers: bool = True) -> list[C
             key=ChartKey.BY_STATUS,
             title="Взаимодействия по статусам",
             measure="взаимодействий",
-            items=[ChartItem(label=name, value=value) for name, value in by_status.items()],
+            items=every_value(by_status, INTERACTION_STATUS_LABELS),
         ),
         ChartData(
             key=ChartKey.BY_OUTCOME,
             title="Результаты закрытых взаимодействий",
             measure="взаимодействий",
-            items=[ChartItem(label=name, value=value) for name, value in by_outcome.items()],
+            items=every_value(by_outcome, OUTCOME_LABELS),
         ),
         ChartData(
             key=ChartKey.BY_STAGE,

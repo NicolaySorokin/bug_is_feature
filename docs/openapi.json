@@ -244,6 +244,15 @@
             "title": "Interaction Title",
             "type": "string"
           },
+          "is_read": {
+            "default": false,
+            "title": "Is Read",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
           "kind": {
             "$ref": "#/components/schemas/AlertKind"
           },
@@ -306,7 +315,8 @@
           "kind_label",
           "severity",
           "severity_label",
-          "message"
+          "message",
+          "key"
         ],
         "title": "AlertRead",
         "type": "object"
@@ -319,6 +329,25 @@
         ],
         "title": "AlertSeverity",
         "type": "string"
+      },
+      "AlertsReadRequest": {
+        "description": "Какие уведомления отметить прочитанными - ключи из списка уведомлений.",
+        "properties": {
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "keys"
+        ],
+        "title": "AlertsReadRequest",
+        "type": "object"
       },
       "ApplicationRead": {
         "properties": {
@@ -11327,7 +11356,7 @@
     },
     "/api/v1/dashboard/alerts": {
       "get": {
-        "description": "Правила раздела 7 концепции: этап дольше нормы, взаимодействие заблокировано, заканчивается срок договора или лицензии, не назначен ответственный, не загружен обязательный документ, не начато внедрение, продукт без программы; для тех, кто может их разобрать, - ошибки обмена, записи на сопоставлении и вузы на проверке.",
+        "description": "Правила раздела 7 концепции: этап дольше нормы, взаимодействие заблокировано, заканчивается срок договора или лицензии, не назначен ответственный, не загружен обязательный документ, не начато внедрение, продукт без программы; для тех, кто может их разобрать, - ошибки обмена, записи на сопоставлении и вузы на проверке. is_read - сотрудник отметил уведомление прочитанным; стало серьёзнее - снова новое.",
         "operationId": "read_alerts_api_v1_dashboard_alerts_get",
         "parameters": [
           {
@@ -11451,6 +11480,185 @@
           }
         },
         "summary": "Взаимодействия, по которым требуется действие",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/dashboard/alerts/read": {
+      "post": {
+        "description": "Ключи - поле key из списка уведомлений. Уведомление снимается со счётчика колокольчика, а проблема остаётся в «Требует внимания» на главной, пока её не решат.",
+        "operationId": "mark_alerts_read_api_v1_dashboard_alerts_read_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertsReadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Взаимодействие не входит в вашу область данных"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне области данных сотрудника"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Взаимодействие не найдено"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors"
+          }
+        },
+        "summary": "Отметить уведомления прочитанными",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/dashboard/alerts/read-all": {
+      "post": {
+        "operationId": "mark_all_alerts_read_api_v1_dashboard_alerts_read_all_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "unauthorized",
+                  "message": "Требуется Bearer-токен"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Не пройдена авторизация"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "forbidden",
+                  "message": "Взаимодействие не входит в вашу область данных"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Недостаточно прав или запись вне области данных сотрудника"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "not_found",
+                  "message": "Взаимодействие не найдено"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запись не найдена"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "workflow_rule_violated",
+                  "message": "Такой переход не предусмотрен шаблоном процесса"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Действие противоречит правилам предметной области"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "validation_error",
+                  "message": "Для закрытого договора укажите причину: исполнен, истёк или расторгнут"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Запрос не прошёл проверку: текст правила, если его нарушили, - в message, все замечания по полям - в details.errors"
+          }
+        },
+        "summary": "Отметить прочитанными все уведомления",
         "tags": [
           "dashboard"
         ]

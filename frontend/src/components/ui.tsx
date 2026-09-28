@@ -451,6 +451,41 @@ export function DescriptionList({ items }: { items: [ReactNode, ReactNode][] }) 
   );
 }
 
+/**
+ * Длинный свободный текст (комментарий, причина блокировки) - не больше
+ * lines строк, чтобы один блок не вытягивался намного выше соседнего.
+ * «Показать полностью» - только если текст правда не поместился.
+ */
+export function ClampText({ children, lines = 3, className = "" }: { children: ReactNode; lines?: number; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  const [clipped, setClipped] = useState(false);
+
+  // Поместится ли текст, зависит от ширины блока - проверяем при каждом её изменении.
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node || open) return;
+    const check = () => setClipped(node.scrollHeight > node.clientHeight + 1);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [children, open]);
+
+  return (
+    <span className="clamp-text">
+      <span ref={ref} className={`${open ? "" : "clamp"} ${className}`} style={{ "--lines": lines } as CSSProperties}>
+        {children}
+      </span>
+      {(clipped || open) && (
+        <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+          {open ? "Свернуть" : "Показать полностью"}
+        </button>
+      )}
+    </span>
+  );
+}
+
 export function Avatar({ name, large }: { name?: string | null; large?: boolean }) {
   const letters = (name || "?")
     .split(/\s+/)

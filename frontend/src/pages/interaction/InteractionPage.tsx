@@ -5,7 +5,9 @@
  * ответственный, дата начала, программы и продукты, источник; справа
  * «Обзор взаимодействия» - статус, текущий этап со следующим действием,
  * срок этапа и состояние договора. Схема процесса - только на вкладке
- * «Процесс», без дублирования.
+ * «Процесс», без дублирования. Блоки одной высоты: у того, что короче,
+ * строки расходятся по высоте, а длинные комментарий и причина блокировки
+ * свёрнуты до трёх строк, чтобы разница не была большой.
  *
  * Вкладки: Процесс | Программы и продукты | Договор | Контакты |
  * Файлы и комментарии | История.
@@ -32,6 +34,7 @@ import { Modal } from "../../components/Modal";
 import {
   Button,
   Card,
+  ClampText,
   DescriptionList,
   ErrorState,
   Loading,
@@ -124,7 +127,7 @@ function Overview({ data, onTab }: { data: InteractionDetail; onTab: (key: TabKe
   const open = data.status === "in_progress" || data.status === "blocked";
   const contract = data.contract;
   return (
-    <Card title="Обзор взаимодействия">
+    <Card title="Обзор взаимодействия" className="card--spread">
       {/* Список строк «подпись - значение», как в «Сведениях»: статус, этап и срок
           остаются независимыми строками, цвет - только у полосы срока. */}
       <dl className="overview-list">
@@ -136,10 +139,10 @@ function Overview({ data, onTab }: { data: InteractionDetail; onTab: (key: TabKe
               <OutcomeBadge outcome={data.outcome} />
             </span>
             {data.status === "blocked" && data.blocked_reason && (
-              <span className="soft">
+              <ClampText className="soft">
                 {data.blocked_reason}
                 {data.blocked_at ? <small className="muted"> · с {formatDate(data.blocked_at)}</small> : null}
-              </span>
+              </ClampText>
             )}
             {(data.status === "completed" || data.status === "cancelled") && (
               <small className="muted">
@@ -204,7 +207,7 @@ function Details({ data, onTab }: { data: InteractionDetail; onTab: (key: TabKey
   const programs = (data.program_links || []).map((item) => item.program?.name).filter(Boolean) as string[];
   const products = data.product_links || [];
   return (
-    <Card title="Сведения">
+    <Card title="Сведения" className="card--spread">
       <DescriptionList
         items={[
           [
@@ -233,7 +236,7 @@ function Details({ data, onTab }: { data: InteractionDetail; onTab: (key: TabKey
           ["Источник", label("interaction_source", data.source)],
           ["Процесс", `${data.template_name || "—"}, версия ${data.version_number}`],
           ["Заведено", `${formatDateTime(data.created_at)}${data.created_by ? ` · ${data.created_by.full_name}` : ""}`],
-          ["Комментарий", data.comment ? <span style={{ whiteSpace: "pre-wrap" }}>{data.comment}</span> : null],
+          ["Комментарий", data.comment ? <ClampText className="pre-wrap">{data.comment}</ClampText> : null],
         ]}
       />
     </Card>

@@ -26,6 +26,15 @@ interface Saved {
 
 const DEFAULTS: Saved = { period: { date_from: "", date_to: "" }, direction_ids: [], program_ids: [], university_ids: [] };
 
+/**
+ * Порядок диаграмм под графиком по месяцам - парами одного ряда: рядом
+ * то, что сравнивают между собой и что близко по числу строк (заявки
+ * и потоки по программам, затем направления и уровень образования).
+ * Остальные диаграммы, если появятся, - после них.
+ */
+const CHART_ORDER = ["applications_by_program", "streams_by_program", "applications_by_direction", "learners_by_education"];
+const chartOrder = (key: string) => (CHART_ORDER.includes(key) ? CHART_ORDER.indexOf(key) : CHART_ORDER.length);
+
 function Streams({ program, onClose }: { program: ProgramStatistics | null; onClose: () => void }) {
   const streams = useQuery({
     queryKey: ["statistics", "streams", program?.program_id],
@@ -273,6 +282,7 @@ export function LearningStatistics() {
           <div className="grid-2">
             {statistics.data.charts
               .filter((chart) => chart.key !== "applications_by_month")
+              .sort((a, b) => chartOrder(a.key) - chartOrder(b.key))
               .map((chart) => (
                 <ChartCard
                   key={chart.key}

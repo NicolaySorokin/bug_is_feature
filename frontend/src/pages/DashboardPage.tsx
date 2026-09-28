@@ -319,23 +319,26 @@ function AdminBlock({ data }: { data: Dashboard }) {
           onClick={() => navigate("/admin/users")}
         />
       </KpiRow>
+      {/* Три карточки одной высоты: строки короткой расходятся по её высоте
+          с разделителями посередине, а не оставляют пустоту внизу. */}
       <div className="grid-3">
-        <Card title="Пользователи по ролям" actions={<Link to="/admin/users">Управление</Link>}>
-          <div className="tags">
+        <Card title="Пользователи по ролям" actions={<Link to="/admin/users">Управление</Link>} className="card--spread">
+          <ul className="spread-list">
             {Object.entries(admin.users_by_role || {}).map(([role, count]) => (
-              <span key={role} className="tag">
-                {label("role", role)}: {count}
-              </span>
+              <li key={role}>
+                <span className="row-between">
+                  <span>{label("role", role)}</span>
+                  <strong>{formatNumber(count)}</strong>
+                </span>
+              </li>
             ))}
-          </div>
-          <p className="muted" style={{ marginTop: 12 }}>
-            Роли не наследуются: совмещение задаётся несколькими ролями явно.
-          </p>
+          </ul>
+          <p className="card-note">Роли не наследуются: совмещение задаётся несколькими ролями явно.</p>
         </Card>
-        <Card title="Обмен с LMS и сайтом" actions={<Link to="/integrations">Открыть</Link>}>
-          <div className="stack-s">
+        <Card title="Обмен с LMS и сайтом" actions={<Link to="/integrations">Открыть</Link>} className="card--spread">
+          <ul className="spread-list">
             {(admin.integrations || []).map((item) => (
-              <div key={item.code} className="stack-s" style={{ gap: 2 }}>
+              <li key={item.code}>
                 <div className="row-between">
                   <strong>{item.name}</strong>
                   {item.last_status ? (
@@ -351,29 +354,32 @@ function AdminBlock({ data }: { data: Dashboard }) {
                   {item.uses_fixture ? " · тестовые данные" : ""}
                 </small>
                 {item.last_error && <small className="field__error">{item.last_error}</small>}
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </Card>
-        <Card title="Загрузки из Excel" actions={<Link to="/admin/imports">Загрузить</Link>}>
-          <div className="stack-s">
-            {(admin.imports || []).length === 0 && <span className="muted">Загрузок не было</span>}
-            {(admin.imports || []).map((item) => (
-              <div key={item.id} className="stack-s" style={{ gap: 2 }}>
-                <div className="row-between">
-                  <strong style={{ overflowWrap: "anywhere" }}>{item.filename}</strong>
-                  <StatusBadge tone={item.status === "completed" ? "success" : item.status === "failed" ? "error" : "info"}>
-                    {label("import_run_status", item.status)}
-                  </StatusBadge>
-                </div>
-                <small className="muted">
-                  {IMPORT_TYPE_LABELS[item.import_type] || item.import_type} · {formatDateTime(item.created_at)} · добавлено{" "}
-                  {item.rows_created}, обновлено {item.rows_updated}
-                  {item.rows_failed ? `, ошибок ${item.rows_failed}` : ""}
-                </small>
-              </div>
-            ))}
-          </div>
+        <Card title="Загрузки из Excel" actions={<Link to="/admin/imports">Загрузить</Link>} className="card--spread">
+          {(admin.imports || []).length === 0 ? (
+            <p className="muted card-empty">Загрузок не было</p>
+          ) : (
+            <ul className="spread-list">
+              {(admin.imports || []).map((item) => (
+                <li key={item.id}>
+                  <div className="row-between">
+                    <strong style={{ overflowWrap: "anywhere" }}>{item.filename}</strong>
+                    <StatusBadge tone={item.status === "completed" ? "success" : item.status === "failed" ? "error" : "info"}>
+                      {label("import_run_status", item.status)}
+                    </StatusBadge>
+                  </div>
+                  <small className="muted">
+                    {IMPORT_TYPE_LABELS[item.import_type] || item.import_type} · {formatDateTime(item.created_at)} · добавлено{" "}
+                    {item.rows_created}, обновлено {item.rows_updated}
+                    {item.rows_failed ? `, ошибок ${item.rows_failed}` : ""}
+                  </small>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       </div>
     </>

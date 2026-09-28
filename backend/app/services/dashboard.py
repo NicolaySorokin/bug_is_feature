@@ -57,7 +57,15 @@ from app.schemas.interaction import SlaState
 from app.schemas.report import ReportFilters
 from app.schemas.university import UniversityBrief
 from app.schemas.user import UserBrief
-from app.services import access, alerts, app_settings, cache, interactions, reports
+from app.services import (
+    access,
+    alert_marks,
+    alerts,
+    app_settings,
+    cache,
+    interactions,
+    reports,
+)
 from app.services.access import Action
 from app.services.labels import (
     ALERT_KIND_LABELS,
@@ -97,7 +105,7 @@ def _role(principal: Principal) -> str:
     return Role.ADMIN
 
 
-def to_alert_read(alert: alerts.Alert) -> AlertRead:
+def to_alert_read(alert: alerts.Alert, read: set[str] | None = None) -> AlertRead:
     return AlertRead(
         kind=alert.kind,
         kind_label=label(ALERT_KIND_LABELS, alert.kind),
@@ -113,6 +121,8 @@ def to_alert_read(alert: alerts.Alert) -> AlertRead:
         manager_name=alert.manager_name,
         days=alert.days,
         link=alert.link,
+        key=alert.key,
+        is_read=alert.key in (read or set()),
     )
 
 
@@ -334,8 +344,10 @@ async def _admin_summary(session: AsyncSession) -> AdminSummary:
         )
         for source, run in runs.all()
     ]
+    # Три последние загрузки: карточка на главной не выше соседних (роли,
+    # обмен), вся история - на странице «Загрузка из Excel».
     imports = await session.execute(
-        select(ImportRun).order_by(ImportRun.created_at.desc()).limit(5)
+        select(ImportRun).order_by(ImportRun.created_at.desc()).limit(3)
     )
     now = datetime.now(UTC)
     temporary = sum(
@@ -430,6 +442,7 @@ async def _build(session: AsyncSession, principal: Principal, user: User) -> Das
     )
 
     rows = reports.build_rows(items)
+    read = await alert_marks.read_keys(session, user, found)
     return DashboardResponse(
         role=role,
         scope=scope,
@@ -438,7 +451,7 @@ async def _build(session: AsyncSession, principal: Principal, user: User) -> Das
         counters=_counters(items, user, found, default_sla),
         alerts_summary=alerts.summarize(found),
         alerts=[
-            to_alert_read(alert)
+            to_alert_read(alert, read)
             for alert in found
             if alert.kind not in SHOWN_IN_STEPS or alert.interaction_id is None
         ][:ALERTS_LIMIT],

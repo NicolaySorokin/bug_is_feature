@@ -4,6 +4,10 @@
  *
  * Табличный вид - равноценная замена диаграмме: в нём те же числа, и его
  * читает экранный диктор.
+ *
+ * Карточки диаграмм в одном ряду - одной высоты: столбцы короткой диаграммы
+ * расходятся по высоте соседней (не дальше двойного шага), а «Нет данных»
+ * стоит посередине - без пустого хвоста внизу.
  */
 import { Download, Table2, BarChart3 } from "lucide-react";
 import { useState } from "react";
@@ -45,7 +49,7 @@ export function ChartCard({
   };
 
   return (
-    <section className={`card ${refreshing ? "is-refreshing" : ""}`}>
+    <section className={`card card--spread chart-card ${refreshing ? "is-refreshing" : ""}`}>
       <div className="card__header">
         <div>
           <h2>{chart.title}</h2>
@@ -84,7 +88,7 @@ export function ChartCard({
       </div>
       <div className="card__body">
         {items.length === 0 ? (
-          <p className="muted">Нет данных за выбранный период.</p>
+          <p className="muted card-empty">Нет данных за выбранный период.</p>
         ) : asTable ? (
           <table className="data-table chart-table">
             <thead>
