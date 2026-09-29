@@ -6,8 +6,9 @@
 отклоняется целиком и не оставляет полузаведённых записей.
 
 Сводный каталог грузится через модель взаимодействия: строка становится
-взаимодействием с договором, продукт добавляется только вместе с программой.
-Новый вуз из файла ждёт проверки.
+взаимодействием с договором, продукт добавляется вместе с программой, а если
+программу не определить, то без неё и с предупреждением. Новый вуз из файла
+ждёт проверки.
 """
 
 from __future__ import annotations
@@ -92,7 +93,8 @@ CATALOG_SPEC = ImportSpec(
         "Вузы, взаимодействия с договорами, ИТ-продукты и лицензии одной таблицей - "
         "набор полей из требования 1 технического задания. Колонка «ИТ-программа» "
         "необязательна: без неё программа продукта берётся из справочного "
-        "соответствия программ и продуктов."
+        "соответствия программ и продуктов, а если там их несколько, продукт "
+        "загружается без программы и связь уточняют в карточке."
     ),
     fields=(
         FieldSpec("university_name", "Название ВУЗа", ("Вуз", "ВУЗ"), required=True),
@@ -681,7 +683,9 @@ async def _catalog_row(session, row, value, number, warnings) -> bool:  # noqa: 
             instance.comment = comment
 
     await _import_contact(session, university, instance, _text(value(row, "contact_name")))
-    await _import_product_and_license(session, instance, contract, row, value)
+    await _import_product_and_license(
+        session, instance, contract, row, value, number, warnings
+    )
     return created
 
 
@@ -715,10 +719,12 @@ async def _import_contact(
 
 async def _program_links_for(
     session: AsyncSession, instance: WorkflowInstance, product: ItProduct, program_name: str
-) -> list[tuple[InteractionProgram, bool]]:
-    """Программы взаимодействия для продукта: (связь, это исключение).
+) -> tuple[list[tuple[InteractionProgram, bool]], str | None]:
+    """Программы взаимодействия для продукта: [(связь, это исключение)] и предупреждение.
 
     Колонка «ИТ-программа» задаёт программу явно, без неё берётся справочник.
+    В файле по ТЗ такой колонки нет, поэтому неоднозначная программа строку
+    не отклоняет: продукт загружается без программы, связь уточняют в карточке.
     """
 
     async def ensure_program(program: ItProgram) -> InteractionProgram:
@@ -753,7 +759,7 @@ async def _program_links_for(
             raise ValueError(
                 f"программы «{program_name}» нет в справочнике - загрузите её раньше"
             )
-        return [(await ensure_program(program), program.id not in catalog)]
+        return [(await ensure_program(program), program.id not in catalog)], None
 
     existing = list(
         (
@@ -766,18 +772,18 @@ async def _program_links_for(
         ).scalars()
     )
     if existing:
-        return [(link, False) for link in existing]
+        return [(link, False) for link in existing], None
     if len(catalog) == 1:
         program = await session.get(ItProgram, next(iter(catalog)))
-        return [(await ensure_program(program), False)]
+        return [(await ensure_program(program), False)], None
     if not catalog:
-        raise ValueError(
-            f"продукт «{product.name}» не связан ни с одной ИТ-программой: заполните "
-            "колонку «ИТ-программа» или свяжите продукт с программой в справочнике"
-        )
-    raise ValueError(
-        f"продукт «{product.name}» используется в нескольких программах - укажите "
-        "нужную в колонке «ИТ-программа»"
+        reason = "в справочнике он не связан ни с одной ИТ-программой"
+    else:
+        reason = "по справочнику он используется в нескольких ИТ-программах"
+    return [], (
+        f"Предупреждение: продукт «{product.name}» загружен без программы - {reason}. "
+        "Свяжите его с программой в карточке взаимодействия или добавьте в файл "
+        "колонку «ИТ-программа»"
     )
 
 
@@ -787,6 +793,8 @@ async def _import_product_and_license(
     contract: Contract,
     row: list[Any],
     value,
+    number: int,
+    warnings: list[RowError],
 ) -> None:  # noqa: ANN001
     product_name = _text(value(row, "product"))
     if not product_name:
@@ -817,11 +825,13 @@ async def _import_product_and_license(
         )
     )
     # Продукт уже связан с программой: строка обновляет его статус и лицензию.
-    program_links = (
-        []
-        if linked and not program_name
-        else await _program_links_for(session, instance, product, program_name)
-    )
+    program_links: list[tuple[InteractionProgram, bool]] = []
+    if not linked or program_name:
+        program_links, warning = await _program_links_for(
+            session, instance, product, program_name
+        )
+        if warning:
+            warnings.append(RowError(number, "ПО", warning))
     if link is None:
         link = InteractionProduct(workflow_instance_id=instance.id, product_id=product.id)
         session.add(link)

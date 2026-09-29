@@ -136,6 +136,67 @@ async def test_catalog_import_creates_interaction_with_license(client: AsyncClie
     assert licenses["items"][0]["valid_to"] == "2027-12-31"
 
 
+async def test_catalog_in_tz_format_loads_product_used_in_several_programs(
+    client: AsyncClient,
+) -> None:
+    """В файле по ТЗ нет колонки «ИТ-программа». Если программу продукта не
+    определить, строка всё равно загружается, а продукт ждёт уточнения связи."""
+    await create_template(client)
+    product = (
+        await client.post(
+            "/api/v1/catalog/products", json={"name": "Astra Linux"}, headers=ADMIN
+        )
+    ).json()
+    for name in ("DevOps-инженер", "Системный администратор"):
+        program = (
+            await client.post("/api/v1/catalog/programs", json={"name": name}, headers=ADMIN)
+        ).json()
+        await client.put(
+            f"/api/v1/catalog/programs/{program['id']}/products",
+            json={"product_ids": [product["id"]]},
+            headers=HEAD,
+        )
+    headers = [item for item in CATALOG_HEADERS if item != "ИТ-программа"]
+    content = book(
+        [
+            headers,
+            [
+                "Томский университет",
+                "Астра",
+                "Astra Linux",
+                "ДГ-2026-7",
+                "01.03.2026",
+                "1",
+                "Передано",
+                None,
+                "Кузнецова Ольга",
+                None,
+            ],
+        ]  # fmt: skip
+    )
+    preview = await _upload(client, content, "catalog")
+    result = (
+        await client.post(
+            f"/api/v1/imports/{preview['run']['id']}/commit", json={}, headers=ADMIN
+        )
+    ).json()
+
+    assert (result["run"]["rows_created"], result["run"]["rows_failed"]) == (1, 0)
+    assert any("загружен без программы" in item["message"] for item in result["errors"])
+
+    interaction = (await _interactions(client))["items"][0]
+    detail = (
+        await client.get(f"/api/v1/interactions/{interaction['id']}", headers=HEAD)
+    ).json()
+    assert detail["product_links"][0]["transfer_status"] == "transferred"
+    assert detail["links"] == []
+    licenses = (await client.get("/api/v1/licenses", headers=HEAD)).json()
+    assert licenses["items"][0]["valid_to"] == "2027-03-01"
+
+    alerts = (await client.get("/api/v1/dashboard/alerts", headers=HEAD)).json()
+    assert "product_without_program" in {alert["kind"] for alert in alerts}
+
+
 async def test_repeated_import_updates_instead_of_duplicating(
     client: AsyncClient,
 ) -> None:
