@@ -701,7 +701,8 @@ export function TextAreaField({
   maxLength?: number;
 }) {
   const id = useId();
-  // TextArea из Atomaro берёт значение только при появлении. Если значение меняет код (очистка после
+  // TextArea из Atomaro берёт значение только при появлении, и то из defaultValue: без него
+  // сохранённый текст (описание, черновик) не виден. Если значение меняет код (очистка после
   // отправки), поле пересоздаётся, иначе на экране остался бы старый текст.
   const typed = useRef(value);
   const [revision, setRevision] = useState(0);
@@ -718,6 +719,7 @@ export function TextAreaField({
         id={id}
         className="textarea-full"
         value={value}
+        defaultValue={value}
         rows={Math.max(rows, 3)}
         hideLabel
         placeholder={placeholder}
