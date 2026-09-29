@@ -23,7 +23,8 @@ services:
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
     expose:
       - "8000"
-    mem_limit: 1g
+    # Каждый процесс API держит ещё процесс сборки отчётов, около 130 МБ.
+    mem_limit: 1536m
     restart: always
     command: >
       sh -c "alembic upgrade head &&
