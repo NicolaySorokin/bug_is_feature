@@ -1824,6 +1824,10 @@ select.control--s {
   max-width: 880px;
 }
 
+.page--narrow > .stack {
+  margin-inline: auto;
+}
+
 .account-profile {
   display: flex;
   align-items: center;
