@@ -31,20 +31,9 @@ import type {
 } from "../../api/types";
 import { ChartCard } from "../../charts/ChartCard";
 import { Modal } from "../../components/Modal";
-import { MultiSelect } from "../../components/MultiSelect";
+import { FilterSelect, MultiSelect } from "../../components/MultiSelect";
 import { PeriodPicker, type Period } from "../../components/PeriodPicker";
-import {
-  Button,
-  Card,
-  Checkbox,
-  EmptyState,
-  ErrorState,
-  Kpi,
-  KpiRow,
-  Loading,
-  SelectField,
-  TextField,
-} from "../../components/ui";
+import { Button, Card, Checkbox, EmptyState, ErrorState, Kpi, KpiRow, Loading, TextField } from "../../components/ui";
 import { formatDate, formatDateTime, formatNumber } from "../../lib/format";
 import { CLOSURE_REASONS, INTERACTION_STATUSES, PERIOD_BASIS_LABELS } from "../../lib/labels";
 import { usePersistentState } from "../../lib/storage";
@@ -226,7 +215,7 @@ export function InteractionReport() {
       <Card>
         <div className="toolbar" style={{ marginBottom: 12 }}>
           <PeriodPicker value={state.period} onChange={(value) => set("period", value)} />
-          <SelectField
+          <FilterSelect
             label="Период считать"
             value={state.period_basis}
             onChange={(value) => set("period_basis", value as PeriodBasis)}

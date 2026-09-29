@@ -126,11 +126,39 @@ function ControlQueue({ items }: { items: ControlItem[] }) {
  * взаимодействие уже есть в шагах или очереди (alerts_in_steps). Тогда elsewhere говорит, где они,
  * чтобы пустой список не выглядел как «проблем нет».
  */
-function AlertList({ alerts, elsewhere, limit = 8 }: { alerts: Alert[]; elsewhere?: string; limit?: number }) {
+function ElsewhereLink({ item }: { item: NextStep | ControlItem }) {
+  const university = item.university.short_name || item.university.name;
+  const details = [university, interactionTitle(item), item.stage_name ? `этап «${item.stage_name}»` : null]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <Link className="state__link" to={`/interactions/${item.interaction_id}?tab=process`}>
+      Открыть: {details}
+    </Link>
+  );
+}
+
+function AlertList({
+  alerts,
+  elsewhere,
+  elsewhereItem,
+  limit = 8,
+}: {
+  alerts: Alert[];
+  elsewhere?: string;
+  elsewhereItem?: NextStep | ControlItem;
+  limit?: number;
+}) {
   if (alerts.length === 0) {
     return elsewhere ? (
-      <EmptyState icon={CheckCircle2} title="Других проблем нет">
+      <EmptyState icon={CheckCircle2} title="Повод уже показан в шагах">
         {elsewhere}
+        {elsewhereItem && (
+          <>
+            <br />
+            <ElsewhereLink item={elsewhereItem} />
+          </>
+        )}
       </EmptyState>
     ) : (
       <EmptyState icon={CheckCircle2} title="Проблем нет">
@@ -171,7 +199,17 @@ function AlertList({ alerts, elsewhere, limit = 8 }: { alerts: Alert[]; elsewher
           </div>
         );
       })}
-      {elsewhere && <p className="list__note">{elsewhere}</p>}
+      {elsewhere && (
+        <p className="list__note">
+          {elsewhere}
+          {elsewhereItem && (
+            <>
+              <br />
+              <ElsewhereLink item={elsewhereItem} />
+            </>
+          )}
+        </p>
+      )}
     </div>
   );
 }
@@ -183,6 +221,10 @@ function alertsElsewhere(data: Dashboard, head: boolean): string | undefined {
   if (!head) return `Блокировки и просрочки (${formatNumber(count)}) - в блоке «Следующие шаги».`;
   const place = (data.next_steps || []).length > 0 ? "в блоках «Очередь решений» и «Мои шаги»" : "в блоке «Очередь решений»";
   return `Блокировки, просрочки и взаимодействия без ответственного (${formatNumber(count)}) - ${place}.`;
+}
+
+function alertElsewhereItem(data: Dashboard, head: boolean): NextStep | ControlItem | undefined {
+  return head ? data.control_queue?.[0] || data.next_steps?.[0] : data.next_steps?.[0];
 }
 
 function Recent({ data }: { data: Dashboard }) {
@@ -566,7 +608,11 @@ export default function DashboardPage() {
                 description={`${countLabel(counters.alerts, ["повод", "повода", "поводов"])} ${data.scope_label}`}
                 flush
               >
-                <AlertList alerts={data.alerts || []} elsewhere={alertsElsewhere(data, head)} />
+                <AlertList
+                  alerts={data.alerts || []}
+                  elsewhere={alertsElsewhere(data, head)}
+                  elsewhereItem={alertElsewhereItem(data, head)}
+                />
               </Card>
               <Card title="Последние изменения" actions={<Clock size={16} className="muted" />}>
                 <Recent data={data} />
