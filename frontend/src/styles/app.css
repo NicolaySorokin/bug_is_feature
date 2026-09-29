@@ -1785,6 +1785,11 @@ select.control--s {
   max-width: 460px;
 }
 
+.state__link {
+  color: var(--accent-700, #5500b8);
+  font-weight: 700;
+}
+
 .state code {
   padding: 1px 6px;
   border-radius: 4px;
