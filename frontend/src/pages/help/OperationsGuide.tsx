@@ -57,12 +57,8 @@ export function OperationsGuide(): Section[] {
             </tbody>
           </table>
           <p>
-            Описание API -{" "}
-            <a href="/docs" target="_blank" rel="noreferrer">
-              Swagger UI
-            </a>{" "}
-            (<code>/docs</code>) и ReDoc (<code>/redoc</code>), схема - <code>/api/v1/openapi.json</code>. Модель архитектуры в
-            нотации ArchiMate (Archi) входит в состав поставки.
+            Описание API - Swagger UI (<code>/docs</code>) и ReDoc (<code>/redoc</code>), схема -{" "}
+            <code>/api/v1/openapi.json</code>. Модель архитектуры в нотации ArchiMate (Archi) входит в состав поставки.
           </p>
         </>
       ),
@@ -134,7 +130,7 @@ make up ENV=prod                            # контейнеры, миграц
                 <td>
                   <code>WEB_CONCURRENCY</code>
                 </td>
-                <td>Рабочие процессы API (4 - на 50 пользователей и 10 отчётов одновременно)</td>
+                <td>Число рабочих процессов API; рекомендуемое значение для нагрузочного сценария ТЗ - 4</td>
               </tr>
               <tr>
                 <td>

@@ -1,9 +1,11 @@
 # Библиотеки и компоненты
 
-Перечень всего, что использует решение (раздел 6, п. 2 ТЗ). Версии —
-те, что стоят в собранных образах: серверная часть ставится строго по
-`backend/requirements.lock`, клиентская — по `frontend/package-lock.json`.
-Все компоненты — с открытым исходным кодом.
+Основные компоненты решения и прямые библиотеки (раздел 6, п. 2 ТЗ).
+Точные версии Python-пакетов зафиксированы в
+[`backend/requirements.lock`](../../backend/requirements.lock), клиентских
+пакетов - в [`frontend/package-lock.json`](../../frontend/package-lock.json).
+Этот обзор не заменяет перечень всех транзитивных зависимостей и проверку
+лицензий конкретного собранного образа. GitHub Actions указан как сервис CI.
 
 ## Инфраструктура
 
@@ -17,7 +19,7 @@
 | Node.js | 22 (образ `node:22-alpine`, только сборка) | сборка клиентской части | MIT |
 | DejaVu Fonts | пакет `fonts-dejavu-core` | кириллица в PDF и диаграммах | свободная (Bitstream Vera) |
 | Let's Encrypt certbot | пакет ОС на сервере | сертификат HTTPS | Apache-2.0 |
-| GitHub Actions | — | CI и деплой | — |
+| GitHub Actions | - | CI и деплой | - |
 
 ## Серверная часть (`backend/requirements.txt`)
 
@@ -42,7 +44,7 @@
 | Pillow | 12.3.0 | диаграммы в PNG |
 
 Для разработки (`backend/requirements-dev.txt`): pytest 8, pytest-asyncio,
-Ruff — тесты и стиль.
+Ruff - тесты и стиль.
 
 ## Клиентская часть (`frontend/package.json`)
 
