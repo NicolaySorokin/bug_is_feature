@@ -32,7 +32,7 @@ const guides = [
   ["А", "Руководство менеджера", "ManagerGuide"],
   ["Б", "Руководство руководителя", "HeadGuide"],
   ["В", "Руководство администратора", "AdminGuide"],
-  ["Г", "Руководство по установке и эксплуатации", "OperationsGuide"],
+  ["Г", "Руководство системного администратора по установке и эксплуатации", "OperationsGuide"],
 ];
 const result = guides.map(([letter, title, name]) => ({
   letter,

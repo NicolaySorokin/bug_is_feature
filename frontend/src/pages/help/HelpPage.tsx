@@ -99,7 +99,7 @@ export default function HelpPage() {
     { key: "manager", label: "Менеджеру", icon: BookOpen, hidden: false },
     { key: "head", label: "Руководителю", icon: Users, hidden: !(roles.includes("head") || admin) },
     { key: "admin", label: "Администратору", icon: ShieldCheck, hidden: !admin },
-    { key: "operations", label: "Установка и эксплуатация", icon: Wrench, hidden: !admin },
+    { key: "operations", label: "Системному администратору", icon: Wrench, hidden: !admin },
   ] as const;
   // Без выбора открывается руководство своей роли. Старая ссылка /help/user ведёт к руководству менеджера.
   const own = roles.includes("head") ? "head" : roles.includes("manager") || !admin ? "manager" : "admin";
@@ -110,7 +110,7 @@ export default function HelpPage() {
   return (
     <div className="page">
       {/* Без подзаголовка: про доступ сказано в разделе «Роли и права», а ссылка на Swagger UI есть
-в руководстве по установке и эксплуатации. */}
+в руководстве системного администратора по установке и эксплуатации. */}
       <PageHeader title="Руководства" />
       <Tabs
         value={current}
