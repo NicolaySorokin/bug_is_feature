@@ -11,6 +11,7 @@ import { keys, useDirectory, useLabel } from "../api/queries";
 import type { UniversityListItem } from "../api/types";
 import { useSession } from "../auth/session";
 import { DataTable, Pager, type Column } from "../components/DataTable";
+import { FilterSelect } from "../components/MultiSelect";
 import {
   Button,
   Card,
@@ -21,7 +22,6 @@ import {
   Loading,
   PageHeader,
   SearchInput,
-  SelectField,
   StatusBadge,
   Tag,
 } from "../components/ui";
@@ -182,7 +182,7 @@ export default function UniversitiesPage() {
           <span className="field__label">Поиск</span>
           <SearchInput value={search} onChange={setSearch} placeholder="Название, сокращение, город или ИНН" />
         </div>
-        <SelectField
+        <FilterSelect
           label="Менеджер по умолчанию"
           value={filters.unassigned === "true" ? "__none" : filters.manager_id || ""}
           onChange={(value) =>
@@ -197,7 +197,7 @@ export default function UniversitiesPage() {
               .map((item) => ({ value: item.id, label: item.full_name })),
           ]}
         />
-        <SelectField
+        <FilterSelect
           label="Статус"
           value={filters.status || ""}
           onChange={(value) => update({ status: value })}

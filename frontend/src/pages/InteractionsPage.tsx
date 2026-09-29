@@ -20,8 +20,8 @@ import {
 import type { InteractionListItem } from "../api/types";
 import { useSession } from "../auth/session";
 import { DataTable, Pager, type Column } from "../components/DataTable";
-import { MultiSelect } from "../components/MultiSelect";
-import { Button, Card, EmptyState, ErrorState, Loading, PageHeader, SearchInput, SelectField, Tag } from "../components/ui";
+import { FilterSelect, MultiSelect } from "../components/MultiSelect";
+import { Button, Card, EmptyState, ErrorState, Loading, PageHeader, SearchInput, Tag } from "../components/ui";
 import { InteractionFormModal } from "../features/interaction/InteractionForm";
 import { ContractCell, interactionTitle, SlaChip, StageCell, StatusCell, UniversityName } from "../features/interaction/parts";
 import { formatDateTime } from "../lib/format";
@@ -183,7 +183,7 @@ export default function InteractionsPage() {
   const managerOptions = (directory.data || []).map((user) => ({ value: user.id, label: user.full_name }));
   const title = scope === "own" ? "Мои взаимодействия" : "Взаимодействия";
   const universityFilter = (
-    <SelectField
+    <FilterSelect
       label="Вуз"
       value={filters.university_id || ""}
       onChange={(value) => update({ university_id: value })}
@@ -228,7 +228,7 @@ export default function InteractionsPage() {
           onChange={(value) => update({ status: value.join(",") })}
           options={INTERACTION_STATUSES.map((value) => ({ value, label: label("interaction_status", value) }))}
         />
-        <SelectField
+        <FilterSelect
           label="Срок этапа"
           value={filters.overdue || ""}
           onChange={(value) => update({ overdue: value })}
@@ -238,7 +238,7 @@ export default function InteractionsPage() {
         {scope === "own" ? (
           universityFilter
         ) : (
-          <SelectField
+          <FilterSelect
             label="Ответственный"
             value={filters.unassigned === "true" ? "__none" : filters.manager_id || ""}
             onChange={(value) =>
@@ -252,7 +252,7 @@ export default function InteractionsPage() {
       {showMore && (
         <div className="toolbar toolbar--secondary" id="interaction-more-filters">
           {scope !== "own" && universityFilter}
-          <SelectField
+          <FilterSelect
             label="Результат"
             value={filters.outcome || ""}
             onChange={(value) => update({ outcome: value })}
@@ -262,14 +262,14 @@ export default function InteractionsPage() {
               label: label("interaction_outcome", value),
             }))}
           />
-          <SelectField
+          <FilterSelect
             label="Этап"
             value={filters.stage || ""}
             onChange={(value) => update({ stage: value })}
             placeholder="Любой"
             options={(stages.data || []).map((name) => ({ value: name, label: name }))}
           />
-          <SelectField
+          <FilterSelect
             label="Договор"
             value={filters.has_contract || ""}
             onChange={(value) => update({ has_contract: value })}
@@ -279,7 +279,7 @@ export default function InteractionsPage() {
               { value: "false", label: "Договора нет" },
             ]}
           />
-          <SelectField
+          <FilterSelect
             label="Статус договора"
             value={filters.contract_status || ""}
             onChange={(value) => update({ contract_status: value })}
@@ -289,7 +289,7 @@ export default function InteractionsPage() {
               label: label("contract_status", value),
             }))}
           />
-          <SelectField
+          <FilterSelect
             label="Источник"
             value={filters.source || ""}
             onChange={(value) => update({ source: value })}
@@ -299,28 +299,28 @@ export default function InteractionsPage() {
               label: label("interaction_source", value),
             }))}
           />
-          <SelectField
+          <FilterSelect
             label="ИТ-направление"
             value={filters.direction_id || ""}
             onChange={(value) => update({ direction_id: value })}
             placeholder="Все"
             options={(directions.data || []).map((item) => ({ value: item.id, label: item.name }))}
           />
-          <SelectField
+          <FilterSelect
             label="ИТ-программа"
             value={filters.program_id || ""}
             onChange={(value) => update({ program_id: value })}
             placeholder="Все"
             options={(programs.data || []).map((item) => ({ value: item.id, label: item.name }))}
           />
-          <SelectField
+          <FilterSelect
             label="ИТ-продукт"
             value={filters.product_id || ""}
             onChange={(value) => update({ product_id: value })}
             placeholder="Все"
             options={(products.data || []).map((item) => ({ value: item.id, label: item.name }))}
           />
-          <SelectField
+          <FilterSelect
             label="Сортировка"
             value={filters.order || "updated"}
             onChange={(value) => update({ order: value === "updated" ? "" : value })}
