@@ -36,6 +36,7 @@ import { useSession, type Action, type Session } from "../auth/session";
 import { RtLogo } from "../components/Brand";
 import { useToast } from "../components/Toasts";
 import { Avatar, IconButton } from "../components/ui";
+import { alertMeta } from "../lib/alerts";
 import { countLabel } from "../lib/format";
 import { ROLE_SHORT } from "../lib/labels";
 
@@ -309,9 +310,7 @@ function AlertsMenu() {
                 <span className="alert-item__text">
                   <strong>{item.kind_label}</strong>
                   <span>{item.message}</span>
-                  <small title={item.university_full_name || undefined}>
-                    {[item.university_name, item.contract_number, item.manager_name].filter(Boolean).join(" · ")}
-                  </small>
+                  <small title={item.university_full_name || undefined}>{alertMeta(item)}</small>
                 </span>
               </>
             );

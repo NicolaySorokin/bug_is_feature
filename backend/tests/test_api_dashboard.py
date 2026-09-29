@@ -89,9 +89,12 @@ async def test_draft_without_process_is_reported(
 async def test_active_contract_without_scan_is_reported(
     client: AsyncClient, university: dict
 ) -> None:
-    await make_contract(client, university["id"], MANAGER)
+    signed = str(date.today() - timedelta(days=20))
+    await make_contract(client, university["id"], MANAGER, signed_at=signed, valid_from=signed)
     alerts = (await client.get("/api/v1/dashboard/alerts", headers=MANAGER)).json()
-    assert "no_documents" in _kinds(alerts)
+    scan = next(alert for alert in alerts if alert["kind"] == "no_documents")
+    # Скана нет с подписания договора.
+    assert scan["days"] == 20
 
 
 async def test_stale_stage_is_reported_with_days(
