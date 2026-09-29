@@ -1516,6 +1516,14 @@ select.control--s {
 }
 
 .multi__panel {
+  position: absolute;
+  z-index: 60;
+  min-width: 100%;
+  margin-top: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
   width: max(100%, 300px);
   max-width: calc(100vw - 32px);
   padding: 8px;
@@ -3222,6 +3230,11 @@ a.list-item:hover {
 
 .edge--passed {
   stroke: #5ac180;
+}
+
+.edge-label__background {
+  fill: var(--surface);
+  pointer-events: none;
 }
 
 .edge-label {
