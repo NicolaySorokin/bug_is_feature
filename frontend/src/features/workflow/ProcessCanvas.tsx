@@ -40,6 +40,15 @@ interface View {
   k: number;
 }
 
+interface EdgeLabelLayout {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  clipped: boolean;
+}
+
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 1.8;
 
@@ -237,6 +246,34 @@ export function ProcessCanvas({
   const byId = useMemo(() => Object.fromEntries(stages.map((stage) => [stage.id, stage])), [stages]);
   const ordered = useMemo(() => [...stages].sort((left, right) => left.sort_order - right.sort_order), [stages]);
   const numbers = useMemo(() => Object.fromEntries(ordered.map((stage, index) => [stage.id, index + 1])), [ordered]);
+  const edgeLabels = useMemo<EdgeLabelLayout[]>(() => {
+    const placed: EdgeLabelLayout[] = [];
+    const offsets = [0, -18, 18, -36, 36, -54, 54];
+
+    transitions.forEach((transition) => {
+      const from = positions[transition.from_stage_id];
+      const to = positions[transition.to_stage_id];
+      if (!from || !to || !transition.name || !availableTransitionIds?.has(transition.id)) return;
+
+      const { label } = edgePath(from, to, transition.is_backward);
+      const text = clip(transition.name, 20);
+      const clipped = text !== transition.name;
+      // Approximate the SVG text width so two labels on the same route can be separated.
+      const width = clipped ? 136 : Math.max(48, text.length * 6.2);
+      const baseY = label.y - 6;
+      const offset = offsets.find((candidate) =>
+        placed.every(
+          (other) =>
+            Math.abs(label.x - other.x) >= (width + other.width) / 2 + 8 ||
+            Math.abs(baseY + candidate - other.y) >= 15,
+        ),
+      ) ?? offsets[offsets.length - 1];
+
+      placed.push({ id: transition.id, text, x: label.x, y: baseY + offset, width, clipped });
+    });
+
+    return placed;
+  }, [availableTransitionIds, positions, transitions]);
 
   const edgeClass = (transition: CanvasTransition) => {
     const classes = ["edge"];
@@ -330,6 +367,10 @@ export function ProcessCanvas({
               ]
                 .filter(Boolean)
                 .join(" · ");
+              const title = clip(stage.name);
+              const titleClipped = title !== stage.name;
+              const metaText = clip(meta, 28);
+              const metaClipped = metaText !== meta;
               return (
                 <g
                   key={stage.id}
@@ -350,26 +391,49 @@ export function ProcessCanvas({
                 >
                   <title>{stage.name}</title>
                   <rect className="node__box" width={NODE_WIDTH} height={NODE_HEIGHT} rx={12} />
-                  <text className="node__title" x={12} y={24}>
-                    {clip(stage.name)}
+                  <text
+                    className="node__title"
+                    x={12}
+                    y={24}
+                    textLength={titleClipped ? NODE_WIDTH - 24 : undefined}
+                    lengthAdjust={titleClipped ? "spacingAndGlyphs" : undefined}
+                  >
+                    {title}
                   </text>
-                  <text className="node__meta" x={12} y={42}>
-                    {meta}
+                  <text
+                    className="node__meta"
+                    x={12}
+                    y={42}
+                    textLength={metaClipped ? NODE_WIDTH - 24 : undefined}
+                    lengthAdjust={metaClipped ? "spacingAndGlyphs" : undefined}
+                  >
+                    {metaText}
                   </text>
                 </g>
               );
             })}
-            {transitions.map((transition) => {
-              const from = positions[transition.from_stage_id];
-              const to = positions[transition.to_stage_id];
-              if (!from || !to || !transition.name || !availableTransitionIds?.has(transition.id)) return null;
-              const { label } = edgePath(from, to, transition.is_backward);
-              return (
-                <text key={`label-${transition.id}`} className="edge-label" x={label.x} y={label.y - 6} textAnchor="middle">
-                  {clip(transition.name, 22)}
+            {edgeLabels.map((label) => (
+              <g key={`label-${label.id}`} className="edge-label-group">
+                <rect
+                  className="edge-label__background"
+                  x={label.x - label.width / 2 - 4}
+                  y={label.y - 11}
+                  width={label.width + 8}
+                  height={16}
+                  rx={4}
+                />
+                <text
+                  className="edge-label"
+                  x={label.x}
+                  y={label.y}
+                  textAnchor="middle"
+                  textLength={label.clipped ? label.width : undefined}
+                  lengthAdjust={label.clipped ? "spacingAndGlyphs" : undefined}
+                >
+                  {label.text}
                 </text>
-              );
-            })}
+              </g>
+            ))}
           </g>
         </svg>
       </div>

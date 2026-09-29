@@ -3230,6 +3230,11 @@ a.list-item:hover {
   stroke: #5ac180;
 }
 
+.edge-label__background {
+  fill: var(--surface);
+  pointer-events: none;
+}
+
 .edge-label {
   fill: var(--rt-violet);
   font-size: 11px;
