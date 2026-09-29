@@ -83,7 +83,7 @@ export function MultiSelect({
           {labels.length > 1 && <span className="multi__count">{labels.length}</span>}
         </button>
         {open && (
-          <div id={panelId} className="popover multi__panel" role="listbox" aria-multiselectable="true">
+          <div id={panelId} className="multi__panel" role="listbox" aria-multiselectable="true">
             {options.length > 8 && (
               <input
                 className="control control--s"
