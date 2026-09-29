@@ -1521,6 +1521,12 @@ select.control--s {
   padding: 8px;
 }
 
+/* Atomaro тоже использует класс popover и прячет его через display: none.
+   У фильтра это обычная открытая панель, поэтому явно возвращаем отображение. */
+.multi .multi__panel {
+  display: block;
+}
+
 .multi__options {
   max-height: 280px;
   overflow-y: auto;
