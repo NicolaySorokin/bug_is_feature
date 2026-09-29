@@ -271,10 +271,7 @@ bash current/cicd/prod/server/release.sh rollback        # откат на пр�
 bash current/cicd/prod/server/release.sh compose ps      # состояние контейнеров
 bash current/cicd/prod/server/release.sh compose logs -f api nginx`}</code>
           </pre>
-          <p>
-            Выложить определённый коммит: Actions → «Деплой» → Run workflow, поле «Коммит, тег или ветка». Подробно - в README
-            репозитория, раздел «Боевой стенд».
-          </p>
+          <p>Выложить определённый коммит: Actions → «Деплой» → Run workflow, поле «Коммит, тег или ветка».</p>
         </>
       ),
     },
