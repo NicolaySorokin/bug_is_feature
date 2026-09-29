@@ -1,0 +1,79 @@
+@startuml
+top to bottom direction
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam linetype ortho
+skinparam ArrowColor #4A4360
+skinparam entity {
+  BackgroundColor #F4F0FF
+  BorderColor #7700FF
+}
+hide circle
+
+entity "Вузы\nuniversities" as U {
+  * id : UUID <<PK>>
+  --
+  name : text
+}
+entity "Шаблоны\nworkflow_templates" as T {
+  * id : UUID <<PK>>
+  --
+  name : text
+}
+entity "Версии\nworkflow_versions" as V {
+  * id : UUID <<PK>>
+  --
+  template_id : UUID <<FK>>
+  status : text
+}
+entity "Этапы\nworkflow_stages" as S {
+  * id : UUID <<PK>>
+  --
+  workflow_version_id : UUID <<FK>>
+  name : text
+}
+entity "Взаимодействия\nworkflow_instances" as I {
+  * id : UUID <<PK>>
+  --
+  university_id : UUID <<FK>>
+  workflow_version_id : UUID <<FK>>
+  current_stage_id : UUID <<FK, NULL>>
+  status : text
+}
+entity "История\nworkflow_events" as E {
+  * id : UUID <<PK>>
+  --
+  workflow_instance_id : UUID <<FK>>
+  event_type : text
+}
+entity "Продукты взаимодействия\ninteraction_products" as P {
+  * id : UUID <<PK>>
+  --
+  workflow_instance_id : UUID <<FK>>
+  product_id : UUID <<FK>>
+}
+entity "Договоры\ncontracts" as C {
+  * id : UUID <<PK>>
+  --
+  workflow_instance_id : UUID <<FK, UNIQUE>>
+  status : text
+}
+entity "Лицензии\nlicenses" as L {
+  * id : UUID <<PK>>
+  --
+  contract_id : UUID <<FK>>
+  interaction_product_id : UUID <<FK>>
+}
+
+U ||--o{ I
+T ||--o{ V
+V ||--o{ S
+V ||--o{ I
+I ||--o{ E
+I ||--o{ P
+I ||--o| C
+C ||--o{ L
+P ||--o{ L
+
+@enduml

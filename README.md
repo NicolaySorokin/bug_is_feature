@@ -8,10 +8,11 @@
 обмен с LMS и сайтом и загрузка каталогов из Excel.
 
 - Стенд: https://edu-crm.nikitarodionov.ru, Swagger UI: `/docs`
-- Соответствие ТЗ по пунктам: [docs/requirements.md](docs/requirements.md)
-- Библиотеки и версии: [docs/libraries.md](docs/libraries.md)
-- Решения по бизнес-модели: [docs/business-model-decisions.md](docs/business-model-decisions.md)
-- Модель архитектуры в Archi: [docs/architecture/edu-crm.archimate](docs/architecture/edu-crm.archimate)
+- Соответствие ТЗ по пунктам: [docs/project/requirements.md](docs/project/requirements.md)
+- Библиотеки и версии: [docs/project/libraries.md](docs/project/libraries.md)
+- Решения по бизнес-модели: [docs/project/business-model-decisions.md](docs/project/business-model-decisions.md)
+- Архитектурные схемы и модель ArchiMate: [docs/architecture](docs/architecture)
+- Сопроводительная документация: [PDF](docs/edu_crm_documentation.pdf)
 - Руководства менеджера, руководителя, администратора и системного
   администратора встроены в систему, раздел «Руководства»
 
@@ -117,7 +118,11 @@ cicd/<среда>/           отличия сред
 cicd/prod/server/       скрипты сервера: подготовка, сертификат, релизы, копии
 deploy/keycloak/        реалм с ролями и пользователями, образ и тема входа
 deploy/postgres/        база Keycloak рядом с базой системы
-docs/                   соответствие ТЗ, библиотеки, модель Archi, схема API
+docs/
+  architecture/         исходники и изображения диаграмм, модель ArchiMate
+  project/              соответствие ТЗ, библиотеки, бизнес-модель
+  openapi.json          схема API
+  edu_crm_documentation.pdf  сопроводительная документация
 ```
 
 | Компонент | Решение |
@@ -512,11 +517,10 @@ $R keycloak-setup --loadtest off
 
 ## Архитектура в Archi
 
-[edu-crm.archimate](docs/architecture/edu-crm.archimate) это модель
-в нотации ArchiMate 3.1, открывается в Archi через File → Open. В ней три
-представления: бизнес-контекст, приложения и развёртывание. Модель собирает
-скрипт `python docs/architecture/generate.py`, поэтому правки вносят в него,
-а не в Archi.
+[edu-crm-architecture.archimate](docs/architecture/edu-crm-architecture.archimate) -
+редактируемая модель в нотации ArchiMate 3.1 с функциональным и компонентным
+представлениями. В `docs/architecture/` также лежат их PNG-изображения и
+исходники PlantUML с готовыми изображениями остальных схем документации.
 
 ## Тесты и CI
 

@@ -1,0 +1,49 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 15
+skinparam ArrowColor #4A4360
+skinparam usecase {
+  BackgroundColor #F4F0FF
+  BorderColor #7700FF
+}
+
+actor "Менеджер" as M
+actor "Руководитель" as H
+actor "Администратор" as A
+actor "Keycloak" as K
+actor "LMS" as L
+actor "Сайт ИТ Школы" as S
+
+rectangle "Система" {
+  usecase "Войти в систему" as Login
+  usecase "Вести взаимодействие\nи 14 этапов" as Work
+  usecase "Вести договор,\nлицензии и файлы" as Contract
+  usecase "Формировать проект договора\nпо шаблону" as DraftContract
+  usecase "Формировать отчёт\nи статистику" as Report
+  usecase "Назначать ответственных\nи контролировать проблемы" as Control
+  usecase "Вести шаблоны\nдоговоров" as ContractTemplates
+  usecase "Управлять пользователями,\nправами и шаблонами" as Admin
+  usecase "Загружать каталоги\nи настраивать обмен" as Import
+  usecase "Получать данные\nоб обучении и заявках" as Sync
+}
+
+M --> Login
+M --> Work
+M --> Contract
+M --> DraftContract
+M --> Report
+H --> Work
+H --> Report
+H --> Control
+H --> ContractTemplates
+A --> Admin
+A --> Import
+K --> Login
+L --> Sync
+S --> Sync
+Import ..> Sync : <<include>>
+
+@enduml

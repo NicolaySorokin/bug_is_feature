@@ -1,0 +1,45 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 16
+skinparam ArrowColor #4A4360
+skinparam ParticipantBackgroundColor #F4F0FF
+skinparam ParticipantBorderColor #7700FF
+
+actor "Менеджер" as User
+participant "Веб-клиент" as Web
+participant "Keycloak" as KC
+participant "API" as API
+participant "Модуль\nworkflow" as Flow
+database "PostgreSQL" as DB
+
+User -> Web : Выбрать следующий этап
+opt Вход ещё не выполнен
+  Web -> KC : OIDC Authorization Code\n+ PKCE
+  KC --> Web : Токен доступа
+end
+Web -> API : POST /interactions/{id}/transition\nBearer token, этап, комментарий
+opt Ключ подписи отсутствует в кэше
+  API -> KC : Получить JWKS
+  KC --> API : Открытые ключи
+end
+API -> API : Проверить JWT
+API -> DB : Получить пользователя\nи взаимодействие
+DB --> API : Данные и область доступа
+API -> API : Проверить право изменения
+API -> DB : Загрузить версию, этапы\nи вложения
+DB --> API : Правила перехода\nи документы
+API -> Flow : Проверить переход\nи выполнить шаг
+Flow --> API : Результат проверки
+alt Переход разрешён
+  API -> DB : Обновить текущий этап\nи записать workflow_events
+  DB --> API : Данные сохранены
+  API -> DB : Зафиксировать транзакцию
+  DB --> API : Подтверждение
+  API --> Web : 200, состояние и история
+else Нарушено право или правило
+  API --> Web : 403 или 409, code и details
+end
+Web --> User : Показать результат
+
+@enduml

@@ -1,0 +1,37 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 16
+skinparam ActivityBackgroundColor #F4F0FF
+skinparam ActivityBorderColor #7700FF
+skinparam ActivityDiamondBackgroundColor #E7DBFF
+skinparam ActivityDiamondBorderColor #7700FF
+skinparam ArrowColor #4A4360
+
+start
+:01 Найти ответственное лицо в вузе;
+:02 Уточнить актуальность ИТ-программ;
+:03 Организовать встречу с вузом;
+:04 Обменяться документами для подписания;
+if (Нужна корректировка?) then (да)
+  :05 Скорректировать документы;
+else (нет)
+endif
+:06 Подписать документы;
+:07 Передать материалы, лицензию и документацию;
+:08 Сопроводить внедрение ИТ-продукта;
+:09 Обучить преподавателей;
+:10 Актуализировать учебную программу;
+:11 Провести занятия;
+:12 Актуализировать документацию и материалы;
+:13 Организовать повышение квалификации;
+:14 Контролировать исполнение этапов;
+stop
+
+note right
+  Контроль, комментарии, файлы и история
+  ведутся на протяжении всего процесса.
+  Конкретные возвраты и пропуски задаёт
+  версия шаблона workflow.
+end note
+@enduml
