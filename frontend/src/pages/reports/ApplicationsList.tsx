@@ -9,7 +9,8 @@ import { listApplications } from "../../api/endpoints";
 import { usePrograms, useUniversities } from "../../api/queries";
 import type { Application } from "../../api/types";
 import { DataTable, Pager, type Column } from "../../components/DataTable";
-import { Card, EmptyState, ErrorState, Field, Loading, SearchInput, SelectField, StatusBadge } from "../../components/ui";
+import { FilterSelect } from "../../components/MultiSelect";
+import { Card, EmptyState, ErrorState, Field, Loading, SearchInput, StatusBadge } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
 import { usePersistentState } from "../../lib/storage";
 
@@ -101,21 +102,21 @@ export function ApplicationsList() {
         <Field label="Поиск" className="field--grow">
           <SearchInput value={search} onChange={setSearch} placeholder="ФИО, почта, телефон или номер заявки" />
         </Field>
-        <SelectField
+        <FilterSelect
           label="ИТ-программа"
           value={filters.program_id}
           onChange={(value) => update({ program_id: value })}
           placeholder="Все"
           options={(programs.data || []).map((item) => ({ value: item.id, label: item.name }))}
         />
-        <SelectField
+        <FilterSelect
           label="Вуз"
           value={filters.university_id}
           onChange={(value) => update({ university_id: value })}
           placeholder="Все"
           options={(universities.data || []).map((item) => ({ value: item.id, label: item.short_name || item.name }))}
         />
-        <SelectField
+        <FilterSelect
           label="Обучение"
           value={filters.enrolled}
           onChange={(value) => update({ enrolled: value })}

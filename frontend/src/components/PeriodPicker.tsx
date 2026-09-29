@@ -2,6 +2,7 @@
  * Период отчёта: готовые варианты и свои даты. Пустой период значит «за всё время».
  */
 import { Field } from "./ui";
+import { FilterSelect } from "./MultiSelect";
 import { toInputDate } from "../lib/format";
 
 export interface Period {
@@ -60,22 +61,14 @@ export function PeriodPicker({ value, onChange }: { value: Period; onChange: (va
   const selected = currentPreset(value);
   return (
     <>
-      <Field label="Период">
-        <select
-          className="control"
-          value={selected}
-          onChange={(event) => {
-            if (event.target.value !== "custom") onChange(preset(event.target.value));
-          }}
-        >
-          {PRESETS.map((item) => (
-            <option key={item.key} value={item.key}>
-              {item.label}
-            </option>
-          ))}
-          <option value="custom">Свои даты</option>
-        </select>
-      </Field>
+      <FilterSelect
+        label="Период"
+        value={selected}
+        onChange={(key) => {
+          if (key !== "custom") onChange(preset(key));
+        }}
+        options={[...PRESETS.map((item) => ({ value: item.key, label: item.label })), { value: "custom", label: "Свои даты" }]}
+      />
       <Field label="С">
         <input
           className="control"
