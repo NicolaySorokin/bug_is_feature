@@ -28,6 +28,7 @@ import { useSession } from "../auth/session";
 import { ChartCard } from "../charts/ChartCard";
 import { Button, Card, EmptyState, ErrorState, Kpi, KpiRow, Loading, PageHeader, StatusBadge } from "../components/ui";
 import { interactionTitle, SlaBlock, StatusCell, UniversityName } from "../features/interaction/parts";
+import { alertMeta } from "../lib/alerts";
 import { countLabel, formatDateTime, formatLongDate, formatNumber } from "../lib/format";
 import { IMPORT_TYPE_LABELS, RUN_TONE, SEVERITY_TONE } from "../lib/labels";
 import { usePageTitle } from "../lib/usePageTitle";
@@ -82,7 +83,8 @@ function StepRow({ item, reason }: { item: NextStep | ControlItem; reason?: stri
   );
 }
 
-function NextSteps({ items }: { items: NextStep[] }) {
+/** Сервер присылает только первые шаги по важности. Если своих взаимодействий больше, ведём в реестр. */
+function NextSteps({ items, total, registry }: { items: NextStep[]; total: number; registry: string }) {
   if (items.length === 0) {
     return (
       <EmptyState icon={CheckCircle2} title="Срочных шагов нет">
@@ -95,6 +97,14 @@ function NextSteps({ items }: { items: NextStep[] }) {
       {items.map((item) => (
         <StepRow key={item.interaction_id} item={item} />
       ))}
+      {total > items.length && (
+        <div className="table-footer">
+          <span>
+            Показано {formatNumber(items.length)} из {formatNumber(total)}
+          </span>
+          <Link to={registry}>Все в реестре</Link>
+        </div>
+      )}
     </div>
   );
 }
@@ -179,9 +189,7 @@ function AlertList({
             <div className="list-item__main">
               <strong style={{ whiteSpace: "normal" }}>{alert.kind_label}</strong>
               <small>{alert.message}</small>
-              <small title={alert.university_full_name || undefined}>
-                {[alert.university_name, alert.contract_number, alert.manager_name].filter(Boolean).join(" · ")}
-              </small>
+              <small title={alert.university_full_name || undefined}>{alertMeta(alert)}</small>
               <span style={{ marginTop: 4 }}>
                 <StatusBadge tone={SEVERITY_TONE[alert.severity]}>{alert.severity_label}</StatusBadge>
               </span>
@@ -487,6 +495,10 @@ export default function DashboardPage() {
   const chartKeys = head ? DASHBOARD_CHARTS_HEAD : DASHBOARD_CHARTS;
   const charts = chartKeys.flatMap((key) => (data.charts || []).filter((chart) => chart.key === key));
   const listByStatus = (status: string) => navigate(`/interactions?status=${status}`);
+  // У области «свои» фильтра по ответственному в реестре нет: там и так свои взаимодействия.
+  const myRegistry = `/interactions?status=draft,in_progress,blocked&order=attention${
+    data.scope === "own" ? "" : `&manager_id=${me.id}`
+  }`;
 
   return (
     <div className="page">
@@ -577,7 +589,7 @@ export default function DashboardPage() {
                   description="Ваши взаимодействия: статус, этап со следующим действием и срок этапа. Сначала заблокированные и просроченные."
                   flush
                 >
-                  <NextSteps items={data.next_steps || []} />
+                  <NextSteps items={data.next_steps || []} total={counters.mine_open} registry={myRegistry} />
                 </Card>
               ) : null}
               {head && (
