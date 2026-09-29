@@ -102,6 +102,10 @@ def _days_since(moment: datetime | None) -> int | None:
     return None if moment is None else (datetime.now(UTC) - moment).days
 
 
+def _days_since_date(day: date | None, today: date) -> int | None:
+    return None if day is None else max((today - day).days, 0)
+
+
 def _process_alerts(instance: WorkflowInstance, norms: Norms) -> list[Alert]:
     if instance.status == InteractionStatus.DRAFT:
         days = _days_since(instance.created_at)
@@ -207,6 +211,7 @@ def _interaction_alerts(instance: WorkflowInstance, today: date, norms: Norms) -
                     f"Договор действует, а внедрение не начато ни по одной "
                     f"из {len(instance.programs)} программ"
                 ),
+                days=_days_since_date(contract.signed_at or contract.valid_from, today),
                 **_base(instance),
             )
         )
@@ -256,7 +261,7 @@ async def _license_alerts(
 
 
 async def _document_alerts(
-    session: AsyncSession, by_id: dict[uuid.UUID, WorkflowInstance]
+    session: AsyncSession, by_id: dict[uuid.UUID, WorkflowInstance], today: date
 ) -> list[Alert]:
     """Не загружен обязательный документ этапа или скан действующего договора."""
     if not by_id:
@@ -301,6 +306,7 @@ async def _document_alerts(
                     subject="scan",
                     severity=AlertSeverity.INFO,
                     message="Договор действует, а его скан не приложен",
+                    days=_days_since_date(contract.signed_at or contract.valid_from, today),
                     **_base(instance),
                 )
             )
@@ -449,7 +455,7 @@ async def _collect_all(session: AsyncSession, principal: Principal, user: User) 
         found.extend(_process_alerts(instance, norms))
         found.extend(_interaction_alerts(instance, today, norms))
     found.extend(await _license_alerts(session, by_id, today, norms))
-    found.extend(await _document_alerts(session, by_id))
+    found.extend(await _document_alerts(session, by_id, today))
     found.extend(await _composition_alerts(session, by_id))
     if access.can(principal, user, Action.VIEW_INTEGRATION_LOG):
         found.extend(await _integration_alerts(session))

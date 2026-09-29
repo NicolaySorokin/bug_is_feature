@@ -1,20 +1,21 @@
 """Сборка файлов выгрузки так, чтобы интерфейс не ждал.
 
 Каждый процесс API собирает не больше EXPORT_CONCURRENCY файлов сразу,
-остальные ждут в очереди. Поток сборки работает с пониженным приоритетом,
-поэтому запросы интерфейса не тормозят даже при десяти отчётах сразу.
+остальные ждут в очереди. Файл собирается в отдельном процессе с пониженным
+приоритетом: в потоке API сборка держала бы GIL и тормозила интерфейс.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
-import threading
 import weakref
 from collections.abc import Callable
 from typing import Any, TypeVar
 
 import anyio
+import anyio.to_process
 
 from app.core.config import settings
 
@@ -37,26 +38,17 @@ def _limiter() -> anyio.CapacityLimiter:
     return limiter
 
 
-def _set_thread_priority(value: int) -> bool:
-    # В Linux приоритет задаётся каждому потоку отдельно.
-    try:
-        os.setpriority(os.PRIO_PROCESS, threading.get_native_id(), value)
-    except (AttributeError, OSError):
-        return False
-    return True
-
-
 def _in_background(function: Callable[..., T], *args: Any) -> T:
-    lowered = _set_thread_priority(NICE)
-    try:
-        return function(*args)
-    finally:
-        # Поток вернётся в общий пул, поэтому возвращаем обычный приоритет. Без прав
-        # на это поток так и останется фоновым.
-        if lowered:
-            _set_thread_priority(0)
+    # Процесс служит только выгрузкам, приоритет не возвращаем.
+    with contextlib.suppress(AttributeError, OSError):
+        os.setpriority(os.PRIO_PROCESS, 0, NICE)
+    return function(*args)
 
 
 async def run(function: Callable[..., T], *args: Any) -> T:
-    """Собирает файл в фоновом потоке с очередью и низким приоритетом."""
-    return await anyio.to_thread.run_sync(_in_background, function, *args, limiter=_limiter())
+    """Собирает файл в отдельном процессе с очередью и низким приоритетом.
+
+    Функция и аргументы уходят в процесс через pickle, поэтому функция
+    объявлена на уровне модуля.
+    """
+    return await anyio.to_process.run_sync(_in_background, function, *args, limiter=_limiter())
