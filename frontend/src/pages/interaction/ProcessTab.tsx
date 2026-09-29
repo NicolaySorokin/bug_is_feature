@@ -51,7 +51,8 @@ import {
 import { SlaMeter, slaRemainder, slaUsage } from "../../features/interaction/parts";
 import { ProcessCanvas } from "../../features/workflow/ProcessCanvas";
 import type { Point } from "../../features/workflow/layout";
-import { countLabel, DAYS, daysSince, fileSize, formatDateTime } from "../../lib/format";
+import { countLabel, DAYS, daysSince, fileSize, formatDate, formatDateTime } from "../../lib/format";
+import { readStored, usePersistentState, writeStored } from "../../lib/storage";
 import { CLOSURE_REASONS, DOCUMENT_TYPES, INTERACTION_TONE } from "../../lib/labels";
 
 type Dialog = { transition: Transition; skip: boolean } | null;
@@ -63,6 +64,15 @@ const STAGE_TONE = {
   skipped: "neutral",
   blocked: "error",
 } as const;
+
+// События, которые переводят процесс с этапа на этап.
+const MOVE_EVENTS = new Set(["started", "forward", "backward", "skipped"]);
+
+const LEFT_BY = { forward: "Завершил", backward: "Вернул", skipped: "Пропустил" } as Record<string, string>;
+
+function daysBetween(from: string, to: string): number {
+  return Math.max(0, Math.floor((Date.parse(to) - Date.parse(from)) / 86_400_000));
+}
 
 function newestEvent(view: WorkflowView) {
   return [...(view.events || [])].sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
@@ -113,12 +123,18 @@ function TransitionDialog({
   // Уйти с этапа вперёд можно, только когда загружены его обязательные документы.
   const forwardMove = Boolean(dialog && !dialog.skip && !dialog.transition.is_backward);
   const missing = forwardMove ? interaction.missing_documents || [] : [];
+  // Черновик комментария к переходу переживает закрытие окна и перезагрузку страницы.
+  const draftKey = dialog ? `draft.transition.${interaction.id}.${dialog.transition.id}${dialog.skip ? ".skip" : ""}` : null;
   useEffect(() => {
-    setComment("");
+    setComment(draftKey ? readStored(draftKey, "") : "");
     setFiles([]);
     setReason("");
     setDocumentType(((interaction.missing_documents || [])[0] as DocumentType | undefined) || "other");
-  }, [dialog, interaction.missing_documents]);
+  }, [draftKey, interaction.missing_documents]);
+  const changeComment = (value: string) => {
+    setComment(value);
+    if (draftKey) writeStored(draftKey, value || undefined);
+  };
 
   if (!dialog) return null;
   const stages = view.version.stages || [];
@@ -164,6 +180,7 @@ function TransitionDialog({
       setBusy(false);
       return;
     }
+    if (draftKey) writeStored(draftKey, undefined);
     // Переход уже сделан, сбой загрузки файла не повод его повторять. Окно закрывается, об ошибке
     // сообщаем отдельно.
     try {
@@ -227,7 +244,7 @@ function TransitionDialog({
           label={dialog.skip ? "Причина пропуска" : "Комментарий к переходу"}
           required={needsText}
           value={comment}
-          onChange={setComment}
+          onChange={changeComment}
           rows={3}
           maxLength={4000}
           placeholder={dialog.skip ? "Почему этап не нужен этому вузу" : "Что сделано, о чём договорились"}
@@ -342,7 +359,7 @@ function StagePanel({
   const confirm = useConfirm();
   const toast = useToast();
   const [download] = useDownload();
-  const [note, setNote] = useState("");
+  const [note, setNote, clearNote] = usePersistentState(`draft.stage.${interaction.id}.${stage.id}`, "");
   const [files, setFiles] = useState<File[]>([]);
   const [documentType, setDocumentType] = useState<DocumentType>("other");
   const [busy, setBusy] = useState(false);
@@ -379,6 +396,14 @@ function StagePanel({
   const blockEvent = [...(view.events || [])]
     .filter((event) => event.event_type === "blocked")
     .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  // Последний заход на этап и уход с него: сколько этап занял и кто его закрыл.
+  const moves = (view.events || [])
+    .filter((event) => MOVE_EVENTS.has(event.event_type))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const enteredAt = moves.map((event) => event.to_stage_id).lastIndexOf(stage.id);
+  const entered = enteredAt >= 0 ? moves[enteredAt] : undefined;
+  const left = entered ? moves.slice(enteredAt + 1).find((event) => event.from_stage_id === stage.id) : undefined;
+  const spent = entered && left ? daysBetween(entered.created_at, left.created_at) : null;
 
   const block = useApiMutation((reason: string) => blockInteraction(interaction.id, reason), {
     success: "Взаимодействие заблокировано",
@@ -399,7 +424,7 @@ function StagePanel({
       if (text) {
         await createComment(interaction.id, text, arrival.id);
         saved = true;
-        setNote("");
+        clearNote();
       }
       for (const file of files) {
         await uploadAttachment(interaction.id, file, arrival.id, documentType);
@@ -456,6 +481,17 @@ function StagePanel({
               </span>
             ))}
           </div>
+          {isCurrent && (view.status === "in_progress" || view.status === "blocked") && (
+            <span className="muted">Ответственный: {interaction.manager?.full_name || "не назначен"}</span>
+          )}
+          {!isCurrent && entered && left && spent !== null && (
+            <span className="muted">
+              На этапе {spent === 0 ? "меньше дня" : countLabel(spent, DAYS)} · с {formatDate(entered.created_at)} по{" "}
+              {formatDate(left.created_at)}
+              <br />
+              {LEFT_BY[left.event_type] || "Перевёл"}: {left.user?.full_name || "система"}
+            </span>
+          )}
           {(view.status === "in_progress" || view.status === "blocked") &&
             (sla ? (
               <div className="stack-s" style={{ gap: 4 }}>
@@ -814,6 +850,7 @@ export function ProcessTab({
         <div className="stage-panel">
           {stage && (
             <StagePanel
+              key={stage.id}
               view={view}
               stage={stage}
               interaction={interaction}
