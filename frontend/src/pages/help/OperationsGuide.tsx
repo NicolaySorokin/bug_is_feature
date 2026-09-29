@@ -1,4 +1,4 @@
-/** Руководство по установке и эксплуатации: состав, обновление, резервные копии. */
+/** Руководство системного администратора по установке и эксплуатации: состав, обновление, резервные копии. */
 import type { Section } from "./HelpPage";
 import { Note, Shot } from "./HelpPage";
 
@@ -62,7 +62,7 @@ export function OperationsGuide(): Section[] {
               Swagger UI
             </a>{" "}
             (<code>/docs</code>) и ReDoc (<code>/redoc</code>), схема - <code>/api/v1/openapi.json</code>. Модель архитектуры в
-            нотации ArchiMate (Archi) - <code>docs/architecture/edu-crm.archimate</code> в репозитории.
+            нотации ArchiMate (Archi) входит в состав поставки.
           </p>
         </>
       ),
@@ -72,10 +72,7 @@ export function OperationsGuide(): Section[] {
       title: "Установка",
       body: (
         <>
-          <p>
-            Сервер: Linux x86-64, 2 vCPU, 4 ГБ памяти (под нагрузкой из ТЗ занято около 1,5 ГБ), 20 ГБ диска; Docker 24+ с Compose
-            v2, make.
-          </p>
+          <p>Сервер: Linux x86-64, 2 vCPU, 4 ГБ памяти, 20 ГБ диска; Docker 24+ с Compose v2, make.</p>
           <pre>
             <code>{`git clone <репозиторий> edu-crm && cd edu-crm
 cp cicd/prod/.env.example cicd/prod/.env   # задайте пароли и адреса
