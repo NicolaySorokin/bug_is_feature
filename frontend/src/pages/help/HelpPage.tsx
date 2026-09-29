@@ -11,7 +11,7 @@ import { usePageTitle } from "../../lib/usePageTitle";
 import { AdminGuide } from "./AdminGuide";
 import { HeadGuide } from "./HeadGuide";
 import { ManagerGuide } from "./ManagerGuide";
-import { SysadminGuide } from "./SysadminGuide";
+import { OperationsGuide } from "./OperationsGuide";
 
 export interface Section {
   id: string;
@@ -85,7 +85,7 @@ const GUIDES = {
   manager: ManagerGuide,
   head: HeadGuide,
   admin: AdminGuide,
-  sysadmin: SysadminGuide,
+  operations: OperationsGuide,
 };
 
 export default function HelpPage() {
@@ -99,18 +99,18 @@ export default function HelpPage() {
     { key: "manager", label: "Менеджеру", icon: BookOpen, hidden: false },
     { key: "head", label: "Руководителю", icon: Users, hidden: !(roles.includes("head") || admin) },
     { key: "admin", label: "Администратору", icon: ShieldCheck, hidden: !admin },
-    { key: "sysadmin", label: "Системному администратору", icon: Wrench, hidden: !admin },
+    { key: "operations", label: "Установка и эксплуатация", icon: Wrench, hidden: !admin },
   ] as const;
   // Без выбора открывается руководство своей роли. Старая ссылка /help/user ведёт к руководству менеджера.
   const own = roles.includes("head") ? "head" : roles.includes("manager") || !admin ? "manager" : "admin";
-  const requested = guide === "user" ? "manager" : guide;
+  const requested = guide === "user" ? "manager" : guide === "sysadmin" ? "operations" : guide;
   const current = guides.find((item) => item.key === requested && !item.hidden)?.key || own;
   const sections = GUIDES[current]();
 
   return (
     <div className="page">
       {/* Без подзаголовка: про доступ сказано в разделе «Роли и права», а ссылка на Swagger UI есть
-в руководстве системного администратора. */}
+в руководстве по установке и эксплуатации. */}
       <PageHeader title="Руководства" />
       <Tabs
         value={current}
