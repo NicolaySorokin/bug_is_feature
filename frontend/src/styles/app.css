@@ -1447,6 +1447,10 @@ select.control--s {
   position: relative;
 }
 
+.multi.is-open {
+  z-index: 61;
+}
+
 .multi__button {
   display: flex;
   width: 100%;
@@ -1513,6 +1517,7 @@ select.control--s {
 
 .multi__panel {
   width: max(100%, 300px);
+  max-width: calc(100vw - 32px);
   padding: 8px;
 }
 
@@ -3522,6 +3527,13 @@ a.list-item:hover {
   border: 1px solid var(--line);
   border-radius: var(--radius-m);
   box-shadow: var(--shadow-card);
+}
+
+/* Снимок узкого мобильного экрана не должен растягиваться на всю ширину справки. */
+.article figure.shot--mobile img {
+  width: min(45%, 420px);
+  min-width: min(260px, 100%);
+  margin-inline: auto;
 }
 
 .article figcaption {

@@ -26,19 +26,20 @@ export function MultiSelect({
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const id = useId();
+  const panelId = `${id}-listbox`;
 
   useEffect(() => {
     if (!open) return;
-    const onPointer = (event: PointerEvent) => {
+    const onDocumentClick = (event: MouseEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
-    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("click", onDocumentClick);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("click", onDocumentClick);
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
@@ -62,20 +63,27 @@ export function MultiSelect({
 
   return (
     <Field label={label} hint={hint} htmlFor={id} className={className}>
-      <div className="multi" ref={rootRef}>
+      <div className={`multi ${open ? "is-open" : ""}`} ref={rootRef}>
         <button
           id={id}
           type="button"
           className="multi__button"
           aria-haspopup="listbox"
           aria-expanded={open}
+          aria-controls={panelId}
           onClick={() => setOpen((current) => !current)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setOpen(true);
+            }
+          }}
         >
           <span className={`multi__value ${summary ? "" : "multi__placeholder"}`}>{summary || placeholder}</span>
           {labels.length > 1 && <span className="multi__count">{labels.length}</span>}
         </button>
         {open && (
-          <div className="popover multi__panel" role="listbox" aria-multiselectable="true">
+          <div id={panelId} className="popover multi__panel" role="listbox" aria-multiselectable="true">
             {options.length > 8 && (
               <input
                 className="control control--s"

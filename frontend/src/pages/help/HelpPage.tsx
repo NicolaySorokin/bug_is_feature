@@ -19,9 +19,9 @@ export interface Section {
   body: ReactNode;
 }
 
-export function Shot({ src, caption }: { src: string; caption: string }) {
+export function Shot({ src, caption, className }: { src: string; caption: string; className?: string }) {
   return (
-    <figure>
+    <figure className={className}>
       <img src={`/help/${src}`} alt={caption} loading="lazy" />
       <figcaption>{caption}</figcaption>
     </figure>
